@@ -1,11 +1,14 @@
-use crate::log::log_str;
+use crate::log::{log_str, log_1};
 use crate::vector::Vec2;
 use crate::matrix::Transform;
 use crate::glyph_shader::{GlyphShader, TextShader};
 use crate::line_shader::LineShader;
 use crate::font::{Glyph, Font};
 
+
+
 use wasm_bindgen::prelude::*;
+use js_sys::{ArrayBuffer, Uint8Array};
 use web_sys::{WebGlTexture, WebGlRenderingContext};
 
 #[wasm_bindgen]
@@ -140,12 +143,30 @@ impl Context {
         self.add_blend_mode();
         self.render_to_texture(&self.glyph_buffer);
         self.webgl_context.viewport(0, 0, self.pixel_width(), self.pixel_height());
-        self.clear();
+        self.webgl_context.clear_color(0.0, 0.0, 0.0, 1.0);
+        self.webgl_context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT); 
+
         let mut transform = self.transform();
         transform.translate(x, y);
-        transform.scale(scale, scale);
-        self.glyph_shader.draw(transform, glyph)?;
+        self.glyph_shader.draw(transform, glyph, scale, self.density)?;
 
+        let read_width = 68;
+        let read_height = 86;
+        let array_buffer = ArrayBuffer::new(68 * 86 * 4);
+        let u8_view = Uint8Array::new(&array_buffer);
+        self.webgl_context.read_pixels_with_opt_array_buffer_view(
+            0, 0,
+            read_width, read_height,
+            WebGlRenderingContext::RGBA,
+            WebGlRenderingContext::UNSIGNED_BYTE,
+            Some(&u8_view)
+        )?;
+        log_1(&u8_view);
+
+
+
+        transform.scale(scale, scale);
+        self.webgl_context.blend_func(WebGlRenderingContext::ZERO, WebGlRenderingContext::SRC_COLOR);
         self.render_to_canvas();
         
         self.webgl_context.active_texture(WebGlRenderingContext::TEXTURE0);

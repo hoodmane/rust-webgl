@@ -5,6 +5,7 @@ use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
 use crate::rect::Rect;
 
+
 use wasm_bindgen::JsValue;
 use web_sys::WebGlRenderingContext;
 
@@ -64,7 +65,7 @@ impl GlyphShader {
 
                     // Upper 4 bits: front faces
                     // Lower 4 bits: back faces
-                    gl_FragColor = uColor * (1.0/255.0); //((gl_FrontFacing ? 16.0 : 1.0) / 255.0);
+                    gl_FragColor = uColor * ((gl_FrontFacing ? 16.0 : 1.0) / 255.0);
                 }
             "#
         )?;
@@ -74,28 +75,20 @@ impl GlyphShader {
         })
     }
 
-    // pub fn draw(&self, transform : Transform, glyph : &Glyph, scale : f32, pixel_density : i32) -> Result<(), JsValue> {
-    pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
+    // pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
+    pub fn draw(&self, transform : Transform, glyph : &Glyph, scale : f32, pixel_density : i32) -> Result<(), JsValue> {
         self.shader.use_program();
         let vertices = glyph.vertices();
         self.shader.set_data("aVertexPosition", &*vertices)?;
-        // let mut cur_transform = transform;
-        // cur_transform.translate_vec(offset * (1.0 / pixel_density as f32));
-        // cur_transform.scale(scale, scale);
-        // self.shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
-        self.shader.set_uniform_transform("uTransformationMatrix", transform);
-        // self.shader.set_uniform_vec4("uColor", color);
-        self.shader.set_uniform_vec4("uColor", Vec4::new(1.0, 1.0, 1.0, 1.0));
-        self.shader.draw(vertices.len());
-
-        // for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
-        //     let mut cur_transform = transform;
-        //     cur_transform.translate_vec(offset * (1.0 / pixel_density as f32));
-        //     cur_transform.scale(scale, scale);
-        //     self.shader.set_uniform_vec4("uColor", color);
-        //     self.shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
-        //     self.shader.draw(vertices.len());
-        // }
+        for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
+            let mut cur_transform = transform;
+            cur_transform.translate_vec(offset * (1.0 / pixel_density as f32));
+            cur_transform.scale(scale, scale);
+            self.shader.set_uniform_vec4("uColor", color);
+            // self.shader.set_uniform_vec4("uColor", Vec4::new(2.0, 2.0, 2.0, 2.0));
+            self.shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
+            self.shader.draw(vertices.len());
+        }
         Ok(())
     }
 }
@@ -126,8 +119,6 @@ impl TextShader {
                     );
                     // The coordinate system for writing 
                     vTextureCoord = (gl_Position.xy + 1.0) * 0.5;                    
-                    // vTextureCoord = aVertexPosition;
-                //     vTextureCoord = mix(uBoundingBox.xy, uBoundingBox.zw, aVertexPosition);
                 }
             "#,
             r#"
@@ -137,32 +128,32 @@ impl TextShader {
                 uniform vec4 uColor;
                 varying vec2 vTextureCoord;
                 void main() {
-                    float should_draw =  mod(texture2D(uTexture, vTextureCoord).x * 255.0, 2.0);
-                    if(should_draw == 0.0){
-                        discard;
-                    }
-                    gl_FragColor = vec4(0.2, 0.7, 0.7, 1);
+                    // float should_draw =  mod(texture2D(uTexture, vTextureCoord).x * 255.0, 2.0);
+                    // if(should_draw == 0.0){
+                    //     discard;
+                    // }
+                    // gl_FragColor = vec4(0.2, 0.7, 0.7, 1);
                     
-                    // vec2 valueL = texture2D(uTexture, vec2(vTextureCoord.x + dFdx(vTextureCoord.x), vTextureCoord.y)).yz * 255.0;
-                    // vec2 lowerL = mod(valueL, 16.0);
-                    // vec2 upperL = (valueL - lowerL) / 16.0;
-                    // vec2 alphaL = min(abs(upperL - lowerL), 2.0);
+                    vec2 valueL = texture2D(uTexture, vec2(vTextureCoord.x + dFdx(vTextureCoord.x), vTextureCoord.y)).yz * 255.0;
+                    vec2 lowerL = mod(valueL, 16.0);
+                    vec2 upperL = (valueL - lowerL) / 16.0;
+                    vec2 alphaL = min(abs(upperL - lowerL), 2.0);
                 
-                    // // Get samples for 0, +1/3, and +2/3
-                    // vec3 valueR = texture2D(uTexture, vTextureCoord).xyz * 255.0;
-                    // vec3 lowerR = mod(valueR, 16.0);
-                    // vec3 upperR = (valueR - lowerR) / 16.0;
-                    // vec3 alphaR = min(abs(upperR - lowerR), 2.0);
+                    // Get samples for 0, +1/3, and +2/3
+                    vec3 valueR = texture2D(uTexture, vTextureCoord).xyz * 255.0;
+                    vec3 lowerR = mod(valueR, 16.0);
+                    vec3 upperR = (valueR - lowerR) / 16.0;
+                    vec3 alphaR = min(abs(upperR - lowerR), 2.0);
                 
-                    // // Average the energy over the pixels on either side
-                    // vec4 rgba = vec4(
-                    //     (alphaR.x + alphaR.y + alphaR.z) / 6.0,
-                    //     (alphaL.y + alphaR.x + alphaR.y) / 6.0,
-                    //     (alphaL.x + alphaL.y + alphaR.x) / 6.0,
-                    //     0.0);
+                    // Average the energy over the pixels on either side
+                    vec4 rgba = vec4(
+                        (alphaR.x + alphaR.y + alphaR.z) / 6.0,
+                        (alphaL.y + alphaR.x + alphaR.y) / 6.0,
+                        (alphaL.x + alphaL.y + alphaR.x) / 6.0,
+                        0.0);
                 
-                    // // Optionally scale by a color
-                    // gl_FragColor = uColor.a == 0.0 ? 1.0 - rgba : uColor * rgba;
+                    // Optionally scale by a color
+                    gl_FragColor = uColor.a == 0.0 ? 1.0 - rgba : uColor * rgba;
                 }
             "#
         )?;

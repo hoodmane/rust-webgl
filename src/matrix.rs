@@ -169,7 +169,126 @@ impl Transform {
 
 
 
+// impl Transform {
+//     pub fn new() -> Self {
+//         let data = [
+//             1.0, 0.0, 0.0,
+//             0.0, 1.0, 0.0,
+//             0.0, 0.0, 1.0
+//         ];
+//         Self {
+//             data
+//         }
+//     }
 
+
+//     // translate on the right?
+// 	pub fn translate(&self, x : f32, y : f32) -> Self {
+//         let [
+//             m00, m10, _,
+//             m01, m11, _,
+//             mut m02, mut m12, _
+//         ] = self.data;
+//         m02 += x * m00 + y * m01;
+//         m12 += x * m10 + y * m11;
+//         Self { data : [
+//                 m00, m10, 0.0,
+//                 m01, m11, 0.0,
+//                 m02, m12, 1.0
+//         ]}
+//     }
+    
+//     // rotate on the left?
+// 	pub fn rotate(&self, radians : f32) -> Self {
+//         let (s, c) = radians.sin_cos();
+//         let [
+//             m00, m10, _,
+//             m01, m11, _,
+//             m02, m12, _
+//         ] = self.data;        
+// 		let v00 = c * m00 + s * m01;
+// 		let v01 = c * m01 - s * m00;
+// 		let v10 = c * m10 + s * m11;
+//         let v11 = c * m11 - s * m10;
+//         Self { data : [
+//                 v00, v10, 0.0,
+//                 v01, v11, 0.0,
+//                 m02, m12, 1.0
+//         ]}
+// 	}
+
+// 	pub fn scale_one(&self, d : f32) -> Self {
+// 		self.scale(d, d)
+// 	}
+
+
+//     // Scale on the left?
+// 	pub fn scale(&self, x : f32, y : f32) -> Self  {
+//         let [
+//             mut m00, mut m10, _,
+//             mut m01, mut m11, _,
+//             m02, m12, _
+//         ] = self.data;
+//         m00 *= x;
+//         m01 *= x;
+//         m10 *= y;
+//         m11 *= y;
+//         Self { data : [
+//             m00, m10, 0.0,
+//             m01, m11, 0.0,
+//             m02, m12, 1.0
+//         ]}
+// 	}
+
+// 	pub fn multiply(&self, t : &Transform) -> Self {
+//         let [
+//             m00, m10, _,
+//             m01, m11, _,
+//             m02, m12, _
+//         ] = self.data;
+//         let [
+//             t_m00, t_m10, _,
+//             t_m01, t_m11, _,
+//             t_m02, t_m12, _
+//         ] = t.data;        
+// 		Self { data : [
+//             m00 * t_m00 + m01 * t_m10,
+// 			m10 * t_m00 + m11 * t_m10,
+//             0.0,
+
+// 			m00 * t_m01 + m01 * t_m11,
+// 			m10 * t_m01 + m11 * t_m11,
+//             0.0,
+            
+//             m00 * t_m02 + m01 * t_m12 + m02,
+//             m10 * t_m02 + m11 * t_m12 + m12,
+//             1.0
+//         ]}
+// 	}
+
+// 	pub fn invert(&self) -> Result<Self, ()> {
+//         let [
+//             m00, m10, _,
+//             m01, m11, _,
+//             m02, m12, _
+//         ] = self.data;
+//         let determinant = 1.0 / (m00 * m11 - m01 * m10);
+// 		if !determinant.is_finite() {
+// 			return Err(());
+// 		}
+// 		Ok(Self { data : [
+//             m11 * determinant,
+// 			-m10 * determinant,
+//             0.0,
+// 			-m01 * determinant,
+// 			m00 * determinant,
+//             0.0,
+// 			(m01 * m12 - m11 * m02) * determinant,
+//             (m10 * m02 - m00 * m12) * determinant,
+//             1.0,
+//         ]})
+// 	}
+// }
 
 
 #[derive(Copy, Clone)]
