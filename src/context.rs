@@ -143,11 +143,10 @@ impl Context {
         self.clear();
         let mut transform = self.transform();
         transform.translate(x, y);
-        self.glyph_shader.draw(transform, glyph, scale, self.density)?;
         transform.scale(scale, scale);
+        self.glyph_shader.draw(transform, glyph)?;
 
         self.render_to_canvas();
-        self.copy_blend_mode();
         
         self.webgl_context.active_texture(WebGlRenderingContext::TEXTURE0);
         self.webgl_context.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&self.glyph_buffer));
@@ -170,7 +169,12 @@ impl Context {
 
     pub fn draw_line(&self, px : f32, py : f32, qx : f32, qy : f32, thickness : f32) -> Result<(), JsValue> {
         let mut line_shader = LineShader::new(self.webgl_context.clone())?;
-        line_shader.add_line(Vec2::new(px, py), Vec2::new(qx, qy), thickness);
+        let p = Vec2::new(px, py);
+        let q = Vec2::new(qx, qy);
+        line_shader.add_line(p, q, thickness);
+        let transform = self.transform();
+        log_str(&format!("p : {:?}", transform.transform_point(p)));
+        log_str(&format!("q : {:?}", transform.transform_point(q)));
         self.copy_blend_mode();
         self.render_to_canvas();
         line_shader.draw(self.transform())?;
