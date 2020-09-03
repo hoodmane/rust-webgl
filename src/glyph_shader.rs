@@ -76,13 +76,13 @@ impl GlyphShader {
     }
 
     // pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
-    pub fn draw(&self, transform : Transform, glyph : &Glyph, scale : f32, pixel_density : i32) -> Result<(), JsValue> {
+    pub fn draw(&self, transform : Transform, glyph : &Glyph, scale : f32, pixel_density : f64) -> Result<(), JsValue> {
         self.shader.use_program();
         let vertices = glyph.vertices();
         self.shader.set_data("aVertexPosition", &*vertices)?;
         for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
             let mut cur_transform = transform;
-            cur_transform.translate_vec(offset * (1.0 / pixel_density as f32));
+            cur_transform.translate_vec(offset * ((1.0 / pixel_density) as f32));
             cur_transform.scale(scale, scale);
             self.shader.set_uniform_vec4("uColor", color);
             // self.shader.set_uniform_vec4("uColor", Vec4::new(2.0, 2.0, 2.0, 2.0));

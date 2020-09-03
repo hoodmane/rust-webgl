@@ -21,10 +21,7 @@ use crate::vector::*;
 
 use crate::cubic_shader::CubicBezierShader;
 use crate::arc_shader::ArcShader;
-use crate::line_shader::LineShader;
-use crate::glyph_shader::{GlyphShader, TextShader};
 use crate::context::Context;
-use crate::matrix::Transform;
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -49,80 +46,6 @@ pub fn get_context() -> Result<Context, JsValue> {
     let context = Context::new(get_webgl_context()?)?;
     Ok(context)
 }
-
-
-#[wasm_bindgen]
-pub async fn draw_letter(idx : u16) -> Result<(), JsValue> { 
-    // let context = get_webgl_context()?;
-    // // gl.viewport(0, 0, glCanvas.width, glCanvas.height);
-    // let font = font::read_font().await?;
-    // context.clear_color(0.0, 0.0, 0.0, 1.0);
-    // context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-
-    // let width = context.drawing_buffer_width();
-    // let height = context.drawing_buffer_height();
-    // let texture = context.create_texture();
-    // context.bind_texture(WebGlRenderingContext::TEXTURE_2D, texture.as_ref());
-    // context.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MAG_FILTER, WebGlRenderingContext::NEAREST as i32);
-    // context.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MIN_FILTER, WebGlRenderingContext::NEAREST as i32);
-    // context.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_S, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
-    // context.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_T, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
-    // context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-    //     WebGlRenderingContext::TEXTURE_2D, // target
-    //     0, // level
-    //     WebGlRenderingContext::RGBA as i32, //internal format, specifies the color components in the texture.
-    //     width, height, 
-    //     0, // border "Must be 0."
-    //     WebGlRenderingContext::RGBA, // format, must be same as internal format (but apparently this time it's a u32????)
-    //     WebGlRenderingContext::UNSIGNED_BYTE, // type: specifying the data type of the texel data
-    //     None // u8 array source
-    // )?;
-
-    // context.enable(WebGlRenderingContext::BLEND);
-    // context.blend_func(WebGlRenderingContext::ONE, WebGlRenderingContext::ONE);
-
-
-
-
-
-    // // Set render target
-    // let framebuffer = context.create_framebuffer();
-    // context.bind_framebuffer(WebGlRenderingContext::FRAMEBUFFER, framebuffer.as_ref());
-    // context.framebuffer_texture_2d(
-    //     WebGlRenderingContext::FRAMEBUFFER, 
-    //     WebGlRenderingContext::COLOR_ATTACHMENT0, 
-    //     WebGlRenderingContext::TEXTURE_2D, 
-    //     texture.as_ref(), 0
-    // );
-    
-    // context.clear_color(0.0, 0.0, 0.0, 0.0);
-    // context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-
-
-
-    // let glyph_shader = GlyphShader::new(context.clone())?;
-    // let a_glyph = font.glyph(idx)?;
-    // glyph_shader.draw(Transform::new(), a_glyph)?;
-
-    
-    // context.bind_framebuffer(WebGlRenderingContext::FRAMEBUFFER, None);
-
-
-    // context.disable(WebGlRenderingContext::BLEND);
-
-    // context.active_texture(WebGlRenderingContext::TEXTURE0);
-    // context.bind_texture(WebGlRenderingContext::TEXTURE_2D, texture.as_ref());
-
-
-    // // context.get_uniform_location
-    // // context.uniform1i(programInfo.uniformLocations.uSampler, 0);
-    // let text_shader = TextShader::new(context.clone())?;
-    // text_shader.draw(&a_glyph, 0.0, 0.0, 1.0)?;
-
-    Ok(()) 
-}
-
-
 
 
 fn get_webgl_context() -> Result<WebGlRenderingContext, JsValue> {

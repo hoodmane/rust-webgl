@@ -1,4 +1,4 @@
-use crate::log::{log_str, log_1};
+use crate::log::{log_str };
 use crate::vector::Vec2;
 use crate::matrix::Transform;
 use crate::glyph_shader::{GlyphShader, TextShader};
@@ -8,8 +8,8 @@ use crate::font::{Glyph, Font};
 
 
 use wasm_bindgen::prelude::*;
-use js_sys::{ArrayBuffer, Uint8Array};
-use web_sys::{WebGlTexture, WebGlRenderingContext};
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlCanvasElement, WebGlTexture, WebGlRenderingContext};
 
 #[wasm_bindgen]
 pub struct Context {
@@ -20,7 +20,7 @@ pub struct Context {
     glyph_buffer : WebGlTexture,
     width : i32,
     height : i32,
-    density : i32
+    density : f64
 }
 
 impl Context {
@@ -30,7 +30,7 @@ impl Context {
         let text_shader = TextShader::new(webgl_context.clone())?;
         let width = webgl_context.drawing_buffer_width();
         let height = webgl_context.drawing_buffer_height();
-        let density = web_sys::window().unwrap().device_pixel_ratio() as i32;
+        let density = web_sys::window().unwrap().device_pixel_ratio();
         Ok(Self {
             webgl_context,
             transform : Transform::new(),
@@ -47,12 +47,24 @@ impl Context {
         &self.webgl_context
     }
 
+    pub fn resize(&mut self, width : i32, height : i32, density : f64) -> Result<(), JsValue> {
+        self.width = width;
+        self.height = height;
+        self.density = density;
+        let canvas_elt = self.webgl_context.canvas().unwrap().dyn_into::<HtmlCanvasElement>()?;
+        canvas_elt.style().set_property("width", &format!("{}px", self.width))?;
+        canvas_elt.style().set_property("height", &format!("{}px", self.height))?;
+        canvas_elt.set_width(self.pixel_width() as u32);
+        canvas_elt.set_height(self.pixel_height() as u32);
+        Ok(())
+    }
+
     pub fn pixel_width(&self) -> i32 {
-        self.width * self.density
+        (self.width as f64 * self.density) as i32
     }
 
     pub fn pixel_height(&self) -> i32 {
-        self.height * self.density
+        (self.height as f64 * self.density) as i32
     }
 
     pub fn transform(&self) -> Transform {
@@ -64,17 +76,18 @@ impl Context {
     }
 
     pub fn start_frame(&mut self) -> Result<(), JsValue> {
-        let ctx = &self.webgl_context;
-        self.width = ctx.drawing_buffer_width();
-        self.height = ctx.drawing_buffer_height();
-        self.density = web_sys::window().unwrap().device_pixel_ratio() as i32;
+        self.resize(
+            self.width,
+            self.height,
+            web_sys::window().unwrap().device_pixel_ratio()
+        )?;
         let mut transform = Transform::new();
-        transform.translate(-1.0, 0.0);
-        transform.scale(1.0/ (self.width as f32), -1.0/(self.height as f32));
+        transform.translate(-1.0, 1.0);
+        transform.scale(2.0/ (self.width as f32), -2.0/(self.height as f32));
         self.transform = transform;
         self.render_to_canvas();
-        ctx.viewport(0, 0, self.pixel_width(), self.pixel_height());
-        ctx.disable(WebGlRenderingContext::BLEND);
+        self.webgl_context.viewport(0, 0, self.pixel_width(), self.pixel_height());
+        self.webgl_context.disable(WebGlRenderingContext::BLEND);
         self.clear();
         self.glyph_buffer = self.create_texture(self.pixel_width(), self.pixel_height())?;
         Ok(())
@@ -149,21 +162,6 @@ impl Context {
         let mut transform = self.transform();
         transform.translate(x, y);
         self.glyph_shader.draw(transform, glyph, scale, self.density)?;
-
-        let read_width = 68;
-        let read_height = 86;
-        let array_buffer = ArrayBuffer::new(68 * 86 * 4);
-        let u8_view = Uint8Array::new(&array_buffer);
-        self.webgl_context.read_pixels_with_opt_array_buffer_view(
-            0, 0,
-            read_width, read_height,
-            WebGlRenderingContext::RGBA,
-            WebGlRenderingContext::UNSIGNED_BYTE,
-            Some(&u8_view)
-        )?;
-        log_1(&u8_view);
-
-
 
         transform.scale(scale, scale);
         self.webgl_context.blend_func(WebGlRenderingContext::ZERO, WebGlRenderingContext::SRC_COLOR);

@@ -16,9 +16,11 @@ once_cell="1.4.1"
 [dependencies.web-sys]
 version = "0.3.44"
 features = [
+  'CssStyleDeclaration',
   'Document',
   'Element', 
   'HtmlCanvasElement',
+  'HtmlElement',
   'Response',
   'WebGlActiveInfo',
   'WebGlBuffer',
