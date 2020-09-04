@@ -12,6 +12,7 @@ js-sys = "0.3.44"
 wasm-bindgen = "0.2.67"
 wasm-bindgen-futures = "0.4.17"
 once_cell="1.4.1"
+uuid = { version = "0.8", features = ["wasm-bindgen", "v4"] }
 
 [dependencies.web-sys]
 version = "0.3.44"
@@ -25,7 +26,7 @@ features = [
   'WebGlActiveInfo',
   'WebGlBuffer',
   'WebGlFramebuffer',
-  'WebGlTexture',
+  'WebGlTexture',   
   'WebGl2RenderingContext',
   'WebGlProgram',
   'WebGlShader',

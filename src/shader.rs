@@ -1,7 +1,6 @@
 use crate::vector::{Vec2, Vec3, Vec4};
 use crate::matrix::{Matrix3, Transform};
-
-use std::collections::BTreeMap;
+use uuid::Uuid;
 
 use wasm_bindgen::JsValue;
 use web_sys::{
@@ -12,24 +11,60 @@ use web_sys::{
     WebGlVertexArrayObject
 };
 
+pub struct Geometry {
+    attribute_state : WebGlVertexArrayObject,
+    buffers : Vec<WebGlBuffer>,
+    buffer_sizes :  Vec<usize>,
+    shader_uuid : Uuid
+}
+
+impl Geometry {
+    fn num_vertices(&self) -> Result<i32, JsValue> {
+        let result = {
+            let mut result = usize::MAX;
+            for &buffer_size in &self.buffer_sizes {
+                if buffer_size < usize::MAX {
+                    result = buffer_size;
+                    break;
+                }
+            }
+            result
+        };
+        if result == usize::MAX {
+            return Err(JsValue::from_str(&format!(
+                "No active attributes"
+            )));
+        }
+        for &buffer_size in &self.buffer_sizes {
+            if buffer_size < usize::MAX && buffer_size != result {
+                return Err(JsValue::from_str(&format!(
+                    "Not all buffers are sized compatibly: one buffer has size {} but another has size {}.", 
+                    result, buffer_size
+                )));
+            }
+        }
+        Ok(result as i32)
+    }
+}
+
 
 #[derive(Debug)]
 struct Attribute {
     name : String,
     attribute_type : u32,
     size : i32,
-    loc : i32,
-    buffer_size : usize,
+    loc : u32,
+    instance_divisor : u32
 }
 
 impl Attribute {
-    fn new() -> Self {
+    fn dummy() -> Self {
         Attribute {
             name : String::new(),
             attribute_type : u32::MAX,
             size : -1,
-            loc : -1,
-            buffer_size : usize::MAX,
+            loc : u32::MAX,
+            instance_divisor : 0
         }
     }
     
@@ -39,8 +74,7 @@ pub struct Shader {
     pub context : WebGl2RenderingContext,
     program : WebGlProgram,
     attributes : Vec<Attribute>,
-    attribute_state : WebGlVertexArrayObject,
-    buffers : Vec<WebGlBuffer>,
+    uuid : Uuid
 }
 
 impl Shader {
@@ -59,63 +93,88 @@ impl Shader {
         let num_attributes = context.get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_ATTRIBUTES)
             .as_f64().ok_or("failed to get number of attributes")?
             as u32;
-        let attribute_state = context.create_vertex_array().unwrap();
-        let mut buffers = Vec::new();
         let mut attributes = Vec::new();
         for _ in 0..num_attributes {
-            attributes.push(Attribute::new());
-            buffers.push(context.create_buffer().ok_or("failed to create buffer")?);
+            attributes.push(Attribute::dummy());
         }
         Ok(Shader {
             context, 
             program,
             attributes,
-            attribute_state,
-            buffers,
+            uuid : Uuid::new_v4()
         })
     }
 
-    pub fn add_attribute_float(&mut self, name : &str) -> Result<(), JsValue> {
-        self.add_attribute(name, 1, WebGl2RenderingContext::FLOAT)?;
-        Ok(())
+    pub fn create_geometry(&self) -> Result<Geometry, JsValue> {
+        let attribute_state = self.context.create_vertex_array().unwrap();
+        let mut buffers = Vec::new();
+        let mut buffer_sizes = vec![usize::MAX; self.attributes.len()];
+        self.context.bind_vertex_array(Some(&attribute_state));
+        for attribute in &self.attributes {
+            let buffer = self.context.create_buffer().ok_or("failed to create buffer")?;
+            buffer_sizes[attribute.loc as usize] = 0;
+            self.context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
+            self.context.enable_vertex_attrib_array(attribute.loc);
+            self.context.vertex_attrib_pointer_with_i32(attribute.loc, attribute.size, attribute.attribute_type, false, 0, 0);
+            self.context.vertex_attrib_divisor(attribute.loc, attribute.instance_divisor);
+            buffers.push(buffer);
+        }
+        self.context.bind_vertex_array(None); 
+        Ok(Geometry {
+            attribute_state,
+            buffers,
+            buffer_sizes,
+            shader_uuid : self.uuid
+        })
     }
 
-    pub fn add_attribute_vec2f(&mut self, name : &str) -> Result<(), JsValue> {
-        self.add_attribute(name, 2, WebGl2RenderingContext::FLOAT)?;
-        Ok(())
-    }
-
-    pub fn add_attribute_vec3f(&mut self, name : &str) -> Result<(), JsValue> {
-        self.add_attribute(name, 3, WebGl2RenderingContext::FLOAT)?;
-        Ok(())
-    }
-
-    pub fn add_attribute_vec4f(&mut self, name : &str) -> Result<(), JsValue> {
-        self.add_attribute(name, 4, WebGl2RenderingContext::FLOAT)?;
-        Ok(())
-    }
-
-    fn attrib_location(&self, name : &str) -> Result<i32, JsValue> {
-        let loc = self.context.get_attrib_location(&self.program, &name);
-        if loc == -1 {
-            Err(JsValue::from_str(&format!("Unknown attribute \"{}\"", name)))
+    
+    fn check_geometry(&self, geometry : &Geometry) -> Result<(), JsValue> {
+        if geometry.shader_uuid == self.uuid {
+            Ok(())
         } else {
-            Ok(loc)
+            Err(JsValue::from_str(&format!("Geometry does not correspond to this shader")))
         }
     }
 
-    fn add_attribute(&mut self, name : &str, size : i32, attribute_type : u32) -> Result<(), JsValue> {
-        let loc = self.attrib_location(&name)?;
-        self.context.bind_vertex_array(Some(&self.attribute_state));
-        self.context.enable_vertex_attrib_array(loc as u32);
-        self.context.vertex_attrib_pointer_with_i32(loc as u32, size, attribute_type, false, 0, 0);
-        self.context.bind_vertex_array(None); 
+
+    pub fn add_attribute_float(&mut self, name : &str, instanced : bool) -> Result<(), JsValue> {
+        self.add_attribute(name, 1, WebGl2RenderingContext::FLOAT, instanced)?;
+        Ok(())
+    }
+
+    pub fn add_attribute_vec2f(&mut self, name : &str, instanced : bool) -> Result<(), JsValue> {
+        self.add_attribute(name, 2, WebGl2RenderingContext::FLOAT, instanced)?;
+        Ok(())
+    }
+
+    pub fn add_attribute_vec3f(&mut self, name : &str, instanced : bool) -> Result<(), JsValue> {
+        self.add_attribute(name, 3, WebGl2RenderingContext::FLOAT, instanced)?;
+        Ok(())
+    }
+
+    pub fn add_attribute_vec4f(&mut self, name : &str, instanced : bool) -> Result<(), JsValue> {
+        self.add_attribute(name, 4, WebGl2RenderingContext::FLOAT, instanced)?;
+        Ok(())
+    }
+
+    fn attrib_location(&self, name : &str) -> Result<u32, JsValue> {
+        let loc = self.context.get_attrib_location(&self.program, &name);
+        if loc < 0 {
+            Err(JsValue::from_str(&format!("Unknown attribute \"{}\"", name)))
+        } else {
+            Ok(loc as u32)
+        }
+    }
+
+    fn add_attribute(&mut self, name : &str, size : i32, attribute_type : u32, instanced : bool) -> Result<(), JsValue> {
+        let loc = self.attrib_location(name)?;
         self.attributes[loc as usize] = Attribute {
             name : name.to_string(),
             attribute_type,
             loc, 
             size,
-            buffer_size : 0
+            instance_divisor : if instanced { 1 } else { 0 }
         };
         Ok(())
     }
@@ -132,10 +191,11 @@ impl Shader {
     }
 
 
-    pub fn set_attribute_data(&mut self, name : &str, data : &[f32]) -> Result<(), JsValue> {
-        self.context.bind_vertex_array(Some(&self.attribute_state));
+    pub fn set_attribute_data(&self, geometry : &mut Geometry, name : &str, data : &[f32]) -> Result<(), JsValue> {
+        self.check_geometry(geometry)?;
+        self.context.bind_vertex_array(Some(&geometry.attribute_state));
         let loc = self.attrib_location(&name)? as usize;
-        let attribute = &mut self.attributes[loc];
+        let attribute = &self.attributes[loc];
         let attribute_size = attribute.size as usize;
         if data.len() % attribute_size != 0 {
             self.context.bind_vertex_array(None);
@@ -146,16 +206,16 @@ impl Shader {
                 attribute_size
             )));
         }
-        attribute.buffer_size = data.len() / attribute_size;
-        self.context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.buffers[loc]));
+        geometry.buffer_sizes[loc] = data.len() / attribute_size;
+        self.context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&geometry.buffers[loc]));
         self.set_array_buffer_data_from_slice(data);
+        self.context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
         self.context.bind_vertex_array(None);
         Ok(())
     }
 
     pub fn use_program(&self){
         self.context.use_program(Some(&self.program));
-        self.context.bind_vertex_array(Some(&self.attribute_state));
     }
 
     pub fn unuse_program(&self){
@@ -163,31 +223,17 @@ impl Shader {
         self.context.bind_vertex_array(None);
     }
 
-    pub fn draw(&self, num_vertices : usize) -> Result<(), JsValue> {
-        for attribute in &self.attributes {
-            if attribute.buffer_size != num_vertices && attribute.buffer_size != usize::MAX {
-                return Err(JsValue::from_str(&format!(
-                    "Attribute \"{}\" buffer has wrong length. Length should be {} but is {}.", 
-                    attribute.name, num_vertices, attribute.buffer_size
-                )));
-            }
-        }
+    pub fn draw(&self, geometry : &Geometry) -> Result<(), JsValue> {
+        let num_vertices = geometry.num_vertices()?;
+        self.context.bind_vertex_array(Some(&geometry.attribute_state));
         self.context.draw_arrays(
             WebGl2RenderingContext::TRIANGLES,
             0,
             num_vertices as i32
         );
+        self.context.bind_vertex_array(None);
         Ok(())
     }
-
-    // fn get_uniform(&self, name : &str) -> {
-    //     let loc = self.context.get_uniform_location(&self.program, name);  
-    //     if loc == -1 {
-    //         let s = format!("Unknown attribute {}", name);
-    //         return Err(JsValue::from_str(&s));
-    //     }
-    //     return loc
-    // }
 
 
     pub fn set_uniform_float(&self, name : &str, x : f32) {
@@ -232,7 +278,7 @@ impl Shader {
 }
 
 
-pub fn compile_shader(
+fn compile_shader(
     context: &WebGl2RenderingContext,
     shader_type: u32,
     source: &str,
@@ -256,7 +302,7 @@ pub fn compile_shader(
     }
 }
 
-pub fn link_program(
+fn link_program(
     context: &WebGl2RenderingContext,
     vert_shader: &WebGlShader,
     frag_shader: &WebGlShader,

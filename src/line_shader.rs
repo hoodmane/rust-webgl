@@ -30,12 +30,13 @@ impl LineShader {
             r#"#version 300 es
                 precision highp float;
                 uniform vec4 uColor;
+                out vec4 outColor;
                 void main() {
-                    gl_FragColor = vec4(0, 0, 0, 1);
+                    outColor = vec4(0, 0, 0, 1);
                 }
             "#
         )?;
-        shader.add_attribute_vec2f(&"aVertexPosition")?;
+        shader.add_attribute_vec2f(&"aVertexPosition", false)?;
         Ok(Self {
             shader,
             vertices : Vec2Buffer::new()
@@ -56,11 +57,12 @@ impl LineShader {
     }
 
 
-    pub fn draw(&mut self, transform : Transform) -> Result<(), JsValue> {
+    pub fn draw(&self, transform : Transform) -> Result<(), JsValue> {
         self.shader.use_program();
-        self.shader.set_uniform_transform("uTransformationMatrix", transform);        
-        self.shader.set_attribute_data("aVertexPosition", &*self.vertices)?;
-        self.shader.draw(self.vertices.len())?;
+        self.shader.set_uniform_transform("uTransformationMatrix", transform);
+        let mut geometry = self.shader.create_geometry()?; 
+        self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*self.vertices)?;
+        self.shader.draw(&geometry)?;
         Ok(())
     }
 }

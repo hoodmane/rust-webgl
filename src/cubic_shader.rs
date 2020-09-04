@@ -312,6 +312,7 @@ impl CubicBezierShader {
                 precision highp float;
                 uniform vec4 uColor;
                 in vec4 vBezierParameter;
+                out vec4 outColor;
                 void main() {
                     vec4 P0 = vBezierParameter;
                     float k0 = P0.x;
@@ -334,10 +335,10 @@ impl CubicBezierShader {
 
                     if(C0 < 0. && C1 < 0. || C0 > 0. && C1 > 0. ){
                         // discard;
-                        gl_FragColor = vec4(1, 0,0,1);
+                        outColor = vec4(1, 0,0,1);
                     } else {
                         // gl_FragColor = vec4(0.1, 0.1, 0.1, 1);
-                        gl_FragColor = vec4(0, 0, 0, 1);
+                        outColor = vec4(0, 0, 0, 1);
                     }
     
                     // Upper 4 bits: front faces
@@ -346,8 +347,8 @@ impl CubicBezierShader {
                 }
             "#
         )?;
-        shader.add_attribute_vec2f("aVertexPosition")?;
-        shader.add_attribute_vec4f("aBezierParameter")?;
+        shader.add_attribute_vec2f("aVertexPosition", false)?;
+        shader.add_attribute_vec4f("aBezierParameter", false)?;
         Ok(Self {
             shader,
             vertices : Vec2Buffer::new(),
@@ -404,11 +405,12 @@ impl CubicBezierShader {
         }
     }
 
-    pub fn draw(&mut self) -> Result<(), JsValue> {
+    pub fn draw(&self) -> Result<(), JsValue> {
         self.shader.use_program();
-        self.shader.set_attribute_data("aVertexPosition", &*self.vertices)?;
-        self.shader.set_attribute_data("aBezierParameter", &*self.bezier_helper_coords)?;
-        self.shader.draw(self.vertices.len())?;
+        let mut geometry = self.shader.create_geometry()?;
+        self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*self.vertices)?;
+        self.shader.set_attribute_data(&mut geometry,"aBezierParameter", &*self.bezier_helper_coords)?;
+        self.shader.draw(&geometry)?;
         Ok(())
     }
 }

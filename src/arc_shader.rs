@@ -35,22 +35,23 @@ impl ArcShader {
                 precision highp float;
                 uniform vec4 uColor;
                 in vec2 vHelperCoord;
+                out vec4 outColor;
                 void main() {
                     float magnitude = length(vHelperCoord);
                     float thickness = 0.005;
                     float rmax = (1. + thickness) * (1. + thickness);
                     float rmin = (1. - thickness) * (1. - thickness);
                     if(magnitude < rmax && magnitude > rmin){
-                        gl_FragColor = vec4(0, 0, 0, 1);
+                        outColor = vec4(0, 0, 0, 1);
                     } else {
                         discard;
-                        // gl_FragColor = vec4(1, 0, 0, 1);
+                        // outColor = vec4(1, 0, 0, 1);
                     }
                 }
             "#
         )?;
-        shader.add_attribute_vec2f("aVertexPosition")?;
-        shader.add_attribute_vec2f("aHelperCoord")?;
+        shader.add_attribute_vec2f("aVertexPosition", false)?;
+        shader.add_attribute_vec2f("aHelperCoord", false)?;
         Ok(Self {
             shader,
             vertices : Vec2Buffer::new(),
@@ -110,10 +111,11 @@ impl ArcShader {
 
     pub fn draw(&mut self) -> Result<(), JsValue> {
         self.shader.use_program();
-        self.shader.set_attribute_data("aVertexPosition", &*self.vertices)?;
-        self.shader.set_attribute_data("aHelperCoord", &*self.helper_coords)?;
+        let mut geometry = self.shader.create_geometry()?;
+        self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*self.vertices)?;
+        self.shader.set_attribute_data(&mut geometry, "aHelperCoord", &*self.helper_coords)?;
         log_str(&format!("vertices ({}) : {:?}", self.vertices.len(), self.vertices));
-        self.shader.draw(self.vertices.len())?;
+        self.shader.draw(&geometry)?;
         Ok(())
     }
 }
