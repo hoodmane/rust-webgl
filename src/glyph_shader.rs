@@ -7,7 +7,7 @@ use crate::rect::Rect;
 
 
 use wasm_bindgen::JsValue;
-use web_sys::WebGlRenderingContext;
+use web_sys::WebGl2RenderingContext;
 
 static JITTER_PATTERN : [Vec2<f32>; 6] = [
     Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
@@ -42,22 +42,22 @@ pub struct GlyphShader {
 }
 
 impl GlyphShader {
-    pub fn new(context : WebGlRenderingContext) -> Result<Self, JsValue> {
+    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
             context, 
-            r#"
-                attribute vec4 aVertexPosition;
-                varying vec2 vBezierParameter;
+            r#"#version 300 es
+                in vec4 aVertexPosition;
+                out vec2 vBezierParameter;
                 uniform mat3 uTransformationMatrix;
                 void main() {
                     vBezierParameter = aVertexPosition.zw;
                     gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition.xy, 1.0), 0.0).xywz;
                 }
             "#,
-            r#"
+            r#"#version 300 es
                 precision highp float;
                 uniform vec4 uColor;
-                varying vec2 vBezierParameter;
+                in vec2 vBezierParameter;
                 void main() {
                     if (vBezierParameter.x * vBezierParameter.x > vBezierParameter.y) {
                         discard;
@@ -69,17 +69,17 @@ impl GlyphShader {
                 }
             "#
         )?;
-        shader.add_attribute(&"aVertexPosition", 4, WebGlRenderingContext::FLOAT)?;
+        shader.add_attribute_vec4f("aVertexPosition")?;
         Ok(Self {
             shader
         })
     }
 
     // pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
-    pub fn draw(&self, transform : Transform, glyph : &Glyph, scale : f32, pixel_density : f64) -> Result<(), JsValue> {
+    pub fn draw(&mut self, transform : Transform, glyph : &Glyph, scale : f32, pixel_density : f64) -> Result<(), JsValue> {
         self.shader.use_program();
         let vertices = glyph.vertices();
-        self.shader.set_data("aVertexPosition", &*vertices)?;
+        self.shader.set_attribute_data("aVertexPosition", &*vertices)?;
         for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
             let mut cur_transform = transform;
             cur_transform.translate_vec(offset * ((1.0 / pixel_density) as f32));
@@ -87,7 +87,7 @@ impl GlyphShader {
             self.shader.set_uniform_vec4("uColor", color);
             // self.shader.set_uniform_vec4("uColor", Vec4::new(2.0, 2.0, 2.0, 2.0));
             self.shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
-            self.shader.draw(vertices.len());
+            self.shader.draw(vertices.len())?;
         }
         Ok(())
     }
@@ -100,14 +100,14 @@ pub struct TextShader {
 }
 
 impl TextShader {
-    pub fn new(context : WebGlRenderingContext) -> Result<Self, JsValue> {
+    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
             context, 
-            r#"
+            r#"#version 300 es
                 uniform vec4 uBoundingBox;
                 uniform mat3 uTransformationMatrix;
-                attribute vec2 aVertexPosition;
-                varying vec2 vTextureCoord;
+                in vec2 aVertexPosition;
+                out vec2 vTextureCoord;
                 void main() {
                     gl_Position = vec4(
                         mix(
@@ -121,12 +121,11 @@ impl TextShader {
                     vTextureCoord = (gl_Position.xy + 1.0) * 0.5;                    
                 }
             "#,
-            r#"
-                #extension GL_OES_standard_derivatives : enable
+            r#"#version 300 es
                 precision highp float;
                 uniform sampler2D uTexture;
                 uniform vec4 uColor;
-                varying vec2 vTextureCoord;
+                in vec2 vTextureCoord;
                 void main() {
                     // float should_draw =  mod(texture2D(uTexture, vTextureCoord).x * 255.0, 2.0);
                     // if(should_draw == 0.0){
@@ -157,17 +156,17 @@ impl TextShader {
                 }
             "#
         )?;
-        shader.add_attribute(&"aVertexPosition", 2, WebGlRenderingContext::FLOAT)?;
+        shader.add_attribute_vec2f(&"aVertexPosition")?;
         Ok(Self {
             shader
         })
     }
 
-    pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
+    pub fn draw(&mut self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
         self.shader.use_program();
         self.shader.set_uniform_transform("uTransformationMatrix", transform);        
 
-        self.shader.set_data("aVertexPosition", &STANDARD_QUAD)?;
+        self.shader.set_attribute_data("aVertexPosition", &STANDARD_QUAD)?;
 
         let bounding_box = glyph.bounding_box();
         let left = bounding_box.left();
@@ -187,7 +186,7 @@ impl TextShader {
         self.shader.set_uniform_int("uTexture", 0);
         self.shader.set_uniform_vec4("uBoundingBox", Vec4::new(left, top, right, bottom));
         self.shader.set_uniform_vec4("uColor", Vec4::new(0.0, 0.0, 0.0, 0.0));
-        self.shader.draw(6);
+        self.shader.draw(6)?;
         Ok(())
     }
 }

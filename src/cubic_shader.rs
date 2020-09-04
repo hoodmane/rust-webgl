@@ -4,7 +4,7 @@ use crate::shader::Shader;
 use crate::log::log_str;
 
 use wasm_bindgen::JsValue;
-use web_sys::WebGlRenderingContext;
+use web_sys::WebGl2RenderingContext;
 use std::ops::{Add, Mul};
 use std::cmp::Ordering;
 
@@ -292,14 +292,14 @@ pub struct CubicBezierShader {
 }
 
 impl CubicBezierShader {
-    pub fn new(context : WebGlRenderingContext) -> Result<Self, JsValue> {
+    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
             context,
             // vertexShader : 
-            r#"
-                attribute vec2 aVertexPosition;
-                attribute vec4 aBezierParameter;
-                varying vec4 vBezierParameter;
+            r#"#version 300 es
+                in vec2 aVertexPosition;
+                in vec4 aBezierParameter;
+                out vec4 vBezierParameter;
                 uniform mat3 uTransformationMatrix;
                 void main() {
                     vBezierParameter = aBezierParameter;
@@ -308,11 +308,10 @@ impl CubicBezierShader {
                 }
             "#,
             // fragmentShader :
-            r#"
-                #extension GL_OES_standard_derivatives : enable
+            r#"#version 300 es
                 precision highp float;
                 uniform vec4 uColor;
-                varying vec4 vBezierParameter;
+                in vec4 vBezierParameter;
                 void main() {
                     vec4 P0 = vBezierParameter;
                     float k0 = P0.x;
@@ -347,8 +346,8 @@ impl CubicBezierShader {
                 }
             "#
         )?;
-        shader.add_attribute(&"aVertexPosition", 2, WebGlRenderingContext::FLOAT)?;
-        shader.add_attribute(&"aBezierParameter", 4, WebGlRenderingContext::FLOAT)?;
+        shader.add_attribute_vec2f("aVertexPosition")?;
+        shader.add_attribute_vec4f("aBezierParameter")?;
         Ok(Self {
             shader,
             vertices : Vec2Buffer::new(),
@@ -405,11 +404,11 @@ impl CubicBezierShader {
         }
     }
 
-    pub fn draw(&self) -> Result<(), JsValue> {
+    pub fn draw(&mut self) -> Result<(), JsValue> {
         self.shader.use_program();
-        self.shader.set_data("aVertexPosition", &*self.vertices)?;
-        self.shader.set_data("aBezierParameter", &*self.bezier_helper_coords)?;
-        self.shader.draw(self.vertices.len());
+        self.shader.set_attribute_data("aVertexPosition", &*self.vertices)?;
+        self.shader.set_attribute_data("aBezierParameter", &*self.bezier_helper_coords)?;
+        self.shader.draw(self.vertices.len())?;
         Ok(())
     }
 }

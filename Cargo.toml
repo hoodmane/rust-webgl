@@ -17,18 +17,19 @@ once_cell="1.4.1"
 version = "0.3.44"
 features = [
   'CssStyleDeclaration',
-  'Document',
+  'Document', 
   'Element', 
-  'HtmlCanvasElement',
+  'HtmlCanvasElement', 
   'HtmlElement',
   'Response',
   'WebGlActiveInfo',
   'WebGlBuffer',
   'WebGlFramebuffer',
   'WebGlTexture',
-  'WebGlRenderingContext',
+  'WebGl2RenderingContext',
   'WebGlProgram',
   'WebGlShader',
   'WebGlUniformLocation',
+  'WebGlVertexArrayObject',
   'Window',
 ]

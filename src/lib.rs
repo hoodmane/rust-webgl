@@ -30,7 +30,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 
-use web_sys::WebGlRenderingContext;
+use web_sys::WebGl2RenderingContext;
 
 
 #[wasm_bindgen(start)]
@@ -38,7 +38,7 @@ pub async fn start() -> Result<(), JsValue> {
     let context = get_webgl_context()?;
     // gl.viewport(0, 0, glCanvas.width, glCanvas.height);
     context.clear_color(0.0, 0.0, 0.0, 1.0);
-    context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+    context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
     // draw_letter(97).await?;
 
     Ok(()) 
@@ -51,13 +51,13 @@ pub fn get_context() -> Result<Context, JsValue> {
 }
 
 
-fn get_webgl_context() -> Result<WebGlRenderingContext, JsValue> {
+fn get_webgl_context() -> Result<WebGl2RenderingContext, JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
     let canvas = document.get_element_by_id("canvas").unwrap();
     let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
-    Ok(canvas.get_context("webgl")?
+    Ok(canvas.get_context("webgl2")?
         .unwrap()
-        .dyn_into::<WebGlRenderingContext>()?)
+        .dyn_into::<WebGl2RenderingContext>()?)
 }
 
 
@@ -65,7 +65,7 @@ fn get_webgl_context() -> Result<WebGlRenderingContext, JsValue> {
 
 #[wasm_bindgen]
 pub struct WrappedCubicBezierShader {
-    // context : WebGlRenderingContext,
+    // context : WebGl2RenderingContext,
     cubic_shader : CubicBezierShader
 }
 
@@ -78,11 +78,11 @@ impl WrappedCubicBezierShader {
         );
     }
 
-    pub fn draw(&self) -> Result<(), JsValue> {
+    pub fn draw(&mut self) -> Result<(), JsValue> {
         log_str("Drawing...");
         log_1(&self.cubic_shader.shader.context);
         // self.cubic_shader.shader.context.clear_color(0.8, 0.9, 1.0, 1.0);
-        // self.cubic_shader.shader.context.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+        // self.cubic_shader.shader.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.cubic_shader.draw()?;
         log_str("Drawn");
         Ok(())
@@ -92,7 +92,7 @@ impl WrappedCubicBezierShader {
 
 #[wasm_bindgen]
 pub struct WrappedArcShader {
-    // context : WebGlRenderingContext,
+    // context : WebGl2RenderingContext,
     arc_shader : ArcShader
 }
 
@@ -105,7 +105,7 @@ impl WrappedArcShader {
         Ok(())
     }
 
-    pub fn draw(&self) -> Result<(), JsValue> {
+    pub fn draw(&mut self) -> Result<(), JsValue> {
         self.arc_shader.draw()?;
         Ok(())
     }
@@ -115,7 +115,7 @@ impl WrappedArcShader {
 
 #[wasm_bindgen]
 pub struct WrappedLineShader {
-    // context : WebGlRenderingContext,
+    // context : WebGl2RenderingContext,
     line_shader : LineShader
 }
 
@@ -127,7 +127,7 @@ impl WrappedLineShader {
         );
     }
 
-    pub fn draw(&self) -> Result<(), JsValue> {
+    pub fn draw(&mut self) -> Result<(), JsValue> {
         self.line_shader.draw(Transform::new())?;
         Ok(())
     }
@@ -139,7 +139,6 @@ impl WrappedLineShader {
 #[wasm_bindgen]
 pub fn get_cubic_shader() -> Result<WrappedCubicBezierShader, JsValue> {
     let context = get_webgl_context()?;
-    context.get_extension(&"OES_standard_derivatives")?;
     let cubic_shader = CubicBezierShader::new(context)?;
     Ok(WrappedCubicBezierShader { cubic_shader })
 }

@@ -3,7 +3,7 @@ use crate::matrix::Transform;
 use crate::shader::Shader;
 // use crate::log::log_str;
 
-use web_sys::WebGlRenderingContext;
+use web_sys::WebGl2RenderingContext;
 
 use crate::vector::{Vec2, Vec2Buffer};
 
@@ -14,12 +14,12 @@ pub struct LineShader {
 
 
 impl LineShader {
-    pub fn new(context : WebGlRenderingContext) -> Result<Self, JsValue> {
+    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
             context,
             // vertexShader : 
-            r#"
-                attribute vec2 aVertexPosition;
+            r#"#version 300 es
+                in vec2 aVertexPosition;
                 uniform mat3 uTransformationMatrix;
                 void main() {
                     gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition, 1.0), 0.0).xywz;
@@ -27,7 +27,7 @@ impl LineShader {
                 }
             "#,
             // fragmentShader :
-            r#"
+            r#"#version 300 es
                 precision highp float;
                 uniform vec4 uColor;
                 void main() {
@@ -35,7 +35,7 @@ impl LineShader {
                 }
             "#
         )?;
-        shader.add_attribute(&"aVertexPosition", 2, WebGlRenderingContext::FLOAT)?;
+        shader.add_attribute_vec2f(&"aVertexPosition")?;
         Ok(Self {
             shader,
             vertices : Vec2Buffer::new()
@@ -56,11 +56,11 @@ impl LineShader {
     }
 
 
-    pub fn draw(&self, transform : Transform) -> Result<(), JsValue> {
+    pub fn draw(&mut self, transform : Transform) -> Result<(), JsValue> {
         self.shader.use_program();
         self.shader.set_uniform_transform("uTransformationMatrix", transform);        
-        self.shader.set_data("aVertexPosition", &*self.vertices)?;
-        self.shader.draw(self.vertices.len());
+        self.shader.set_attribute_data("aVertexPosition", &*self.vertices)?;
+        self.shader.draw(self.vertices.len())?;
         Ok(())
     }
 }

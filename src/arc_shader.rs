@@ -3,7 +3,7 @@ use crate::shader::Shader;
 use crate::log::log_str;
 
 use std::f32::consts::FRAC_PI_4;
-use web_sys::WebGlRenderingContext;
+use web_sys::WebGl2RenderingContext;
 
 use crate::vector::{Vec2, Vec2Buffer};
 
@@ -15,14 +15,14 @@ pub struct ArcShader {
 
 
 impl ArcShader {
-    pub fn new(context : WebGlRenderingContext) -> Result<Self, JsValue> {
+    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
             context,
             // vertexShader : 
-            r#"
-                attribute vec2 aVertexPosition;
-                attribute vec2 aHelperCoord;
-                varying vec2 vHelperCoord;
+            r#"#version 300 es
+                in vec2 aVertexPosition;
+                in vec2 aHelperCoord;
+                out vec2 vHelperCoord;
                 uniform mat3 uTransformationMatrix;
                 void main() {
                     vHelperCoord = aHelperCoord;
@@ -31,10 +31,10 @@ impl ArcShader {
                 }
             "#,
             // fragmentShader :
-            r#"
+            r#"#version 300 es
                 precision highp float;
                 uniform vec4 uColor;
-                varying vec2 vHelperCoord;
+                in vec2 vHelperCoord;
                 void main() {
                     float magnitude = length(vHelperCoord);
                     float thickness = 0.005;
@@ -49,8 +49,8 @@ impl ArcShader {
                 }
             "#
         )?;
-        shader.add_attribute("aVertexPosition", 2, WebGlRenderingContext::FLOAT)?;
-        shader.add_attribute("aHelperCoord", 2, WebGlRenderingContext::FLOAT)?;
+        shader.add_attribute_vec2f("aVertexPosition")?;
+        shader.add_attribute_vec2f("aHelperCoord")?;
         Ok(Self {
             shader,
             vertices : Vec2Buffer::new(),
@@ -108,12 +108,12 @@ impl ArcShader {
         Ok(())
     }
 
-    pub fn draw(&self) -> Result<(), JsValue> {
+    pub fn draw(&mut self) -> Result<(), JsValue> {
         self.shader.use_program();
-        self.shader.set_data("aVertexPosition", &*self.vertices)?;
-        self.shader.set_data("aHelperCoord", &*self.helper_coords)?;
+        self.shader.set_attribute_data("aVertexPosition", &*self.vertices)?;
+        self.shader.set_attribute_data("aHelperCoord", &*self.helper_coords)?;
         log_str(&format!("vertices ({}) : {:?}", self.vertices.len(), self.vertices));
-        self.shader.draw(self.vertices.len());
+        self.shader.draw(self.vertices.len())?;
         Ok(())
     }
 }
