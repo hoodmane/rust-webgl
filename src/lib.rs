@@ -21,7 +21,10 @@ use crate::vector::*;
 
 use crate::cubic_shader::CubicBezierShader;
 use crate::arc_shader::ArcShader;
+use crate::line_shader::LineShader;
 use crate::context::Context;
+use crate::matrix::Transform;
+
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -110,25 +113,25 @@ impl WrappedArcShader {
 
 
 
-// #[wasm_bindgen]
-// pub struct WrappedLineShader {
-//     // context : WebGlRenderingContext,
-//     line_shader : LineShader
-// }
+#[wasm_bindgen]
+pub struct WrappedLineShader {
+    // context : WebGlRenderingContext,
+    line_shader : LineShader
+}
 
-// #[wasm_bindgen]
-// impl WrappedLineShader {
-//     pub fn add_line(&mut self, p0 : f32, p1 : f32, q0 : f32, q1 : f32) {
-//         self.line_shader.add_line(
-//             Vec2::new(p0, p1), Vec2::new(q0, q1)
-//         );
-//     }
+#[wasm_bindgen]
+impl WrappedLineShader {
+    pub fn add_line(&mut self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, thickness : f32) {
+        self.line_shader.add_line(
+            Vec2::new(p0, p1), Vec2::new(q0, q1), thickness
+        );
+    }
 
-//     pub fn draw(&self) -> Result<(), JsValue> {
-//         self.line_shader.draw()?;
-//         Ok(())
-//     }
-// }
+    pub fn draw(&self) -> Result<(), JsValue> {
+        self.line_shader.draw(Transform::new())?;
+        Ok(())
+    }
+}
 
 
 
@@ -149,10 +152,10 @@ pub fn get_arc_shader() -> Result<WrappedArcShader, JsValue> {
 }
 
 
-// #[wasm_bindgen]
-// pub fn get_line_shader() -> Result<WrappedLineShader, JsValue> {
-//     let context = get_webgl_context()?;
-//     let line_shader = LineShader::new(context)?;
-//     Ok(WrappedLineShader { line_shader })
-// }
+#[wasm_bindgen]
+pub fn get_line_shader() -> Result<WrappedLineShader, JsValue> {
+    let context = get_webgl_context()?;
+    let line_shader = LineShader::new(context)?;
+    Ok(WrappedLineShader { line_shader })
+}
 

@@ -16,6 +16,16 @@ impl<T> Vec2<T> {
     }
 }
 
+impl Vec2<f32> {
+    pub fn direction(theta : f32) -> Self {
+        let (y, x) = f32::sin_cos(theta);
+        Self {
+            x, y
+        }
+    }
+}
+
+
 #[derive(Copy, Clone, Debug)]
 pub struct Vec3<T> {
     pub x : T,

@@ -3,6 +3,7 @@ use crate::vector::Vec2;
 use crate::matrix::Transform;
 use crate::glyph_shader::{GlyphShader, TextShader};
 use crate::line_shader::LineShader;
+use crate::arc_shader::ArcShader;
 use crate::font::{Glyph, Font};
 
 
@@ -199,6 +200,20 @@ impl Context {
         line_shader.draw(self.transform())?;
         Ok(())
     }
+
+    // pub fn draw_arc(&self, px : f32, py : f32, qx : f32, qy : f32, angle : f32, thickness : f32) -> Result<(), JsValue> {
+    //     let mut arc_shader = ArcShader::new(self.webgl_context.clone())?;
+    //     let p = Vec2::new(px, py);
+    //     let q = Vec2::new(qx, qy);
+    //     arc_shader.add_arc(p, q, thickness);
+    //     let transform = self.transform();
+    //     log_str(&format!("p : {:?}", transform.transform_point(p)));
+    //     log_str(&format!("q : {:?}", transform.transform_point(q)));
+    //     self.copy_blend_mode();
+    //     self.render_to_canvas();
+    //     arc_shader.draw(self.transform())?;
+    //     Ok(())
+    // }
 
 
     pub fn translate(&mut self, x : f32, y : f32) {

@@ -1,6 +1,8 @@
 use wasm_bindgen::prelude::JsValue;
 use crate::shader::Shader;
 use crate::log::log_str;
+
+use std::f32::consts::FRAC_PI_4;
 use web_sys::WebGlRenderingContext;
 
 use crate::vector::{Vec2, Vec2Buffer};
@@ -41,8 +43,8 @@ impl ArcShader {
                     if(magnitude < rmax && magnitude > rmin){
                         gl_FragColor = vec4(0, 0, 0, 1);
                     } else {
-                        gl_FragColor = vec4(1, 0, 0, 1);
-                        // discard;
+                        discard;
+                        // gl_FragColor = vec4(1, 0, 0, 1);
                     }
                 }
             "#
@@ -72,19 +74,37 @@ impl ArcShader {
         let radius = d/f32::sin(theta);
         let pq_perp = Vec2::new(pq.y, -pq.x).normalize() * e;
         let center = (p + q) * 0.5 + pq_perp;
-        let side_length = (radius + thickness)/f32::cos(theta);
-        let aux1 = Vec2::new(0.0, 0.0);
-        let aux2 = (p - center).normalize() * side_length;
-        let aux3 = (q - center).normalize() * side_length;
-        let v1 = center;
-        let v2 = center + aux2;
-        let v3 = center + aux3;
-        self.vertices.push_vec(v1);
-        self.vertices.push_vec(v2);
-        self.vertices.push_vec(v3);
-        self.helper_coords.push_vec(aux1);
-        self.helper_coords.push_vec(aux2 * (1.0/radius));
-        self.helper_coords.push_vec(aux3 * (1.0/radius));
+
+
+        let center_to_p = (p - center).normalize();
+        let theta0 = f32::atan2(center_to_p.y, center_to_p.x);
+        let n = f32::ceil(theta / FRAC_PI_4);
+        let n_usize = n as usize;
+        let inner_radius = radius - thickness;
+        let outer_radius = (radius + thickness) / f32::cos(theta / n);
+
+        let mut directions = Vec::new();
+        for i in 0..= n_usize {
+            let i = i as f32;
+            directions.push(Vec2::direction(theta0 -  2.0 * (theta / n) * i));
+        }
+        log_str(&format!("directions : {:?}", directions));
+        log_str(&format!("center_to_p : {:?}, center_to_q : {:?}", p - center, q - center));
+
+        log_str(&format!("center : {:?}, p : {:?}, q : {:?}", center, p, q));
+        log_str(&format!("inner_radius : {}, outer_radius : {}, theta0 : {}", inner_radius, outer_radius, theta0));
+
+        for i in 0 .. n_usize {
+            let v1 = directions[i] * inner_radius;
+            let v2 = directions[i] * outer_radius;
+            let v3 = directions[i+1] * outer_radius;
+            let v4 = directions[i+1] * inner_radius;
+            log_str(&format!("v1 : {:?}, v2 : {:?}, v3 : {:?}, v4 : {:?}", v1, v2, v3, v4));
+            for &v in &[v1, v2, v3, v1, v3, v4] {
+                self.vertices.push_vec(center + v);
+                self.helper_coords.push_vec(v * (1.0/radius));
+            }            
+        }
         Ok(())
     }
 
