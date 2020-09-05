@@ -3,6 +3,7 @@ use crate::font::Glyph;
 use crate::shader::{Shader, Geometry};
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
+use crate::webgl_wrapper::WebGlWrapper;
 
 
 use wasm_bindgen::JsValue;
@@ -41,9 +42,9 @@ pub struct GlyphShader {
 }
 
 impl GlyphShader {
-    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
+    pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
-            context, 
+            webgl, 
             r#"#version 300 es
                 in vec4 aVertexPosition;
                 out vec2 vBezierParameter;
@@ -102,9 +103,9 @@ pub struct TextShader {
 }
 
 impl TextShader {
-    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
+    pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
-            context, 
+            webgl, 
             r#"#version 300 es
                 uniform vec4 uBoundingBox;
                 uniform mat3 uTransformationMatrix;

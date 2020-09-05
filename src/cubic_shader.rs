@@ -2,9 +2,9 @@ use crate::vector::{Vec2, Vec2Buffer, Vec4, Vec4Buffer};
 use crate::matrix::{Matrix3, Matrix4};
 use crate::shader::Shader;
 use crate::log::log_str;
+use crate::webgl_wrapper::WebGlWrapper;
 
 use wasm_bindgen::JsValue;
-use web_sys::WebGl2RenderingContext;
 use std::ops::{Add, Mul};
 use std::cmp::Ordering;
 
@@ -292,9 +292,9 @@ pub struct CubicBezierShader {
 }
 
 impl CubicBezierShader {
-    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
+    pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
-            context,
+            webgl,
             // vertexShader : 
             r#"#version 300 es
                 in vec2 aVertexPosition;

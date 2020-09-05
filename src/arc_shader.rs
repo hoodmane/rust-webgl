@@ -1,9 +1,9 @@
 use wasm_bindgen::prelude::JsValue;
-use crate::shader::Shader;
+use crate::shader::{Shader, Geometry};
 use crate::log::log_str;
+use crate::webgl_wrapper::WebGlWrapper;
 
 use std::f32::consts::FRAC_PI_4;
-use web_sys::WebGl2RenderingContext;
 
 use crate::vector::{Vec2, Vec2Buffer};
 
@@ -11,13 +11,14 @@ pub struct ArcShader {
     pub shader : Shader,
     vertices : Vec2Buffer<f32>,
     helper_coords : Vec2Buffer<f32>,
+    geometry : Geometry
 }
 
 
 impl ArcShader {
-    pub fn new(context : WebGl2RenderingContext) -> Result<Self, JsValue> {
+    pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
         let mut shader = Shader::new(
-            context,
+            webgl,
             // vertexShader : 
             r#"#version 300 es
                 in vec2 aVertexPosition;
@@ -52,10 +53,12 @@ impl ArcShader {
         )?;
         shader.add_attribute_vec2f("aVertexPosition", false)?;
         shader.add_attribute_vec2f("aHelperCoord", false)?;
+        let geometry = shader.create_geometry()?;
         Ok(Self {
             shader,
             vertices : Vec2Buffer::new(),
             helper_coords : Vec2Buffer::new(),
+            geometry
         })
     }
 
@@ -106,16 +109,17 @@ impl ArcShader {
                 self.helper_coords.push_vec(v * (1.0/radius));
             }            
         }
+        self.shader.set_attribute_data(&mut self.geometry, "aVertexPosition", &*self.vertices)?;
+        self.shader.set_attribute_data(&mut self.geometry, "aHelperCoord", &*self.helper_coords)?;
+        self.geometry.num_vertices = self.vertices.len() as i32;
+        self.geometry.num_instances = 1;       
         Ok(())
     }
 
-    pub fn draw(&mut self) -> Result<(), JsValue> {
+    pub fn draw(&self) -> Result<(), JsValue> {
         self.shader.use_program();
-        let mut geometry = self.shader.create_geometry()?;
-        self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*self.vertices)?;
-        self.shader.set_attribute_data(&mut geometry, "aHelperCoord", &*self.helper_coords)?;
         log_str(&format!("vertices ({}) : {:?}", self.vertices.len(), self.vertices));
-        self.shader.draw(&geometry)?;
+        self.shader.draw(&self.geometry)?;
         Ok(())
     }
 }
