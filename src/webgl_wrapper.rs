@@ -45,43 +45,47 @@ impl WebGlWrapper {
         let context = &self.inner;
         let texture = context.create_texture();
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
+        context.tex_storage_2d(
+            WebGl2RenderingContext::TEXTURE_2D,
+            1, // levels
+            WebGl2RenderingContext::RGBA, // internalformat:,
+            width,
+            height
+        );
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::NEAREST as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::NEAREST as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
-        context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-            WebGl2RenderingContext::TEXTURE_2D, // target
-            0, // level
-            WebGl2RenderingContext::RGBA as i32, //internal format, specifies the color components in the texture.
-            width, height, 
-            0, // border "Must be 0."
-            WebGl2RenderingContext::RGBA, // format, must be same as internal format (but apparently this time it's a u32????)
-            WebGl2RenderingContext::UNSIGNED_BYTE, // type: specifying the data type of the texel data
-            None // u8 array source
-        )?;
         Ok(texture.unwrap())
     }
 
     pub fn create_vec2_texture(&self, vecs : &[f32]) -> Result<WebGlTexture, JsValue> {
         let context = &self.inner;
         let texture = context.create_texture();
+        let width = (vecs.len()/2) as i32;
+        let height = 1;
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
+        context.tex_storage_2d(
+            WebGl2RenderingContext::TEXTURE_2D,
+            1, // mip levels
+            WebGl2RenderingContext::RG32F, // internalformat:,
+            width, height
+        );
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::NEAREST as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::NEAREST as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
-        // tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_f32_array doesn't exist =(
+        // tex_sub_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_f32_array doesn't exist =(
         unsafe {
             let array_view = js_sys::Float32Array::view(&vecs);
-            context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view(
+            context.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_array_buffer_view(
                 WebGl2RenderingContext::TEXTURE_2D, 
                 0, // mip level
-                WebGl2RenderingContext::RG32F as i32, //internal format, specifies the color components in the texture.
-                (vecs.len()/2) as i32, 1, 
-                0, // border "Must be 0."
-                WebGl2RenderingContext::RG, // format, must be same as internal format (but apparently this time it's a u32????)
-                WebGl2RenderingContext::FLOAT, // type: specifying the data type of the texel data
-                Some(&array_view) // data source
+                0, 0, // xoffset, yoffset: i32,
+                width, height,
+                WebGl2RenderingContext::RG, // format: u32,
+                WebGl2RenderingContext::FLOAT, // type_: u32,
+                Some(&array_view) // pixels: Option<&Object>
             )?;
         }
         Ok(texture.unwrap())

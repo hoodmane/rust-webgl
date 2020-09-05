@@ -73,7 +73,6 @@ impl LineShader {
         self.vertices.push_vec(q - pq_perp);
         self.vertices.push_vec(q + pq_perp);
 
-
         self.colors.push_vec(color);
         self.shader.set_attribute_data(&mut self.geometry, "aColor", &*self.colors)?;
         Ok(())
@@ -88,9 +87,6 @@ impl LineShader {
         self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&position_texture));
         self.shader.set_uniform_int("uPositionTexture", 0);
-        log_str(&format!("num_instances : {}, num_vertices : {}", self.geometry.num_instances, self.geometry.num_vertices));
-        log_str(&format!("colors : {:?}", self.colors));
-        log_str(&format!("vertices : {:?}", self.vertices));        
         self.shader.draw(&self.geometry)?;
         Ok(())
     }
