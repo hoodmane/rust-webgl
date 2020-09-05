@@ -1,12 +1,12 @@
-use wasm_bindgen::JsValue;
-use crate::matrix::Transform;
-use crate::shader::{Shader, Geometry};
 use crate::log::log_str;
-
+use crate::vector::{Vec2, Vec2Buffer, Vec4, Vec4Buffer};
+use crate::matrix::Transform;
 use crate::webgl_wrapper::WebGlWrapper;
+use crate::shader::{Shader, Geometry};
+
+use wasm_bindgen::JsValue;
 use web_sys::WebGl2RenderingContext;
 
-use crate::vector::{Vec2, Vec2Buffer, Vec4, Vec4Buffer};
 
 pub struct LineShader {
     pub shader : Shader,
@@ -22,11 +22,11 @@ impl LineShader {
             webgl,
             // vertexShader : 
             r#"#version 300 es
-                const int indices[6] = int[]( 0, 1, 2, 0, 2, 3 );
-                in vec4 aColor;
-                out vec4 vColor;
                 uniform mat3 uTransformationMatrix;
                 uniform sampler2D uPositionTexture;
+
+                in vec4 aColor;
+                flat out vec4 fColor;
 
                 vec4 getValueByIndexFromTexture(sampler2D tex, int index) {
                     int texWidth = textureSize(tex, 0).x;
@@ -36,25 +36,25 @@ impl LineShader {
                 }
 
                 void main() {
-                    int vertexIdx = gl_InstanceID * 4 + indices[gl_VertexID];
+                    int vertexIdx = gl_InstanceID * 4 + gl_VertexID;
                     vec2 vertexPosition = getValueByIndexFromTexture(uPositionTexture, vertexIdx).xy;
-                    vColor = aColor;
+                    fColor = aColor;
                     gl_Position = vec4(uTransformationMatrix * vec3(vertexPosition, 1.0), 0.0).xywz;
                 }
             "#,
             // fragmentShader :
             r#"#version 300 es
                 precision highp float;
-                in vec4 vColor;
+                flat in vec4 fColor;
                 out vec4 outColor;
                 void main() {
-                    outColor = vColor;
+                    outColor = fColor;
                 }
             "#
         )?;
         shader.add_attribute_vec4f(&"aColor", true)?;
         let mut geometry = shader.create_geometry()?;
-        geometry.num_vertices = 6;
+        geometry.num_vertices = 4;
         Ok(Self {
             shader,
             geometry,
@@ -87,7 +87,7 @@ impl LineShader {
         self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&position_texture));
         self.shader.set_uniform_int("uPositionTexture", 0);
-        self.shader.draw(&self.geometry)?;
+        self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())
     }
 }

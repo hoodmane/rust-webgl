@@ -89,7 +89,7 @@ impl GlyphShader {
             self.shader.set_uniform_vec4("uColor", color);
             // self.shader.set_uniform_vec4("uColor", Vec4::new(2.0, 2.0, 2.0, 2.0));
             self.shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
-            self.shader.draw(&geometry)?;
+            self.shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
         }
         Ok(())
     }
@@ -182,7 +182,7 @@ impl TextShader {
         self.shader.set_uniform_int("uTexture", 0);
         self.shader.set_uniform_vec4("uBoundingBox", Vec4::new(left, top, right, bottom));
         self.shader.set_uniform_vec4("uColor", Vec4::new(0.0, 0.0, 0.0, 0.0));
-        self.shader.draw(&self.quad_geometry)?;
+        self.shader.draw(&self.quad_geometry, WebGl2RenderingContext::TRIANGLES)?;
         Ok(())
     }
 }

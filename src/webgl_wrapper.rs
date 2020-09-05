@@ -48,7 +48,7 @@ impl WebGlWrapper {
         context.tex_storage_2d(
             WebGl2RenderingContext::TEXTURE_2D,
             1, // levels
-            WebGl2RenderingContext::RGBA, // internalformat:,
+            WebGl2RenderingContext::RGBA, // internalformat,
             width,
             height
         );
@@ -60,15 +60,23 @@ impl WebGlWrapper {
     }
 
     pub fn create_vec2_texture(&self, vecs : &[f32]) -> Result<WebGlTexture, JsValue> {
+        self.create_float_storage_texture(2, WebGl2RenderingContext::RG, WebGl2RenderingContext::RG32F, vecs)
+    }
+
+    pub fn create_vec4_texture(&self, vecs : &[f32]) -> Result<WebGlTexture, JsValue> {
+        self.create_float_storage_texture(4, WebGl2RenderingContext::RGBA, WebGl2RenderingContext::RGBA32F, vecs)
+    }
+
+    fn create_float_storage_texture(&self, size : usize, external_format : u32, internal_format : u32,  vecs : &[f32]) -> Result<WebGlTexture, JsValue> {
         let context = &self.inner;
         let texture = context.create_texture();
-        let width = (vecs.len()/2) as i32;
+        let width = (vecs.len()/size) as i32;
         let height = 1;
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
         context.tex_storage_2d(
             WebGl2RenderingContext::TEXTURE_2D,
             1, // mip levels
-            WebGl2RenderingContext::RG32F, // internalformat:,
+            internal_format, // internalformat:,
             width, height
         );
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::NEAREST as i32);
@@ -83,7 +91,7 @@ impl WebGlWrapper {
                 0, // mip level
                 0, 0, // xoffset, yoffset: i32,
                 width, height,
-                WebGl2RenderingContext::RG, // format: u32,
+                external_format, // format: u32,
                 WebGl2RenderingContext::FLOAT, // type_: u32,
                 Some(&array_view) // pixels: Option<&Object>
             )?;

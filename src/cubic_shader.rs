@@ -5,6 +5,7 @@ use crate::log::log_str;
 use crate::webgl_wrapper::WebGlWrapper;
 
 use wasm_bindgen::JsValue;
+use web_sys::WebGl2RenderingContext;
 use std::ops::{Add, Mul};
 use std::cmp::Ordering;
 
@@ -410,7 +411,7 @@ impl CubicBezierShader {
         let mut geometry = self.shader.create_geometry()?;
         self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*self.vertices)?;
         self.shader.set_attribute_data(&mut geometry,"aBezierParameter", &*self.bezier_helper_coords)?;
-        self.shader.draw(&geometry)?;
+        self.shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
         Ok(())
     }
 }

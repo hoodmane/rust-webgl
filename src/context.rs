@@ -18,6 +18,7 @@ pub struct Context {
     transform : Transform,
     glyph_shader : GlyphShader,
     text_shader : TextShader,
+    line_shader : LineShader,
     glyph_buffer : WebGlTexture,
     width : i32,
     height : i32,
@@ -29,6 +30,7 @@ impl Context {
         let glyph_buffer = webgl.inner.create_texture().unwrap();
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let text_shader = TextShader::new(webgl.clone())?;
+        let line_shader = LineShader::new(webgl.clone())?;
         let width = webgl.width();
         let height = webgl.height();
         let density = WebGlWrapper::density();
@@ -37,6 +39,7 @@ impl Context {
             transform : Transform::new(),
             glyph_shader,
             text_shader,
+            line_shader,
             glyph_buffer,
             width,
             height,

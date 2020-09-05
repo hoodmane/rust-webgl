@@ -18,8 +18,8 @@ uuid = { version = "0.8.1", features = ["wasm-bindgen", "v4"] }
 version = "0.3.44"
 features = [
   'CssStyleDeclaration',
-  'Document', 
-  'Element', 
+  'Document',   
+  'Element',
   'HtmlCanvasElement', 
   'HtmlElement',
   'Response',

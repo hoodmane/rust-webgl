@@ -216,11 +216,11 @@ impl Shader {
         Ok(())
     }
 
-    pub fn draw(&self, geometry : &Geometry) -> Result<(), JsValue> {
+    pub fn draw(&self, geometry : &Geometry, primitive : u32) -> Result<(), JsValue> {
         self.check_geometry_buffer_sizes(geometry)?;
         self.webgl.bind_vertex_array(Some(&geometry.attribute_state));
         self.webgl.draw_arrays_instanced(
-            WebGl2RenderingContext::TRIANGLES,
+            primitive,
             0,
             geometry.num_vertices,
             geometry.num_instances

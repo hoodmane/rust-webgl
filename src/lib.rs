@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 mod log;
 mod rect;
@@ -95,15 +96,18 @@ pub struct WrappedArcShader {
 
 #[wasm_bindgen]
 impl WrappedArcShader {
-    pub fn add_arc(&mut self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, theta : f32) -> Result<(), JsValue>{
+    pub fn add_arc(&mut self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, theta : f32, r : f32, g : f32, b : f32, thickness : f32) -> Result<(), JsValue>{
         self.arc_shader.add_arc(
-            Vec2::new(p0, p1), Vec2::new(q0, q1), theta
+            Vec2::new(p0, p1), Vec2::new(q0, q1), 
+            theta,
+            Vec4::new(r, g, b, 1.0),
+            thickness
         )?;
         Ok(())
     }
 
     pub fn draw(&mut self) -> Result<(), JsValue> {
-        self.arc_shader.draw()?;
+        self.arc_shader.draw(Transform::new())?;
         Ok(())
     }
 }
