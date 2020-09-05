@@ -52,7 +52,6 @@ impl LineShader {
                 }
             "#
         )?;
-        shader.add_attribute_vec2f(&"aVertexPosition", false)?;
         shader.add_attribute_vec4f(&"aColor", true)?;
         let mut geometry = shader.create_geometry()?;
         geometry.num_vertices = 6;
@@ -68,16 +67,13 @@ impl LineShader {
         self.geometry.num_instances += 1;
         let pq = q - p;
         let pq_perp = Vec2::new(pq.y, -pq.x).normalize() * thickness;
-        let points = [p + pq_perp, p - pq_perp, q-pq_perp, q + pq_perp];
-        self.vertices.push_vec(points[0]);
-        self.vertices.push_vec(points[1]);
-        self.vertices.push_vec(points[2]);
 
-        self.vertices.push_vec(points[0]);
-        self.vertices.push_vec(points[2]);
-        self.vertices.push_vec(points[3]);
+        self.vertices.push_vec(p + pq_perp);
+        self.vertices.push_vec(p - pq_perp);
+        self.vertices.push_vec(q - pq_perp);
+        self.vertices.push_vec(q + pq_perp);
 
-        self.shader.set_attribute_data(&mut self.geometry, "aVertexPosition", &*self.vertices)?;
+
         self.colors.push_vec(color);
         self.shader.set_attribute_data(&mut self.geometry, "aColor", &*self.colors)?;
         Ok(())
@@ -87,11 +83,10 @@ impl LineShader {
     pub fn draw(&self, transform : Transform) -> Result<(), JsValue> {
         self.shader.use_program();
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
+        let position_texture = self.shader.webgl.create_vec2_texture(&self.vertices)?;
         // Put the position data into texture 0.
-        // let positionTexture = self.shader.create_texture();
-
-        // self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        // self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, positionTexture);
+        self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&position_texture));
         self.shader.set_uniform_int("uPositionTexture", 0);
         log_str(&format!("num_instances : {}, num_vertices : {}", self.geometry.num_instances, self.geometry.num_vertices));
         log_str(&format!("colors : {:?}", self.colors));

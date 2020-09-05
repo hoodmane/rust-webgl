@@ -1,7 +1,7 @@
 use crate::vector::{Vec2, Vec3, Vec4};
 use crate::matrix::{Matrix3, Transform};
 use crate::webgl_wrapper::WebGlWrapper;
-
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 
@@ -18,8 +18,7 @@ pub struct Geometry {
     pub num_vertices : i32,
     pub num_instances : i32,
     attribute_state : WebGlVertexArrayObject,
-    buffers : Vec<WebGlBuffer>,
-    buffer_sizes : Vec<usize>,
+    buffers : BTreeMap<u32, (WebGlBuffer, usize)>, // loc -> (buffer, size)
     shader_uuid : Uuid,
 }
 
@@ -48,7 +47,7 @@ impl Attribute {
 pub struct Shader {
     pub webgl : WebGlWrapper,
     program : WebGlProgram,
-    attributes : Vec<Attribute>,
+    attributes : BTreeMap<u32, Attribute>,
     uuid : Uuid
 }
 
@@ -65,13 +64,10 @@ impl Shader {
             fragment_shader
         )?;
         let program = link_program(&webgl, &vert_shader, &frag_shader)?;
-        let num_attributes = webgl.get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_ATTRIBUTES)
-            .as_f64().ok_or("failed to get number of attributes")?
-            as u32;
-        let mut attributes = Vec::new();
-        for _ in 0..num_attributes {
-            attributes.push(Attribute::dummy());
-        }
+        // let num_attributes = webgl.get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_ATTRIBUTES)
+        //     .as_f64().ok_or("failed to get number of attributes")?
+        //     as u32;
+        let attributes = BTreeMap::new();
         Ok(Shader {
             webgl, 
             program,
@@ -82,17 +78,15 @@ impl Shader {
 
     pub fn create_geometry(&self) -> Result<Geometry, JsValue> {
         let attribute_state = self.webgl.create_vertex_array().unwrap();
-        let mut buffers = Vec::new();
-        let mut buffer_sizes = vec![usize::MAX; self.attributes.len()];
+        let mut buffers = BTreeMap::new();
         self.webgl.bind_vertex_array(Some(&attribute_state));
-        for attribute in &self.attributes {
+        for attribute in self.attributes.values() {
             let buffer = self.webgl.create_buffer().ok_or("failed to create buffer")?;
-            buffer_sizes[attribute.loc as usize] = 0;
             self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
             self.webgl.enable_vertex_attrib_array(attribute.loc);
             self.webgl.vertex_attrib_pointer_with_i32(attribute.loc, attribute.size, attribute.attribute_type, false, 0, 0);
             self.webgl.vertex_attrib_divisor(attribute.loc, attribute.instance_divisor);
-            buffers.push(buffer);
+            buffers.insert(attribute.loc, (buffer, 0));
         }
         self.webgl.bind_vertex_array(None); 
         Ok(Geometry {
@@ -100,7 +94,6 @@ impl Shader {
             num_instances : 0,
             attribute_state,
             buffers,
-            buffer_sizes,
             shader_uuid : self.uuid
         })
     }
@@ -146,13 +139,13 @@ impl Shader {
 
     fn add_attribute(&mut self, name : &str, size : i32, attribute_type : u32, instanced : bool) -> Result<(), JsValue> {
         let loc = self.attrib_location(name)?;
-        self.attributes[loc as usize] = Attribute {
+        self.attributes.insert(loc, Attribute {
             name : name.to_string(),
             attribute_type,
             loc, 
             size,
             instance_divisor : if instanced { 1 } else { 0 }
-        };
+        });
         Ok(())
     }
 
@@ -171,8 +164,8 @@ impl Shader {
     pub fn set_attribute_data(&self, geometry : &mut Geometry, name : &str, data : &[f32]) -> Result<(), JsValue> {
         self.check_geometry(geometry)?;
         self.webgl.bind_vertex_array(Some(&geometry.attribute_state));
-        let loc = self.attrib_location(&name)? as usize;
-        let attribute = &self.attributes[loc];
+        let loc = self.attrib_location(&name)?;
+        let attribute = self.attributes.get(&loc).expect("TODO: return an error JsValue here.");
         let attribute_size = attribute.size as usize;
         if data.len() % attribute_size != 0 {
             self.webgl.bind_vertex_array(None);
@@ -183,8 +176,9 @@ impl Shader {
                 attribute_size
             )));
         }
-        geometry.buffer_sizes[loc] = data.len() / attribute_size;
-        self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&geometry.buffers[loc]));
+        let mut buffer_size_tuple = geometry.buffers.get_mut(&loc).expect("TODO");
+        buffer_size_tuple.1 = data.len() / attribute_size;
+        self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer_size_tuple.0));
         self.set_array_buffer_data_from_slice(data);
         self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
         self.webgl.bind_vertex_array(None);
@@ -201,7 +195,7 @@ impl Shader {
     }
 
     fn check_geometry_buffer_sizes(&self, geometry : &Geometry) -> Result<(), JsValue> {
-        for (&buffer_size, attribute) in geometry.buffer_sizes.iter().zip(&self.attributes) {
+        for (&buffer_size, attribute) in geometry.buffers.values().map(|(_buffer,size)| size).zip(self.attributes.values()) {
             if buffer_size == usize::MAX {
                 continue;
             }
