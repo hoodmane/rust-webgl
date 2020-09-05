@@ -28,10 +28,8 @@ static JITTER_COLORS : [Vec4<f32>; 6] = [
 ];
 
 
-static STANDARD_QUAD : [f32; 6 * 2] = [
+static STANDARD_QUAD : [f32; 4 * 2] = [
     0.0, 0.0, 
-    1.0, 0.0,
-    0.0, 1.0,
     1.0, 0.0,
     0.0, 1.0,
     1.0, 1.0
@@ -81,6 +79,7 @@ impl GlyphShader {
         self.shader.use_program();
         let vertices = glyph.vertices();
         let mut geometry = self.shader.create_geometry()?;
+        geometry.num_vertices = vertices.len() as i32;
         self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*vertices)?;
         for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
             let mut cur_transform = transform;
@@ -182,7 +181,7 @@ impl TextShader {
         self.shader.set_uniform_int("uTexture", 0);
         self.shader.set_uniform_vec4("uBoundingBox", Vec4::new(left, top, right, bottom));
         self.shader.set_uniform_vec4("uColor", Vec4::new(0.0, 0.0, 0.0, 0.0));
-        self.shader.draw(&self.quad_geometry, WebGl2RenderingContext::TRIANGLES)?;
+        self.shader.draw(&self.quad_geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())
     }
 }

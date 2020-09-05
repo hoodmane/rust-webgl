@@ -146,6 +146,21 @@ impl Context {
         Ok(())
     }
 
+    pub fn draw_arc(&self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, theta : f32, r : f32, g : f32, b : f32, thickness : f32) -> Result<(), JsValue> {
+        let mut arc_shader = ArcShader::new(self.webgl.clone())?;
+        arc_shader.add_arc(
+            Vec2::new(p0, p1), Vec2::new(q0, q1), 
+            theta,
+            Vec4::new(r, g, b, 1.0),
+            thickness
+        )?;
+        let transform = self.transform();
+        self.webgl.copy_blend_mode();
+        self.webgl.render_to_canvas();
+        arc_shader.draw(self.transform())?;
+        Ok(())
+    }
+
     // pub fn draw_arc(&self, px : f32, py : f32, qx : f32, qy : f32, angle : f32, thickness : f32) -> Result<(), JsValue> {
     //     let mut arc_shader = ArcShader::new(self.webgl.clone())?;
     //     let p = Vec2::new(px, py);

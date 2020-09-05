@@ -48,7 +48,7 @@ impl WebGlWrapper {
         context.tex_storage_2d(
             WebGl2RenderingContext::TEXTURE_2D,
             1, // levels
-            WebGl2RenderingContext::RGBA, // internalformat,
+            WebGl2RenderingContext::RGBA8, // internalformat,
             width,
             height
         );

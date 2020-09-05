@@ -70,8 +70,8 @@ impl LineShader {
 
         self.vertices.push_vec(p + pq_perp);
         self.vertices.push_vec(p - pq_perp);
-        self.vertices.push_vec(q - pq_perp);
         self.vertices.push_vec(q + pq_perp);
+        self.vertices.push_vec(q - pq_perp);
 
         self.colors.push_vec(color);
         self.shader.set_attribute_data(&mut self.geometry, "aColor", &*self.colors)?;
