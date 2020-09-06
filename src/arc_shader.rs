@@ -9,23 +9,10 @@ use web_sys::{WebGlTexture, WebGl2RenderingContext};
 
 use std::f32::consts::FRAC_PI_4;
 
-
-static JITTER_PATTERN : [Vec2<f32>; 6] = [
-    Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
-    Vec2::new( 1.0 / 12.0,  1.0 / 12.0),
-    Vec2::new( 3.0 / 12.0, -1.0 / 12.0),
-    Vec2::new( 5.0 / 12.0,  5.0 / 12.0),
-    Vec2::new( 7.0 / 12.0, -3.0 / 12.0),
-    Vec2::new( 9.0 / 12.0,  3.0 / 12.0),
-];
-
 pub struct ArcShader {
     webgl : WebGlWrapper,
-    antialias_buffer : WebGlTexture,
-    antialias_shader : Shader,
-    antialias_geometry : Geometry,
-    render_shader : Shader,
-    render_geometry : Geometry,
+    shader : Shader,
+    geometry : Geometry,
 }
 
 #[derive(Debug)]
@@ -40,7 +27,7 @@ struct Arc {
 impl ArcShader {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
         let antialias_buffer = webgl.create_texture(webgl.pixel_width(), webgl.pixel_height(), WebGl2RenderingContext::R8)?;
-        let mut antialias_shader = Shader::new(
+        let mut shader = Shader::new(
             webgl.clone(),
             // vertexShader : 
             r#"#version 300 es
@@ -91,51 +78,14 @@ impl ArcShader {
                 }
             "#
         )?;
-        antialias_shader.add_attribute_vec2f("aVertexPosition", false)?;
-        let mut antialias_geometry = antialias_shader.create_geometry()?;
-        antialias_geometry.num_instances = 3;
-
-
-
-
-        let mut render_shader = Shader::new(
-            webgl.clone(),
-            // vertexShader : 
-            r#"#version 300 es
-                uniform mat3 uTransformationMatrix;
-                in vec2 aVertexPosition;
-                out vec2 vTextureCoord;
-
-                void main() {
-                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition, 1.0), 0.0).xywz;
-                    vTextureCoord = (gl_Position.xy + 1.0) * 0.5;                    
-                }
-            "#,
-            // fragmentShader :
-            r#"#version 300 es
-                precision highp float;
-                uniform sampler2D uTexture;
-                uniform vec4 uColor;
-                in vec2 vTextureCoord;
-                out vec4 outColor;
-                void main() {
-                    float opacity = texture(uTexture, vTextureCoord).x;
-                    outColor = uColor;
-                    outColor.a *= opacity;
-                }
-            "#
-        )?;
-        render_shader.add_attribute_vec2f("aVertexPosition", false)?;
-        let mut render_geometry = render_shader.create_geometry()?;
-        render_geometry.num_instances = 2;
+        shader.add_attribute_vec2f("aVertexPosition", false)?;
+        let mut geometry = shader.create_geometry()?;
+        geometry.num_instances = 1;
 
         Ok(Self {
             webgl,
-            antialias_shader,
-            antialias_buffer,
-            antialias_geometry,
-            render_shader,
-            render_geometry
+            shader,
+            geometry,
         })
     }
 
@@ -146,8 +96,7 @@ impl ArcShader {
     ) -> Result<(), JsValue> {
         let arc = self.compute_arc(p, q, theta, thickness)?;
         log_str(&format!("{:?}", arc));
-        self.antialias_to_buffer(transform, &arc)?;
-        // self.render_from_buffer(transform, &arc, color)?;
+        self.render_arc(transform, &arc)?;
         Ok(())
     }
 
@@ -199,40 +148,18 @@ impl ArcShader {
         })
     }
 
-    fn antialias_to_buffer(&mut self, transform : Transform, arc : &Arc) -> Result<(), JsValue> {
-        self.antialias_shader.use_program();
-        // self.webgl.add_blend_mode();
-        // self.webgl.render_to_texture(&self.antialias_buffer);
-        self.webgl.enable(WebGl2RenderingContext::BLEND);
-        self.webgl.blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
+    fn render_arc(&mut self, transform : Transform, arc : &Arc) -> Result<(), JsValue> {
+        self.shader.use_program();
         self.webgl.render_to_canvas();
-        // self.webgl.viewport(0, 0, self.webgl.pixel_width(), self.webgl.pixel_height());
-        // self.webgl.inner.clear_color(0.0, 0.0, 0.0, 1.0);
-        // self.webgl.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
+        self.webgl.premultiplied_blend();
 
-        self.antialias_geometry.num_vertices = arc.vertices.len() as i32;
-        self.antialias_shader.set_uniform_transform("uTransformationMatrix", transform);
-        self.antialias_shader.set_uniform_vec2("uCenter", arc.center);
-        self.antialias_shader.set_uniform_float("uRadius", arc.radius);
-        self.antialias_shader.set_uniform_float("uThickness", arc.thickness);
-        self.antialias_shader.set_attribute_data(&mut self.antialias_geometry, "aVertexPosition", &*arc.vertices)?;
-        self.antialias_shader.draw(&self.antialias_geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
-        Ok(())
-    }
-
-    fn render_from_buffer(&mut self, transform : Transform, arc : &Arc, color : Vec4<f32>) -> Result<(), JsValue> {
-        self.render_shader.use_program();
-        self.webgl.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
-        self.webgl.render_to_canvas();
-        self.webgl.inner.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.webgl.inner.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.antialias_buffer));
-        
-        self.render_geometry.num_vertices = arc.vertices.len() as i32;
-        self.render_shader.set_uniform_transform("uTransformationMatrix", transform);
-        self.render_shader.set_uniform_int("uTexture", 0);
-        self.render_shader.set_uniform_vec4("uColor", color);
-        self.render_shader.set_attribute_data(&mut self.render_geometry, "aVertexPosition", &*arc.vertices)?;
-        self.render_shader.draw(&self.render_geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
+        self.geometry.num_vertices = arc.vertices.len() as i32;
+        self.shader.set_uniform_transform("uTransformationMatrix", transform);
+        self.shader.set_uniform_vec2("uCenter", arc.center);
+        self.shader.set_uniform_float("uRadius", arc.radius);
+        self.shader.set_uniform_float("uThickness", arc.thickness);
+        self.shader.set_attribute_data(&mut self.geometry, "aVertexPosition", &*arc.vertices)?;
+        self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())
     }
 }

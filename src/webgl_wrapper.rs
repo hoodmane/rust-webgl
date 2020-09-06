@@ -131,4 +131,9 @@ impl WebGlWrapper {
     pub fn copy_blend_mode(&self){
         self.inner.disable(WebGl2RenderingContext::BLEND);
     }
+
+    pub fn premultiplied_blend(&self){
+        self.enable(WebGl2RenderingContext::BLEND);
+        self.blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
+    }
 }
