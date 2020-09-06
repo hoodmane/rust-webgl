@@ -3,7 +3,7 @@
 
 async function main(){
     window.pkg = await import('./pkg');
-    window.arc_shader = pkg.get_arc_shader();
+    // window.arc_shader = pkg.get_arc_shader();
     window.line_shader = pkg.get_line_shader();
     window.cubic_shader = pkg.get_cubic_shader();
     window.context = pkg.get_context();

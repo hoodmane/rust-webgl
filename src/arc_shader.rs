@@ -5,103 +5,154 @@ use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::{Shader, Geometry};
 
 use wasm_bindgen::JsValue;
-use web_sys::WebGl2RenderingContext;
+use web_sys::{WebGlTexture, WebGl2RenderingContext};
 
 use std::f32::consts::FRAC_PI_4;
 
-static NUM_SEGMENTS : i32 = 4;
+
+static JITTER_PATTERN : [Vec2<f32>; 6] = [
+    Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
+    Vec2::new( 1.0 / 12.0,  1.0 / 12.0),
+    Vec2::new( 3.0 / 12.0, -1.0 / 12.0),
+    Vec2::new( 5.0 / 12.0,  5.0 / 12.0),
+    Vec2::new( 7.0 / 12.0, -3.0 / 12.0),
+    Vec2::new( 9.0 / 12.0,  3.0 / 12.0),
+];
 
 pub struct ArcShader {
-    pub shader : Shader,
-    geometry : Geometry,
+    webgl : WebGlWrapper,
+    antialias_buffer : WebGlTexture,
+    antialias_shader : Shader,
+    antialias_geometry : Geometry,
+    render_shader : Shader,
+    render_geometry : Geometry,
+}
+
+#[derive(Debug)]
+struct Arc {
     vertices : Vec2Buffer<f32>,
-    centers : Vec2Buffer<f32>,
-    radiuses : Vec<f32>,
-    colors : Vec4Buffer<f32>,
-    thicknesses : Vec<f32>
+    center : Vec2<f32>,
+    radius : f32,
+    thickness : f32
 }
 
 
 impl ArcShader {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
-        let mut shader = Shader::new(
-            webgl,
+        let antialias_buffer = webgl.create_texture(webgl.pixel_width(), webgl.pixel_height(), WebGl2RenderingContext::R8)?;
+        let mut antialias_shader = Shader::new(
+            webgl.clone(),
             // vertexShader : 
             r#"#version 300 es
+                precision highp float;
                 uniform mat3 uTransformationMatrix;
-                uniform sampler2D uPositionTexture;
 
+                const vec2 JITTER_PATTERN[6] = vec2[](
+                    vec2(-1.0 / 12.0, -5.0 / 12.0),
+                    vec2( 1.0 / 12.0,  1.0 / 12.0),
+                    vec2( 3.0 / 12.0, -1.0 / 12.0),
+                    vec2( 5.0 / 12.0,  5.0 / 12.0),
+                    vec2( 7.0 / 12.0, -3.0 / 12.0),
+                    vec2( 9.0 / 12.0,  3.0 / 12.0)
+                );
+
+                uniform vec2 uCenter;
+                in vec2 aVertexPosition;
                 out vec2 vHelperCoord;
-                
-                in vec2 aCenter;
-
-                in float aRadius;
-                flat out float fRadius;
-
-                in vec4 aColor;
-                flat out vec4 fColor;
-
-                in float aThickness;
-                flat out float fThickness;
-
-                vec4 getValueByIndexFromTexture(sampler2D tex, int index) {
-                    int texWidth = textureSize(tex, 0).x;
-                    int col = index % texWidth;
-                    int row = index / texWidth;
-                    return texelFetch(tex, ivec2(col, row), 0);
-                }
 
                 void main() {
-                    int vertexIdx = gl_InstanceID * 10 + gl_VertexID;
-                    vec2 inputPosition = getValueByIndexFromTexture(uPositionTexture, vertexIdx).xy;
-
-                    fRadius = aRadius;
-                    fColor = aColor;
-                    fThickness = aThickness;
-                    gl_Position = vec4(uTransformationMatrix * vec3(inputPosition.xy + aCenter, 1.0), 0.0).xywz;
-                    vHelperCoord = inputPosition;
+                    vec2 jitter_offset = JITTER_PATTERN[gl_InstanceID];
+                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition + jitter_offset, 1.0), 0.0).xywz;
+                    vHelperCoord = aVertexPosition + jitter_offset - uCenter;
                 }
             "#,
             // fragmentShader :
             r#"#version 300 es
                 precision highp float;
-                uniform vec4 uColor;
                 in vec2 vHelperCoord;
-                flat in float fRadius;
-                flat in vec4 fColor;
-                flat in float fThickness;
+
+                uniform float uRadius;
+                uniform float uThickness;
                 out vec4 outColor;
                 void main() {
-                    float magnitude = dot(vHelperCoord, vHelperCoord);
-                    float rsquaredmax = (fRadius + fThickness) * (fRadius + fThickness);
-                    float rsquaredmin = (fRadius - fThickness) * (fRadius - fThickness);
-                    if(magnitude > rsquaredmin && magnitude < rsquaredmax){
-                        outColor = fColor;
-                    } else {
+                    float magnitude = length(vHelperCoord);
+                    float rmax = uRadius + uThickness;
+                    float rmin = uRadius - uThickness;
+                    // alpha is 1 inside the arc and 0 outside the arc, in between near the edge
+                    // float alpha = 1.0 - smoothstep(0.0, 1.0, max(rmin - magnitude, magnitude - rmax));
+                    float alpha = clamp(mix(1.0, 0.0, max(rmin - magnitude, magnitude - rmax)), 0.0, 1.0);
+                    
+                    float rsquaredmax = (uRadius + uThickness) * (uRadius + uThickness);
+                    float rsquaredmin = (uRadius - uThickness) * (uRadius - uThickness);
+                    outColor = vec4(0.0, 0.0, 0.0, alpha);
+                    if(alpha == 0.){ 
                         discard;
                     }
                 }
             "#
         )?;
-        shader.add_attribute_vec2f("aCenter", true)?;
-        shader.add_attribute_float("aRadius", true)?;
-        shader.add_attribute_vec4f("aColor", true)?;
-        shader.add_attribute_float("aThickness", true)?;
-        let mut geometry = shader.create_geometry()?;
-        geometry.num_vertices = (NUM_SEGMENTS + 1) * 2;
+        antialias_shader.add_attribute_vec2f("aVertexPosition", false)?;
+        let mut antialias_geometry = antialias_shader.create_geometry()?;
+        antialias_geometry.num_instances = 3;
+
+
+
+
+        let mut render_shader = Shader::new(
+            webgl.clone(),
+            // vertexShader : 
+            r#"#version 300 es
+                uniform mat3 uTransformationMatrix;
+                in vec2 aVertexPosition;
+                out vec2 vTextureCoord;
+
+                void main() {
+                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition, 1.0), 0.0).xywz;
+                    vTextureCoord = (gl_Position.xy + 1.0) * 0.5;                    
+                }
+            "#,
+            // fragmentShader :
+            r#"#version 300 es
+                precision highp float;
+                uniform sampler2D uTexture;
+                uniform vec4 uColor;
+                in vec2 vTextureCoord;
+                out vec4 outColor;
+                void main() {
+                    float opacity = texture(uTexture, vTextureCoord).x;
+                    outColor = uColor;
+                    outColor.a *= opacity;
+                }
+            "#
+        )?;
+        render_shader.add_attribute_vec2f("aVertexPosition", false)?;
+        let mut render_geometry = render_shader.create_geometry()?;
+        render_geometry.num_instances = 2;
+
         Ok(Self {
-            shader,
-            geometry,
-            vertices : Vec2Buffer::new(),
-            centers : Vec2Buffer::new(),
-            radiuses : Vec::new(),
-            colors : Vec4Buffer::new(),
-            thicknesses : Vec::new()
+            webgl,
+            antialias_shader,
+            antialias_buffer,
+            antialias_geometry,
+            render_shader,
+            render_geometry
         })
     }
 
-    pub fn add_arc(&mut self, p : Vec2<f32>, q : Vec2<f32>, theta : f32, color : Vec4<f32>, thickness : f32) -> Result<(), JsValue> {
-        self.geometry.num_instances += 1;       
+    pub fn draw_arc(&mut self, 
+        transform : Transform,
+        p : Vec2<f32>, q : Vec2<f32>, 
+        theta : f32, color : Vec4<f32>, thickness : f32
+    ) -> Result<(), JsValue> {
+        let arc = self.compute_arc(p, q, theta, thickness)?;
+        log_str(&format!("{:?}", arc));
+        self.antialias_to_buffer(transform, &arc)?;
+        // self.render_from_buffer(transform, &arc, color)?;
+        Ok(())
+    }
+
+
+    fn compute_arc(&self, p : Vec2<f32>, q : Vec2<f32>, theta : f32, thickness : f32) -> Result<Arc, JsValue> {
         if theta == 0.0 {
             return Err(JsValue::from_str(&"Theta should be nonzero."));
         }
@@ -129,38 +180,59 @@ impl ArcShader {
 
         let center_to_p = (p - center).normalize();
         let theta0 = f32::atan2(center_to_p.y, center_to_p.x);
-        let num_segments_float = NUM_SEGMENTS as f32; //f32::ceil(theta / FRAC_PI_4);
-        let envelope_thickness = thickness * 1.05;
+        let num_segments = f32::ceil(theta / FRAC_PI_4);//NUM_SEGMENTS as f32; //
+        let envelope_thickness = thickness * 5.0;
         let inner_radius = radius - envelope_thickness;
-        let outer_radius = (radius + envelope_thickness) / f32::cos(theta / num_segments_float);
+        let outer_radius = (radius + envelope_thickness) / f32::cos(theta / num_segments);
 
-        for i in 0 ..= NUM_SEGMENTS {
-            let v = Vec2::direction(theta0 -  2.0 * (theta / num_segments_float) * i as f32);
-            self.vertices.push_vec(v * inner_radius);
-            self.vertices.push_vec(v * outer_radius);
+        let mut vertices = Vec2Buffer::new();
+        for i in 0 ..= num_segments as usize {
+            let v = Vec2::direction(theta0 -  2.0 * (theta / num_segments) * i as f32);
+            vertices.push_vec(center + v * inner_radius);
+            vertices.push_vec(center + v * outer_radius);
         }
-        log_str(&format!("radius : {}, inner_radius : {}, outer_radius : {}", radius, inner_radius, outer_radius));
-        self.centers.push_vec(center);
-        self.radiuses.push(radius);
-        self.colors.push_vec(color);
-        self.thicknesses.push(thickness);
-        self.shader.set_attribute_data(&mut self.geometry, "aCenter", &*self.centers)?;
-        self.shader.set_attribute_data(&mut self.geometry, "aRadius", &*self.radiuses)?;
-        self.shader.set_attribute_data(&mut self.geometry, "aColor", &*self.colors)?;
-        self.shader.set_attribute_data(&mut self.geometry, "aThickness", &*self.thicknesses)?;
+        Ok(Arc {
+            vertices,
+            center,
+            radius,
+            thickness
+        })
+    }
+
+    fn antialias_to_buffer(&mut self, transform : Transform, arc : &Arc) -> Result<(), JsValue> {
+        self.antialias_shader.use_program();
+        // self.webgl.add_blend_mode();
+        // self.webgl.render_to_texture(&self.antialias_buffer);
+        self.webgl.enable(WebGl2RenderingContext::BLEND);
+        self.webgl.blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
+        self.webgl.render_to_canvas();
+        // self.webgl.viewport(0, 0, self.webgl.pixel_width(), self.webgl.pixel_height());
+        // self.webgl.inner.clear_color(0.0, 0.0, 0.0, 1.0);
+        // self.webgl.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
+
+        self.antialias_geometry.num_vertices = arc.vertices.len() as i32;
+        self.antialias_shader.set_uniform_transform("uTransformationMatrix", transform);
+        self.antialias_shader.set_uniform_vec2("uCenter", arc.center);
+        self.antialias_shader.set_uniform_float("uRadius", arc.radius);
+        self.antialias_shader.set_uniform_float("uThickness", arc.thickness);
+        self.antialias_shader.set_attribute_data(&mut self.antialias_geometry, "aVertexPosition", &*arc.vertices)?;
+        self.antialias_shader.draw(&self.antialias_geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())
     }
 
-    pub fn draw(&self, transform : Transform) -> Result<(), JsValue> {
-        self.shader.use_program();
-        self.shader.set_uniform_transform("uTransformationMatrix", transform);
-        log_str(&format!("vertices ({}) : {:?}", self.vertices.len(), self.vertices));
-        let position_texture = self.shader.webgl.create_vec2_texture(&self.vertices)?;
-        // Put the position data into texture 0.
-        self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&position_texture));
-        self.shader.set_uniform_int("uPositionTexture", 0);
-        self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
+    fn render_from_buffer(&mut self, transform : Transform, arc : &Arc, color : Vec4<f32>) -> Result<(), JsValue> {
+        self.render_shader.use_program();
+        self.webgl.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
+        self.webgl.render_to_canvas();
+        self.webgl.inner.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.webgl.inner.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.antialias_buffer));
+        
+        self.render_geometry.num_vertices = arc.vertices.len() as i32;
+        self.render_shader.set_uniform_transform("uTransformationMatrix", transform);
+        self.render_shader.set_uniform_int("uTexture", 0);
+        self.render_shader.set_uniform_vec4("uColor", color);
+        self.render_shader.set_attribute_data(&mut self.render_geometry, "aVertexPosition", &*arc.vertices)?;
+        self.render_shader.draw(&self.render_geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())
     }
 }

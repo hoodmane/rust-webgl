@@ -16,10 +16,14 @@ use web_sys::{WebGlTexture, WebGl2RenderingContext};
 pub struct Context {
     webgl : WebGlWrapper,
     transform : Transform,
+
+
     glyph_shader : GlyphShader,
     text_shader : TextShader,
-    line_shader : LineShader,
     glyph_buffer : WebGlTexture,
+    
+    arc_shader : ArcShader,
+    line_shader : LineShader,
     width : i32,
     height : i32,
     density : f64
@@ -31,6 +35,7 @@ impl Context {
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let text_shader = TextShader::new(webgl.clone())?;
         let line_shader = LineShader::new(webgl.clone())?;
+        let arc_shader = ArcShader::new(webgl.clone())?;
         let width = webgl.width();
         let height = webgl.height();
         let density = WebGlWrapper::density();
@@ -39,8 +44,11 @@ impl Context {
             transform : Transform::new(),
             glyph_shader,
             text_shader,
-            line_shader,
             glyph_buffer,
+
+
+            line_shader,
+            arc_shader,
             width,
             height,
             density
@@ -93,7 +101,7 @@ impl Context {
         self.webgl.inner.viewport(0, 0, self.pixel_width(), self.pixel_height());
         self.webgl.inner.disable(WebGl2RenderingContext::BLEND);
         self.webgl.clear();
-        self.glyph_buffer = self.webgl.create_texture(self.pixel_width(), self.pixel_height())?;
+        self.glyph_buffer = self.webgl.create_texture(self.pixel_width(), self.pixel_height(), WebGl2RenderingContext::RGBA8)?;
         Ok(())
     }
 
@@ -146,35 +154,16 @@ impl Context {
         Ok(())
     }
 
-    pub fn draw_arc(&self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, theta : f32, r : f32, g : f32, b : f32, thickness : f32) -> Result<(), JsValue> {
-        let mut arc_shader = ArcShader::new(self.webgl.clone())?;
-        arc_shader.add_arc(
+    pub fn draw_arc(&mut self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, theta : f32, r : f32, g : f32, b : f32, thickness : f32) -> Result<(), JsValue> {
+        self.arc_shader.draw_arc(
+            self.transform(),
             Vec2::new(p0, p1), Vec2::new(q0, q1), 
             theta,
             Vec4::new(r, g, b, 1.0),
             thickness
         )?;
-        let transform = self.transform();
-        self.webgl.copy_blend_mode();
-        self.webgl.render_to_canvas();
-        arc_shader.draw(self.transform())?;
         Ok(())
     }
-
-    // pub fn draw_arc(&self, px : f32, py : f32, qx : f32, qy : f32, angle : f32, thickness : f32) -> Result<(), JsValue> {
-    //     let mut arc_shader = ArcShader::new(self.webgl.clone())?;
-    //     let p = Vec2::new(px, py);
-    //     let q = Vec2::new(qx, qy);
-    //     arc_shader.add_arc(p, q, thickness);
-    //     let transform = self.transform();
-    //     log_str(&format!("p : {:?}", transform.transform_point(p)));
-    //     log_str(&format!("q : {:?}", transform.transform_point(q)));
-    //     self.copy_blend_mode();
-    //     self.render_to_canvas();
-    //     arc_shader.draw(self.transform())?;
-    //     Ok(())
-    // }
-
 
     pub fn translate(&mut self, x : f32, y : f32) {
         let mut transform = self.transform();

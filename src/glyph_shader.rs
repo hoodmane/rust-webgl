@@ -130,12 +130,6 @@ impl TextShader {
                 in vec2 vTextureCoord;
                 out vec4 outColor;
                 void main() {
-                    // float should_draw =  mod(texture(uTexture, vTextureCoord).x * 255.0, 2.0);
-                    // if(should_draw == 0.0){
-                    //     discard;
-                    // }
-                    // outColor = vec4(0.2, 0.7, 0.7, 1);
-                    
                     vec2 valueL = texture(uTexture, vec2(vTextureCoord.x + dFdx(vTextureCoord.x), vTextureCoord.y)).yz * 255.0;
                     vec2 lowerL = mod(valueL, 16.0);
                     vec2 upperL = (valueL - lowerL) / 16.0;

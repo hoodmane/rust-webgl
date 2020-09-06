@@ -36,19 +36,27 @@ impl WebGlWrapper {
         self.inner.drawing_buffer_height()
     }
 
+    pub fn pixel_width(&self) -> i32 {
+        (self.width() as f64 * WebGlWrapper::density()) as i32
+    }
+
+    pub fn pixel_height(&self) -> i32 {
+        (self.height() as f64 * WebGlWrapper::density()) as i32
+    }
+
     pub fn clear(&self){
         self.inner.clear_color(0.5, 0.5, 0.5, 1.0);
         self.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
     }
 
-    pub fn create_texture(&self, width : i32, height : i32) -> Result<WebGlTexture, JsValue> {
+    pub fn create_texture(&self, width : i32, height : i32, internal_format : u32) -> Result<WebGlTexture, JsValue> {
         let context = &self.inner;
         let texture = context.create_texture();
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
         context.tex_storage_2d(
             WebGl2RenderingContext::TEXTURE_2D,
             1, // levels
-            WebGl2RenderingContext::RGBA8, // internalformat,
+            internal_format, //WebGl2RenderingContext::RGBA8, // internalformat,
             width,
             height
         );
