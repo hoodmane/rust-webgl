@@ -148,7 +148,7 @@ impl Font {
         }
     }
 
-    fn read_vec(&self, data_reader : &mut DataReader) -> Vec2<f32> {
+    fn read_vec(&self, data_reader : &mut DataReader) -> Vec2 {
         let x = (data_reader.read_i16() as f32) * self.scale;
         let y = (data_reader.read_i16() as f32) * self.scale; // + self.ascender;
         Vec2::new(x, y)
@@ -186,7 +186,7 @@ pub struct Glyph {
 }
 
 impl Glyph {
-    pub fn vertices(&self) -> &Vec4Buffer<f32> {
+    pub fn vertices(&self) -> &Vec4Buffer {
         &self.path.get().unwrap().vertices
     }
 
@@ -197,16 +197,16 @@ impl Glyph {
 
 
 struct GlyphPath {
-    vertices : Vec4Buffer<f32>,
+    vertices : Vec4Buffer,
     bounding_box : Rect
 } 
 
 
 struct GlyphCompiler {
 	// const _pool GPU.BufferPool
-	vertices : Vec4Buffer<f32>,
-	first : Vec2<f32>,
-	current : Vec2<f32>,
+	vertices : Vec4Buffer,
+	first : Vec2,
+	current : Vec2,
     contour_count : u32,
 	bounding_box_builder : RectBuilder,
 }
@@ -222,14 +222,14 @@ impl GlyphCompiler {
         }
     }
 
-	fn move_to(&mut self, p : Vec2<f32>) {
+	fn move_to(&mut self, p : Vec2) {
         log_str(&format!("move_to {:?}", p));
         self.first = p;
         self.current = p;
 		self.contour_count = 0
 	}
 
-	fn line_to(&mut self, p : Vec2<f32>) {
+	fn line_to(&mut self, p : Vec2) {
         log_str(&format!("line_to {:?}", p));
         self.contour_count += 1;
 		if self.contour_count >= 2 {
@@ -239,7 +239,7 @@ impl GlyphCompiler {
 		self.current = p;
 	}
 
-	fn curve_to(&mut self, c : Vec2<f32>, p : Vec2<f32>) {
+	fn curve_to(&mut self, c : Vec2, p : Vec2) {
         log_str(&format!("curve_to {:?}, {:?}", c, p));
         self.contour_count += 1;
         if self.contour_count >= 2 {
@@ -263,19 +263,19 @@ impl GlyphCompiler {
         } 
 	}
 
-	fn append_triangle(&mut self, a : Vec2<f32>, b : Vec2<f32>, c : Vec2<f32>) {
+	fn append_triangle(&mut self, a : Vec2, b : Vec2, c : Vec2) {
         self.append_vertex(a, 0.0, 1.0);
         self.append_vertex(b, 0.0, 1.0);
         self.append_vertex(c, 0.0, 1.0);
     }
 
-    fn append_curve(&mut self, a : Vec2<f32>, b : Vec2<f32>, c : Vec2<f32>) {
+    fn append_curve(&mut self, a : Vec2, b : Vec2, c : Vec2) {
         self.append_vertex(a, 0.0, 0.0);
         self.append_vertex(b, 0.5, 0.0);
         self.append_vertex(c, 1.0, 1.0);
 	}
 
-	fn append_vertex(&mut self, p : Vec2<f32>, s : f32, t : f32) {
+	fn append_vertex(&mut self, p : Vec2, s : f32, t : f32) {
 		self.bounding_box_builder.include(p);
 		self.vertices.push(p.x, p.y, s, t);
 	}

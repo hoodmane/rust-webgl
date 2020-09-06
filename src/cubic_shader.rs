@@ -9,7 +9,7 @@ use web_sys::WebGl2RenderingContext;
 use std::ops::{Add, Mul};
 use std::cmp::Ordering;
 
-fn distance_sq(a : Vec2<f32>, b : Vec2<f32>) -> f32 {
+fn distance_sq(a : Vec2, b : Vec2) -> f32 {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
     dx * dx + dy * dy
@@ -17,7 +17,7 @@ fn distance_sq(a : Vec2<f32>, b : Vec2<f32>) -> f32 {
 
 // compute the distance squared from p to the line segment
 // formed by v and w
-fn distance_to_segment_sq(p : Vec2<f32>, v : Vec2<f32>, w : Vec2<f32>) -> f32 {
+fn distance_to_segment_sq(p : Vec2, v : Vec2, w : Vec2) -> f32 {
     let l2 = distance_sq(v, w);
     if l2 == 0.0 {
         return distance_sq(p, v);
@@ -27,7 +27,7 @@ fn distance_to_segment_sq(p : Vec2<f32>, v : Vec2<f32>, w : Vec2<f32>) -> f32 {
     distance_sq(p, v * (1.0 - t) +  w * t)
 }
 
-fn barycentric_coordinates(triangle : [Vec2<f32>; 3], p : Vec2<f32>) -> (f32, f32, f32) {
+fn barycentric_coordinates(triangle : [Vec2; 3], p : Vec2) -> (f32, f32, f32) {
     let [a, b, c] = triangle;
     let det_t = (a.x - c.x) * (b.y - c.y) - (b.x - c.x) * (a.y - c.y);
     let numerator1 = (p.x  - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y);
@@ -39,9 +39,9 @@ fn barycentric_coordinates(triangle : [Vec2<f32>; 3], p : Vec2<f32>) -> (f32, f3
 }
 
 fn barycentric_average<V : Add<Output = V> + Mul<f32, Output=V>>(
-    triangle : [ Vec2<f32> ; 3], 
+    triangle : [ Vec2 ; 3], 
     v : [V ; 3], 
-    point : Vec2<f32>
+    point : Vec2
 ) -> V {
     let [v1, v2, v3] = v;
     let (l1, l2, l3) = barycentric_coordinates(triangle, point);
@@ -50,7 +50,7 @@ fn barycentric_average<V : Add<Output = V> + Mul<f32, Output=V>>(
 
 
 
-fn flatness(points : &Vec2Buffer<f32>, offset : usize) -> f32 {
+fn flatness(points : &Vec2Buffer, offset : usize) -> f32 {
     let p1 = points.get(offset + 0);
     let p2 = points.get(offset + 1);
     let p3 = points.get(offset + 2);
@@ -71,7 +71,7 @@ fn flatness(points : &Vec2Buffer<f32>, offset : usize) -> f32 {
     ux + uy
 }
 
-fn get_points_on_bezier_curve_with_splitting(points : &mut Vec2Buffer<f32>, offset : usize, tolerance : f32, out_points : &mut Vec2Buffer<f32>) {
+fn get_points_on_bezier_curve_with_splitting(points : &mut Vec2Buffer, offset : usize, tolerance : f32, out_points : &mut Vec2Buffer) {
     if flatness(points, offset) < tolerance {
         // just add the end points of this curve
         out_points.push_vec(points.get(offset + 0));
@@ -112,7 +112,7 @@ fn get_points_on_bezier_curve_with_splitting(points : &mut Vec2Buffer<f32>, offs
 }
 
 
-fn get_points_on_bezier_curve(p1 : Vec2<f32>, p2 : Vec2<f32>, p3 : Vec2<f32>, p4 : Vec2<f32>, tolerance : f32) -> Vec2Buffer<f32> {
+fn get_points_on_bezier_curve(p1 : Vec2, p2 : Vec2, p3 : Vec2, p4 : Vec2, tolerance : f32) -> Vec2Buffer {
     let mut points = Vec2Buffer::new();
     points.push_vec(p1);
     points.push_vec(p2);
@@ -129,7 +129,7 @@ fn get_points_on_bezier_curve(p1 : Vec2<f32>, p2 : Vec2<f32>, p3 : Vec2<f32>, p4
 }
 
 
-fn simplify_points(points : &Vec2Buffer<f32>, start : usize, end : usize, epsilon : f32, out_points : &mut Vec2Buffer<f32>) {
+fn simplify_points(points : &Vec2Buffer, start : usize, end : usize, epsilon : f32, out_points : &mut Vec2Buffer) {
     // find the furthest point from the endpoints
     let s = points.get(start);
     let e = points.get(end - 1);
@@ -176,7 +176,7 @@ static FROM_BEZIER_BASIS : Matrix4 = Matrix4::new([
 // r2: (4) [-0.11227077352868109, 0.0012596193405952489, 0.06810521791767168, 1]
 // r3: (4) [0.10104369617581305, 0.03733209446585055, -0.12354768878937478, 1]
 
-fn classify_bezier(p0 : Vec2<f32>, p1 : Vec2<f32>, p2 : Vec2<f32>, p3 : Vec2<f32>) -> (Vec4<f32>, Vec4<f32>, Vec4<f32>) {
+fn classify_bezier(p0 : Vec2, p1 : Vec2, p2 : Vec2, p3 : Vec2) -> (Vec4, Vec4, Vec4) {
     log_str(&format!("classify_bezier : {:?}", p3));
     let Vec2 { x : p0x, y : p0y} = p0;
     let Vec2 { x : p1x, y : p1y} = p1;
@@ -288,8 +288,8 @@ fn classify_bezier(p0 : Vec2<f32>, p1 : Vec2<f32>, p2 : Vec2<f32>, p3 : Vec2<f32
 
 pub struct CubicBezierShader {
     pub shader : Shader,
-    vertices : Vec2Buffer<f32>,
-    bezier_helper_coords : Vec4Buffer<f32>,
+    vertices : Vec2Buffer,
+    bezier_helper_coords : Vec4Buffer,
 }
 
 impl CubicBezierShader {
@@ -357,7 +357,7 @@ impl CubicBezierShader {
         })
     }
 
-    pub fn add_cubic_bezier(&mut self, q1 : Vec2<f32>, q2 : Vec2<f32>, q3 : Vec2<f32>, q4 : Vec2<f32>) {
+    pub fn add_cubic_bezier(&mut self, q1 : Vec2, q2 : Vec2, q3 : Vec2, q4 : Vec2) {
         let tolerance = 0.001;
         let distance = 0.001;
         let p1 = q1 - q1;

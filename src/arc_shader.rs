@@ -17,8 +17,8 @@ pub struct ArcShader {
 
 #[derive(Debug)]
 struct Arc {
-    vertices : Vec2Buffer<f32>,
-    center : Vec2<f32>,
+    vertices : Vec2Buffer,
+    center : Vec2,
     radius : f32,
     thickness : f32
 }
@@ -103,8 +103,8 @@ impl ArcShader {
 
     pub fn draw_arc(&mut self, 
         transform : Transform,
-        p : Vec2<f32>, q : Vec2<f32>, 
-        theta : f32, color : Vec4<f32>, thickness : f32
+        p : Vec2, q : Vec2, 
+        theta : f32, color : Vec4, thickness : f32
     ) -> Result<(), JsValue> {
         let arc = self.compute_arc(p, q, theta, thickness)?;
         log_str(&format!("{:?}", arc));
@@ -113,7 +113,7 @@ impl ArcShader {
     }
 
 
-    fn compute_arc(&self, p : Vec2<f32>, q : Vec2<f32>, theta : f32, thickness : f32) -> Result<Arc, JsValue> {
+    fn compute_arc(&self, p : Vec2, q : Vec2, theta : f32, thickness : f32) -> Result<Arc, JsValue> {
         if theta == 0.0 {
             return Err(JsValue::from_str(&"Theta should be nonzero."));
         }

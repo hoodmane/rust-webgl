@@ -9,7 +9,7 @@ use crate::webgl_wrapper::WebGlWrapper;
 use wasm_bindgen::JsValue;
 use web_sys::WebGl2RenderingContext;
 
-static JITTER_PATTERN : [Vec2<f32>; 6] = [
+static JITTER_PATTERN : [Vec2; 6] = [
     Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
     Vec2::new( 1.0 / 12.0,  1.0 / 12.0),
     Vec2::new( 3.0 / 12.0, -1.0 / 12.0),
@@ -18,7 +18,7 @@ static JITTER_PATTERN : [Vec2<f32>; 6] = [
     Vec2::new( 9.0 / 12.0,  3.0 / 12.0),
 ];
 
-static JITTER_COLORS : [Vec4<f32>; 6] = [
+static JITTER_COLORS : [Vec4; 6] = [
     Vec4::new(1.0, 0.0, 0.0, 0.0),
     Vec4::new(1.0, 0.0, 0.0, 0.0),
     Vec4::new(0.0, 1.0, 0.0, 0.0),

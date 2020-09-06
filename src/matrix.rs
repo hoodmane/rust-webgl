@@ -125,15 +125,15 @@ impl Transform {
 }
 
 impl Transform {
-	pub fn translate_vec(&mut self, v : Vec2<f32>) {
+	pub fn translate_vec(&mut self, v : Vec2) {
         self.translate(v.x, v.y);
 	}
 
-	pub fn scale_vec(&mut self, v : Vec2<f32>) {
+	pub fn scale_vec(&mut self, v : Vec2) {
 		self.scale(v.x, v.y);
 	}
 
-	pub fn transform_point(&self, point : Vec2<f32>) -> Vec2<f32> {
+	pub fn transform_point(&self, point : Vec2) -> Vec2 {
         let [
             m00, m10, _,
             m01, m11, _,
@@ -145,7 +145,7 @@ impl Transform {
 		Vec2::new(x_result, y_result)
 	}
 
-	pub fn transform_direction(&self, direction : Vec2<f32>) -> Vec2<f32> {
+	pub fn transform_direction(&self, direction : Vec2) -> Vec2 {
         let [
             m00, m10, _,
             m01, m11, _,
@@ -303,7 +303,7 @@ impl Matrix3 {
         }
     }
 
-    pub fn row(&self, row : usize) -> Vec3<f32> {
+    pub fn row(&self, row : usize) -> Vec3 {
         Vec3 {
             x : self.data[3 * row],
             y : self.data[3 * row + 1],
@@ -338,9 +338,9 @@ impl Mul for Matrix3 {
     }
 }
 
-impl Mul<Vec3<f32>> for Matrix3 {
-    type Output = Vec3<f32>;
-    fn mul(self, other : Vec3<f32>) -> Self::Output {
+impl Mul<Vec3> for Matrix3 {
+    type Output = Vec3;
+    fn mul(self, other : Vec3) -> Self::Output {
         let mat1 = &self.data;
         Vec3::new(
             mat1[0] * other.x + mat1[1] * other.y + mat1[2] * other.z,
@@ -363,7 +363,7 @@ impl Matrix4 {
         }
     }
 
-    pub fn row(&self, row : usize) -> Vec4<f32> {
+    pub fn row(&self, row : usize) -> Vec4 {
         Vec4 {
             x : self.data[4 * row],
             y : self.data[4 * row + 1],
@@ -416,9 +416,9 @@ impl Mul for Matrix4 {
     }
 }
 
-impl Mul<Vec4<f32>> for Matrix4 {
-    type Output = Vec4<f32>;
-    fn mul(self, other : Vec4<f32>) -> Self::Output {
+impl Mul<Vec4> for Matrix4 {
+    type Output = Vec4;
+    fn mul(self, other : Vec4) -> Self::Output {
         let mat1 = &self.data;
         Vec4::new(
             mat1[0] * other.x + mat1[1] * other.y + mat1[2] * other.z + mat1[3] * other.w,

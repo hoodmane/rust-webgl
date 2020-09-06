@@ -10,8 +10,8 @@ use web_sys::WebGl2RenderingContext;
 
 pub struct LineShader {
     pub shader : Shader,
-    vertices : Vec2Buffer<f32>,
-    colors : Vec4Buffer<f32>,
+    vertices : Vec2Buffer,
+    colors : Vec4Buffer,
     geometry : Geometry
 }
 
@@ -63,7 +63,13 @@ impl LineShader {
         })
     }
 
-    pub fn add_line(&mut self, p : Vec2<f32>, q : Vec2<f32>, color : Vec4<f32>, thickness : f32) -> Result<(), JsValue> {
+    pub fn clear(){
+        self.vertices.clear();
+        self.colors.clear();
+        self.geometry.num_instances = 0;
+    }
+
+    pub fn add_line(&mut self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
         self.geometry.num_instances += 1;
         let pq = q - p;
         let pq_perp = Vec2::new(pq.y, -pq.x).normalize() * thickness;

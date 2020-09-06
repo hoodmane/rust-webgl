@@ -240,17 +240,17 @@ impl Shader {
         self.webgl.uniform1iv_with_i32_array(loc.as_ref(), &[x]);
     }
 
-    pub fn set_uniform_vec2(&self, name : &str, v2 : Vec2<f32>) {
+    pub fn set_uniform_vec2(&self, name : &str, v2 : Vec2) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
         self.webgl.uniform2fv_with_f32_array(loc.as_ref(), &[v2.x, v2.y]);
     }
 
-    pub fn set_uniform_vec3(&self, name : &str, v3 : Vec3<f32>) {
+    pub fn set_uniform_vec3(&self, name : &str, v3 : Vec3) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
         self.webgl.uniform3fv_with_f32_array(loc.as_ref(), &[v3.x, v3.y, v3.z]);
     }
 
-    pub fn set_uniform_vec4(&self, name : &str, v4 : Vec4<f32>) {
+    pub fn set_uniform_vec4(&self, name : &str, v4 : Vec4) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
         self.webgl.uniform4fv_with_f32_array(loc.as_ref(), &[v4.x, v4.y, v4.z, v4.w]);
     }

@@ -68,7 +68,7 @@ impl RectBuilder {
 		Rect::new(self.min_x, self.min_y, self.max_x - self.min_x, self.max_y - self.min_y)
 	}
 
-	pub fn include(&mut self,  p : Vec2<f32>) {
+	pub fn include(&mut self,  p : Vec2) {
         let Vec2 {x, y} = p;
 		self.min_x = self.min_x.min(x);
 		self.min_y = self.min_y.min(y);
