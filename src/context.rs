@@ -140,11 +140,14 @@ impl Context {
         Ok(())
     }
 
-    pub fn draw_line(&self, px : f32, py : f32, qx : f32, qy : f32, thickness : f32) -> Result<(), JsValue> {
+    pub fn draw_line(&self, px : f32, py : f32, qx : f32, qy : f32, thickness : f32, r : f32, g : f32, b : f32) -> Result<(), JsValue> {
         let mut line_shader = LineShader::new(self.webgl.clone())?;
         let p = Vec2::new(px, py);
         let q = Vec2::new(qx, qy);
-        line_shader.add_line(p, q, Vec4::new(0.0, 0.0, 0.0, 1.0), thickness)?;
+        let r = if r.is_finite() { r } else { 0.0 };
+        let g = if g.is_finite() { g } else { 0.0 };
+        let b = if b.is_finite() { b } else { 0.0 };
+        line_shader.add_line(p, q, Vec4::new(r, g, b, 1.0), thickness)?;
         let transform = self.transform();
         log_str(&format!("p : {:?}", transform.transform_point(p)));
         log_str(&format!("q : {:?}", transform.transform_point(q)));

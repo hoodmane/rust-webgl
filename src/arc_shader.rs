@@ -58,6 +58,21 @@ impl ArcShader {
                 precision highp float;
                 in vec2 vHelperCoord;
 
+                // returns 0 if gradient << compValue, 1 if gradient >> compValue,
+                // if gradient ~ compValue linearly interpolates a single pixel
+                // https://www.ronja-tutorials.com/2019/11/29/fwidth.html#a-better-step
+                float aaStep(float compValue, float gradient){
+                    float halfChange = fwidth(gradient) / 2.0;
+                    //base the range of the inverse lerp on the change over one pixel
+                    float lowerEdge = compValue - halfChange;
+                    float upperEdge = compValue + halfChange;
+                    //do the inverse interpolation
+                    float stepped = (gradient - lowerEdge) / (upperEdge - lowerEdge);
+                    stepped = clamp(stepped, 0.0, 1.0);
+                    return stepped;
+                  }
+
+
                 uniform float uRadius;
                 uniform float uThickness;
                 out vec4 outColor;
@@ -66,13 +81,10 @@ impl ArcShader {
                     float rmax = uRadius + uThickness;
                     float rmin = uRadius - uThickness;
                     // alpha is 1 inside the arc and 0 outside the arc, in between near the edge
-                    // float alpha = 1.0 - smoothstep(0.0, 1.0, max(rmin - magnitude, magnitude - rmax));
-                    float alpha = clamp(mix(1.0, 0.0, max(rmin - magnitude, magnitude - rmax)), 0.0, 1.0);
-                    
-                    float rsquaredmax = (uRadius + uThickness) * (uRadius + uThickness);
-                    float rsquaredmin = (uRadius - uThickness) * (uRadius - uThickness);
+                    float gradient = max(rmin - magnitude, magnitude - rmax);
+                    float alpha = 1.0 - aaStep(0.0, gradient);
                     outColor = vec4(0.0, 0.0, 0.0, alpha);
-                    if(alpha == 0.){ 
+                    if(alpha == 0.0){ 
                         discard;
                     }
                 }
