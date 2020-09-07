@@ -26,7 +26,6 @@ struct Arc {
 
 impl ArcShader {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
-        let antialias_buffer = webgl.create_texture(webgl.pixel_width(), webgl.pixel_height(), WebGl2RenderingContext::R8)?;
         let mut shader = Shader::new(
             webgl.clone(),
             // vertexShader : 
@@ -75,6 +74,7 @@ impl ArcShader {
 
                 uniform float uRadius;
                 uniform float uThickness;
+                uniform vec4 uColor;
                 out vec4 outColor;
                 void main() {
                     float magnitude = length(vHelperCoord);
@@ -83,7 +83,8 @@ impl ArcShader {
                     // alpha is 1 inside the arc and 0 outside the arc, in between near the edge
                     float gradient = max(rmin - magnitude, magnitude - rmax);
                     float alpha = 1.0 - aaStep(0.0, gradient);
-                    outColor = vec4(0.0, 0.0, 0.0, alpha);
+                    outColor = uColor;
+                    outColor.a *= alpha;
                     if(alpha == 0.0){ 
                         discard;
                     }
@@ -108,7 +109,7 @@ impl ArcShader {
     ) -> Result<(), JsValue> {
         let arc = self.compute_arc(p, q, theta, thickness)?;
         log_str(&format!("{:?}", arc));
-        self.render_arc(transform, &arc)?;
+        self.render_arc(transform, &arc, color)?;
         Ok(())
     }
 
@@ -160,7 +161,7 @@ impl ArcShader {
         })
     }
 
-    fn render_arc(&mut self, transform : Transform, arc : &Arc) -> Result<(), JsValue> {
+    fn render_arc(&mut self, transform : Transform, arc : &Arc, color : Vec4) -> Result<(), JsValue> {
         self.shader.use_program();
         self.webgl.render_to_canvas();
         self.webgl.premultiplied_blend();
@@ -170,6 +171,7 @@ impl ArcShader {
         self.shader.set_uniform_vec2("uCenter", arc.center);
         self.shader.set_uniform_float("uRadius", arc.radius);
         self.shader.set_uniform_float("uThickness", arc.thickness);
+        self.shader.set_uniform_vec4("uColor", color);
         self.shader.set_attribute_data(&mut self.geometry, "aVertexPosition", &*arc.vertices)?;
         self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())

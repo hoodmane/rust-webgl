@@ -10,6 +10,7 @@ mod vector;
 
 mod webgl_wrapper;
 mod context;
+mod canvas;
 mod shader;
 mod arc_shader;
 mod cubic_shader;
@@ -27,6 +28,7 @@ use crate::cubic_shader::CubicBezierShader;
 use crate::arc_shader::ArcShader;
 use crate::line_shader::LineShader;
 use crate::context::Context;
+use crate::canvas::Canvas;
 use crate::matrix::Transform;
 
 
@@ -34,7 +36,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 
-use web_sys::WebGl2RenderingContext;
+use web_sys::{WebGl2RenderingContext, HtmlCanvasElement};
 
 
 #[wasm_bindgen(start)]
@@ -49,6 +51,13 @@ pub async fn start() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn get_rust_canvas(canvas : HtmlCanvasElement) -> Result<Canvas, JsValue> {
+    // let webgl = WebGlWrapper::new(canvas.get_context("webgl2")?.unwrap().dyn_into()?);
+    let context = Canvas::new(get_webgl()?)?;
+    Ok(context)
+}
+
+#[wasm_bindgen]
 pub fn get_context() -> Result<Context, JsValue> {
     let context = Context::new(get_webgl()?)?;
     Ok(context)
@@ -58,7 +67,7 @@ pub fn get_context() -> Result<Context, JsValue> {
 fn get_webgl() -> Result<WebGlWrapper, JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
     let canvas = document.get_element_by_id("canvas").unwrap();
-    let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+    let canvas: HtmlCanvasElement = canvas.dyn_into::<HtmlCanvasElement>()?;
     Ok(WebGlWrapper::new(
         canvas.get_context("webgl2")?.unwrap().dyn_into()?
     ))
@@ -123,9 +132,9 @@ pub struct WrappedLineShader {
 
 #[wasm_bindgen]
 impl WrappedLineShader {
-    pub fn add_line(&mut self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, r : f32, g : f32, b : f32, thickness : f32) -> Result<(), JsValue> {
+    pub fn add_line(&mut self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
         self.line_shader.add_line(
-            Vec2::new(p0, p1), Vec2::new(q0, q1), Vec4::new(r, g, b, 1.0), thickness
+            p, q, color, thickness
         )?;
         Ok(())
     }

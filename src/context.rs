@@ -98,7 +98,7 @@ impl Context {
         transform.scale(2.0/ (self.width as f32), -2.0/(self.height as f32));
         self.transform = transform;
         self.webgl.render_to_canvas();
-        self.webgl.inner.viewport(0, 0, self.pixel_width(), self.pixel_height());
+        self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
         self.webgl.inner.disable(WebGl2RenderingContext::BLEND);
         self.webgl.clear();
         self.glyph_buffer = self.webgl.create_texture(self.pixel_width(), self.pixel_height(), WebGl2RenderingContext::RGBA8)?;
@@ -140,14 +140,9 @@ impl Context {
         Ok(())
     }
 
-    pub fn draw_line(&self, px : f32, py : f32, qx : f32, qy : f32, thickness : f32, r : f32, g : f32, b : f32) -> Result<(), JsValue> {
+    pub fn draw_line(&self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
         let mut line_shader = LineShader::new(self.webgl.clone())?;
-        let p = Vec2::new(px, py);
-        let q = Vec2::new(qx, qy);
-        let r = if r.is_finite() { r } else { 0.0 };
-        let g = if g.is_finite() { g } else { 0.0 };
-        let b = if b.is_finite() { b } else { 0.0 };
-        line_shader.add_line(p, q, Vec4::new(r, g, b, 1.0), thickness)?;
+        line_shader.add_line(p, q, color, thickness)?;
         let transform = self.transform();
         log_str(&format!("p : {:?}", transform.transform_point(p)));
         log_str(&format!("q : {:?}", transform.transform_point(q)));
@@ -157,26 +152,14 @@ impl Context {
         Ok(())
     }
 
-    pub fn draw_arc(&mut self, p0 : f32, p1 : f32, q0 : f32, q1 : f32, theta : f32, r : f32, g : f32, b : f32, thickness : f32) -> Result<(), JsValue> {
+    pub fn draw_arc(&mut self,p : Vec2, q : Vec2,  theta : f32, color : Vec4, thickness : f32) -> Result<(), JsValue> {
         self.arc_shader.draw_arc(
             self.transform(),
-            Vec2::new(p0, p1), Vec2::new(q0, q1), 
+            p, q, 
             theta,
-            Vec4::new(r, g, b, 1.0),
+            color,
             thickness
         )?;
         Ok(())
-    }
-
-    pub fn translate(&mut self, x : f32, y : f32) {
-        let mut transform = self.transform();
-        transform.translate(x, y);
-        self.set_transform(transform);
-    }
-
-    pub fn scale(&mut self, x : f32, y : f32) {
-        let mut transform = self.transform();
-        transform.scale(x, y);
-        self.set_transform(transform);
     }
 }

@@ -63,7 +63,7 @@ impl LineShader {
         })
     }
 
-    pub fn clear(){
+    pub fn clear(&mut self){
         self.vertices.clear();
         self.colors.clear();
         self.geometry.num_instances = 0;

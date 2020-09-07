@@ -1,11 +1,21 @@
-#![allow(dead_code)]
+use wasm_bindgen::prelude::*;
 
-use std::ops::{Add, Sub, Mul, Deref};
 
+use std::ops::{Add, Sub, Mul, Div, Neg, Deref, AddAssign, SubAssign, MulAssign, DivAssign };
+
+#[wasm_bindgen(inspectable)]
 #[derive(Copy, Clone, Debug)]
 pub struct Vec2 {
     pub x : f32,
     pub y : f32
+}
+
+#[wasm_bindgen]
+impl Vec2 {
+    #[wasm_bindgen(constructor)]
+    pub fn new_js(x : f32, y : f32) -> Self {
+        Self::new(x, y)
+    }
 }
 
 impl Vec2 {
@@ -14,9 +24,7 @@ impl Vec2 {
             x, y
         }
     }
-}
 
-impl Vec2 {
     pub fn direction(theta : f32) -> Self {
         let (y, x) = f32::sin_cos(theta);
         Self {
@@ -26,11 +34,20 @@ impl Vec2 {
 }
 
 
+#[wasm_bindgen(inspectable)]
 #[derive(Copy, Clone, Debug)]
 pub struct Vec3 {
     pub x : f32,
     pub y : f32,
     pub z : f32,
+}
+
+#[wasm_bindgen]
+impl Vec3 {
+    #[wasm_bindgen(constructor)]
+    pub fn new_js(x : f32, y : f32, z : f32) -> Self {
+        Self::new(x, y, z)
+    }
 }
 
 impl Vec3 {
@@ -41,12 +58,21 @@ impl Vec3 {
     }
 }
 
+#[wasm_bindgen(inspectable)]
 #[derive(Copy, Clone, Debug)]
 pub struct Vec4 {
     pub x : f32,
     pub y : f32,
     pub z : f32,
     pub w : f32
+}
+
+#[wasm_bindgen]
+impl Vec4 {
+    #[wasm_bindgen(constructor)]
+    pub fn new_js(x : f32, y : f32, z : f32, w : f32) -> Self {
+        Self::new(x, y, z, w)
+    }
 }
 
 impl Vec4 {
@@ -67,6 +93,7 @@ impl Add for Vec2 {
         }
     }
 }
+
 
 impl Add for Vec3 {
     type Output = Self;
@@ -129,7 +156,7 @@ impl Sub for Vec4 {
     }
 }
 
-impl Mul for Vec2 {
+impl Mul<f32> for Vec2 {
     type Output = Self;
 
     fn mul(self, other: f32) -> Self::Output {
@@ -140,7 +167,7 @@ impl Mul for Vec2 {
     }
 }
 
-impl Mul for Vec3 {
+impl Mul<f32> for Vec3 {
     type Output = Self;
 
     fn mul(self, other: f32) -> Self::Output {
@@ -152,7 +179,7 @@ impl Mul for Vec3 {
     }
 }
 
-impl Mul for Vec4 {
+impl Mul<f32> for Vec4 {
     type Output = Self;
 
     fn mul(self, other: f32) -> Self::Output {
@@ -165,13 +192,153 @@ impl Mul for Vec4 {
     }
 }
 
+
+
+impl Div<f32> for Vec2 {
+    type Output = Self;
+
+    fn div(self, other: f32) -> Self::Output {
+        Self {
+            x: self.x / other,
+            y: self.y / other,
+        }
+    }
+}
+
+impl Div<f32> for Vec3 {
+    type Output = Self;
+
+    fn div(self, other: f32) -> Self::Output {
+        Self {
+            x: self.x / other,
+            y: self.y / other,
+            z: self.z / other,
+        }
+    }
+}
+
+impl Div<f32> for Vec4 {
+    type Output = Self;
+
+    fn div(self, other: f32) -> Self::Output {
+        Self {
+            x: self.x / other,
+            y: self.y / other,
+            z: self.z / other,
+            w: self.w / other,
+        }
+    }
+}
+
+
+impl AddAssign for Vec2 {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+
+impl AddAssign for Vec3 {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl AddAssign for Vec4 {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+
+
+impl SubAssign for Vec2 {
+    fn sub_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+
+impl SubAssign for Vec3 {
+    fn sub_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl SubAssign for Vec4 {
+    fn sub_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl MulAssign<f32> for Vec2 {
+    fn mul_assign(&mut self, other : f32) {
+        *self = *self * other;
+    }
+}
+
+impl MulAssign<f32> for Vec3 {
+    fn mul_assign(&mut self, other : f32) {
+        *self = *self * other;
+    }
+}
+
+
+impl MulAssign<f32> for Vec4 {
+    fn mul_assign(&mut self, other : f32) {
+        *self = *self * other;
+    }
+}
+
+impl DivAssign<f32> for Vec2 {
+    fn div_assign(&mut self, other : f32) {
+        *self = *self / other;
+    }
+}
+
+impl DivAssign<f32> for Vec3 {
+    fn div_assign(&mut self, other : f32) {
+        *self = *self / other;
+    }
+}
+
+
+impl DivAssign<f32> for Vec4 {
+    fn div_assign(&mut self, other : f32) {
+        *self = *self / other;
+    }
+}
+
+
+impl Neg for Vec2 {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        self * (-1.0)
+    }
+}
+
+impl Neg for Vec3 {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        self * (-1.0)
+    }
+}
+
+impl Neg for Vec4 {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        self * (-1.0)
+    }
+}
+
+
 #[derive(Debug, Default)]
 pub struct Vec2Buffer {
-    backing : Vec
+    backing : Vec<f32>
 }
 
 impl Deref for Vec2Buffer {
-    type Target = Vec;
+    type Target = Vec<f32>;
     fn deref(&self) -> &Self::Target {
         &self.backing
     }
@@ -223,11 +390,11 @@ impl Vec2Buffer {
 
 #[derive(Debug, Default)]
 pub struct Vec3Buffer {
-    backing : Vec
+    backing : Vec<f32>
 }
 
 impl Deref for Vec3Buffer {
-    type Target = Vec;
+    type Target = Vec<f32>;
     fn deref(&self) -> &Self::Target {
         &self.backing
     }
@@ -285,11 +452,11 @@ impl Vec3Buffer {
 
 #[derive(Debug, Default)]
 pub struct Vec4Buffer {
-    backing : Vec
+    backing : Vec<f32>
 }
 
 impl Deref for Vec4Buffer {
-    type Target = Vec;
+    type Target = Vec<f32>;
     fn deref(&self) -> &Self::Target {
         &self.backing
     }
