@@ -26,12 +26,16 @@ function getTime(){
     return new Date().getTime();
 }
 
+const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true};
+
 export class App {
-    constructor(pkg, canvasElement){
+    constructor(pkg, canvasSelector){
         this._oldTouches = [];
         this._previousMouseX = 0;
         this._previousMouseY = 0;
-        this._canvas = pkg.get_rust_canvas(canvasElement);
+        let canvasElement = document.querySelector(canvasSelector);
+        let canvasContext = canvasElement.getContext("webgl2", WEBGL_OPTIONS);
+        this._canvas = pkg.get_rust_canvas(canvasContext);
         this._canvas.set_xrange(-10, 10);
         this._canvas.set_yrange(-10, 10);
         canvasElement.addEventListener("mousedown", this.handleMouseDown.bind(this));
@@ -164,7 +168,6 @@ export class App {
     
     handleMouseUp(event) {
         let { clientX : x, clientY : y, buttons } = event;
-        console.log(event);
         if(buttons === 0) {
             this._mouseDown = false;
             // this._mouseAction = .NONE

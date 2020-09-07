@@ -1,13 +1,18 @@
 use crate::log::log_str;
 use crate::line_shader::LineShader;
+use crate::stencil_shader::StencilShader;
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::matrix::Transform;
 use crate::vector::{Vec2, Vec4};
 use wasm_bindgen::prelude::*;
+use web_sys::{WebGl2RenderingContext};
+
+use crate::rect::Rect;
+
 
 static BLACK : Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
-static GRID_LIGHT_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 31.0 / 255.0);
-static GRID_DARK_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 127.0 / 255.0);
+static GRID_LIGHT_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 30.0 / 255.0);
+static GRID_DARK_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 90.0 / 255.0);
 
 #[wasm_bindgen]
 pub struct Canvas {
@@ -15,7 +20,9 @@ pub struct Canvas {
     origin : Vec2,
     xscale : f32,
     yscale : f32,
-    line_shader : LineShader,
+    stencil_shader : StencilShader,
+    grid_shader : LineShader,
+    axes_shader : LineShader,
     width : i32,
     height : i32,
     density : f64,
@@ -28,7 +35,9 @@ pub struct Canvas {
 
 impl Canvas {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
-        let line_shader = LineShader::new(webgl.clone())?;
+        let stencil_shader = StencilShader::new(webgl.clone())?;
+        let grid_shader = LineShader::new(webgl.clone())?;
+        let axes_shader = LineShader::new(webgl.clone())?;
         let width = webgl.width();
         let height = webgl.height();
         let density = WebGlWrapper::density();
@@ -38,12 +47,14 @@ impl Canvas {
             xscale : 100.0,
             yscale : 100.0,
             transform : Transform::new(),
-            line_shader,
+            stencil_shader,
+            grid_shader,
+            axes_shader,
             width,
             height,
             density,
             left_margin : 10,
-            right_margin : 10,
+            right_margin : 50,
             bottom_margin : 10,
             top_margin : 10,
         };
@@ -55,6 +66,41 @@ impl Canvas {
 
 #[wasm_bindgen]
 impl Canvas {
+    pub fn set_margins(&mut self, 
+        left_margin : i32,
+        right_margin : i32,
+        bottom_margin : i32,
+        top_margin : i32,
+    ) -> Result<(), JsValue> {
+        self.left_margin = left_margin;
+        self.right_margin = right_margin;
+        self.bottom_margin = bottom_margin;
+        self.top_margin = top_margin;
+        self.set_clip_rect(self.chart_region())?;
+        Ok(())
+    }
+
+    fn chart_region(&self) -> Rect {
+        Rect::new(
+            self.left_margin as f32, self.top_margin  as f32, 
+            (self.width - self.left_margin - self.right_margin) as f32,
+            (self.height - self.top_margin - self.bottom_margin) as f32
+        )
+    }
+
+    fn set_clip_rect(&mut self, clip_rect : Rect) -> Result<(), JsValue>{
+        self.stencil_shader.set_stencil_rect(self.transform, clip_rect)?;
+        Ok(())
+    }
+
+    fn enable_clip(&self){
+        self.webgl.enable(WebGl2RenderingContext::STENCIL_TEST);
+    }
+
+    fn disable_clip(&self){
+        self.webgl.disable(WebGl2RenderingContext::STENCIL_TEST);
+    }
+
     pub fn pixel_width(&self) -> i32 {
         (self.width as f64 * self.density) as i32
     }
@@ -80,14 +126,15 @@ impl Canvas {
         canvas.set_width(self.pixel_width() as u32);
         canvas.set_height(self.pixel_height() as u32);
         self.reset_transform();
+        self.set_clip_rect(self.chart_region())?;
         Ok(())
     }
 
-    fn screen_x_range() -> (f32, f32) {
+    fn screen_x_range(&self) -> (f32, f32) {
         (self.left_margin as f32, (self.width - self.right_margin) as f32)
     }
 
-    fn screen_y_range() -> (f32, f32) {
+    fn screen_y_range(&self) -> (f32, f32) {
         (self.top_margin as f32, (self.height - self.bottom_margin) as f32)
     }
 
@@ -148,57 +195,75 @@ impl Canvas {
     }
 
     fn gridline_color_and_thickness(t : i32) -> (Vec4, f32) {
-        if t == 0 {
-            (BLACK, 2.0)
-        } else if t % 10 == 0 {
-            (GRID_DARK_COLOR, 1.0)
+        if t % 10 == 0 {
+            (GRID_DARK_COLOR, 0.5)
         } else {
-            (GRID_LIGHT_COLOR, 1.0)   
+            (GRID_LIGHT_COLOR, 0.5)   
         }
     }
 
-    pub fn start_frame(&mut self) {
-        self.line_shader.clear();
+    pub fn start_frame(&mut self) -> Result<(), JsValue> {
         self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
+        self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
+        Ok(())
     }
 
     pub fn end_frame(&self){
 
     }
 
-    pub fn add_line(&mut self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
-        self.line_shader.add_line(p, q, color, thickness)?;
-        Ok(())
-    }
+    // pub fn add_line(&mut self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
+    //     self.line_shader.add_line(p, q, color, thickness)?;
+    //     Ok(())
+    // }
 
     pub fn draw_grid(&mut self) -> Result<(), JsValue> {
-        let (screen_x_min, screen_x_max) = self.screen_x_range();
-        let (screen_y_min, screen_y_max) = self.screen_y_range();        
+        self.axes_shader.clear();
+        self.grid_shader.clear();
+
+        let chart_region = self.chart_region();
 		// Grid lines
-		let step = 2.0; //f32::powf(10.0, f32::round(f32::log10(scale / 64.0)));
-        let left = f32::floor(self.inverse_transform_x(screen_x_min) / step) as i32;
-        let right = f32::ceil(self.inverse_transform_x(screen_x_max) / step) as i32;
-        let bottom =  f32::ceil(self.inverse_transform_y(screen_y_min) / step) as i32;
-        let top =  f32::floor(self.inverse_transform_y(screen_y_max) / step) as i32;
+		let step = 2.0; // 1 / f32::powf(10.0, f32::round(f32::log10(scale / 64.0)));
+        let left = f32::floor(self.inverse_transform_x(chart_region.left()) / step - 1.0) as i32;
+        let right = f32::ceil(self.inverse_transform_x(chart_region.right()) / step + 1.0) as i32;
+        let bottom =  f32::floor(self.inverse_transform_y(chart_region.bottom()) / step - 1.0) as i32;
+        let top =  f32::ceil(self.inverse_transform_y(chart_region.top()) / step + 1.0) as i32;
 
 		// Vertical grid lines
 		for x in left .. right {
             let (color, thickness) = Self::gridline_color_and_thickness(x);
             let tx = self.transform_x((x as f32) * step);
-			self.line_shader.add_line(Vec2::new(tx, self.top_margin), Vec2::new(tx, height), color, thickness)?;
+			self.grid_shader.add_line(Vec2::new(tx, chart_region.top()), Vec2::new(tx, chart_region.bottom()), color, thickness)?;
 		}
 
 		// Horizontal grid lines
-		for y in top .. bottom {
+		for y in bottom .. top {
             let (color, thickness) = Self::gridline_color_and_thickness(y);
             let ty = self.transform_y((y as f32) * step);
-			self.line_shader.add_line(Vec2::new(self.left_margin, ty), Vec2::new(width - self.right_margin, ty), color, thickness)?;
+			self.grid_shader.add_line(Vec2::new(chart_region.left(), ty), Vec2::new(chart_region.right(), ty), color, thickness)?;
         }
+
+        // x axis
+        self.axes_shader.add_line(
+            Vec2::new(chart_region.left(), chart_region.bottom()), 
+            Vec2::new(chart_region.right(), chart_region.bottom()), 
+            BLACK, 0.5
+        )?;
+
+        // y axis
+        self.axes_shader.add_line(
+            Vec2::new(chart_region.left(), chart_region.top()), 
+            Vec2::new(chart_region.left(), chart_region.bottom()), 
+            BLACK, 0.5
+        )?;
         Ok(())
     }
     
     pub fn render(&self) -> Result<(), JsValue> {
-        self.line_shader.draw(self.transform)?;
+        self.disable_clip();
+        self.axes_shader.draw(self.transform)?;
+        self.enable_clip();
+        self.grid_shader.draw(self.transform)?;
         Ok(())
     }
 }

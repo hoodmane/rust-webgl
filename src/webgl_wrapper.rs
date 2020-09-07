@@ -44,10 +44,10 @@ impl WebGlWrapper {
         (self.height() as f64 * WebGlWrapper::density()) as i32
     }
 
-    pub fn clear(&self){
-        self.inner.clear_color(0.5, 0.5, 0.5, 1.0);
-        self.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
-    }
+    // pub fn clear(&self){
+    //     self.inner.clear_color(0.5, 0.5, 0.5, 1.0);
+    //     self.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
+    // }
 
     pub fn create_texture(&self, width : i32, height : i32, internal_format : u32) -> Result<WebGlTexture, JsValue> {
         let context = &self.inner;

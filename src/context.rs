@@ -99,8 +99,9 @@ impl Context {
         self.transform = transform;
         self.webgl.render_to_canvas();
         self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
-        self.webgl.inner.disable(WebGl2RenderingContext::BLEND);
-        self.webgl.clear();
+        self.webgl.disable(WebGl2RenderingContext::BLEND);
+        self.webgl.clear_color(0.5, 0.5, 0.5, 1.0);
+        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.glyph_buffer = self.webgl.create_texture(self.pixel_width(), self.pixel_height(), WebGl2RenderingContext::RGBA8)?;
         Ok(())
     }
@@ -109,9 +110,9 @@ impl Context {
     pub fn draw_letter_inner(&mut self, glyph : &Glyph, x : f32, y : f32, scale : f32) -> Result<(), JsValue> {
         self.webgl.add_blend_mode();
         self.webgl.render_to_texture(&self.glyph_buffer);
-        self.webgl.inner.viewport(0, 0, self.pixel_width(), self.pixel_height());
-        self.webgl.inner.clear_color(0.0, 0.0, 0.0, 1.0);
-        self.webgl.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
+        self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
+        self.webgl.clear_color(0.0, 0.0, 0.0, 1.0);
+        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
 
         let mut transform = self.transform();
         transform.translate(x, y);
