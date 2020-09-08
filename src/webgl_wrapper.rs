@@ -24,7 +24,7 @@ impl WebGlWrapper {
         Ok(self.inner.canvas().unwrap().dyn_into()?)
     }
 
-    pub fn density() -> f64 {
+    pub fn pixel_density() -> f64 {
         web_sys::window().unwrap().device_pixel_ratio()
     }
 
@@ -37,11 +37,11 @@ impl WebGlWrapper {
     }
 
     pub fn pixel_width(&self) -> i32 {
-        (self.width() as f64 * WebGlWrapper::density()) as i32
+        (self.width() as f64 * WebGlWrapper::pixel_density()) as i32
     }
 
     pub fn pixel_height(&self) -> i32 {
-        (self.height() as f64 * WebGlWrapper::density()) as i32
+        (self.height() as f64 * WebGlWrapper::pixel_density()) as i32
     }
 
     // pub fn clear(&self){
@@ -60,8 +60,19 @@ impl WebGlWrapper {
             width,
             height
         );
-        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::NEAREST as i32);
-        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::NEAREST as i32);
+        // context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+        //     WebGl2RenderingContext::TEXTURE_2D, 
+        //     0, // level, 
+        //     WebGl2RenderingContext::RGBA as i32, // internalFormat,
+        //     width, height, 
+        //     0, // border
+        //     WebGl2RenderingContext::RGBA,// format, 
+        //     WebGl2RenderingContext::UNSIGNED_BYTE, // type, 
+        //     None // data
+        // );
+
+        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::LINEAR as i32);
+        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::LINEAR as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         Ok(texture.unwrap())
@@ -132,7 +143,7 @@ impl WebGlWrapper {
         self.inner.disable(WebGl2RenderingContext::BLEND);
     }
 
-    pub fn premultiplied_blend(&self){
+    pub fn premultiplied_blend_mode(&self){
         self.enable(WebGl2RenderingContext::BLEND);
         self.blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
     }

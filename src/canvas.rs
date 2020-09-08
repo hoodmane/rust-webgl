@@ -1,6 +1,10 @@
 use crate::log::log_str;
 use crate::line_shader::LineShader;
 use crate::stencil_shader::StencilShader;
+use crate::glyph_shader::GlyphShader;
+
+use crate::font::{GlyphCompiler, GlyphPath, Font};
+
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::matrix::Transform;
 use crate::vector::{Vec2, Vec4};
@@ -23,6 +27,7 @@ pub struct Canvas {
     stencil_shader : StencilShader,
     grid_shader : LineShader,
     axes_shader : LineShader,
+    glyph_shader : GlyphShader,
     width : i32,
     height : i32,
     density : f64,
@@ -38,9 +43,10 @@ impl Canvas {
         let stencil_shader = StencilShader::new(webgl.clone())?;
         let grid_shader = LineShader::new(webgl.clone())?;
         let axes_shader = LineShader::new(webgl.clone())?;
+        let glyph_shader = GlyphShader::new(webgl.clone())?;
         let width = webgl.width();
         let height = webgl.height();
-        let density = WebGlWrapper::density();
+        let density = WebGlWrapper::pixel_density();
         let mut result = Self {
             webgl,
             origin : Vec2::new(0.0, 0.0),
@@ -50,6 +56,7 @@ impl Canvas {
             stencil_shader,
             grid_shader,
             axes_shader,
+            glyph_shader,
             width,
             height,
             density,
@@ -203,8 +210,39 @@ impl Canvas {
     }
 
     pub fn start_frame(&mut self) -> Result<(), JsValue> {
+        self.webgl.clear_color(1.0, 1.0, 1.0, 1.0);
+        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+
+
+        self.webgl.copy_blend_mode();
+        self.webgl.render_to_canvas();
         self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
         self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
+        Ok(())
+    }
+
+    pub fn draw_box(&mut self, x : f32, y : f32, width : f32, height : f32) -> Result<(), JsValue> {
+        let mut a = GlyphCompiler::new();
+        a.move_to(Vec2::new(0.0, 0.0));
+        a.line_to(Vec2::new(width, 0.0));
+        a.line_to(Vec2::new(width, height));
+        a.line_to(Vec2::new(0.0, height));
+        a.move_to(Vec2::new(0.0, 0.0));
+        // a.move_to(Vec2::new(x, y));
+        // a.line_to(Vec2::new(x + width, y));
+        // a.line_to(Vec2::new(x + width, y + height));
+        // a.line_to(Vec2::new(x, y + height));
+        // a.move_to(Vec2::new(x, y));        
+        a.close();
+        let glyph = a.end();
+        self.glyph_shader.draw(&glyph, self.transform, Vec2::new(x, y), 1.0)?;
+        Ok(())
+    }
+
+    pub fn draw_letter(&mut self, font : &Font, codepoint : u16,  pos : Vec2, scale : f32) -> Result<(), JsValue> {
+        let glyph = font.glyph(codepoint)?.path();
+        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
+        self.glyph_shader.draw(glyph, self.transform, pos, scale)?;
         Ok(())
     }
 
@@ -223,11 +261,13 @@ impl Canvas {
 
         let chart_region = self.chart_region();
 		// Grid lines
-		let step = 2.0; // 1 / f32::powf(10.0, f32::round(f32::log10(scale / 64.0)));
+		let step = 1.0; // 1 / f32::powf(10.0, f32::round(f32::log10(scale / 64.0)));
         let left = f32::floor(self.inverse_transform_x(chart_region.left()) / step - 1.0) as i32;
         let right = f32::ceil(self.inverse_transform_x(chart_region.right()) / step + 1.0) as i32;
         let bottom =  f32::floor(self.inverse_transform_y(chart_region.bottom()) / step - 1.0) as i32;
         let top =  f32::ceil(self.inverse_transform_y(chart_region.top()) / step + 1.0) as i32;
+
+        log_str(&format!("left : {}, right : {}, top : {}, bottom : {}", left, right, top, bottom));
 
 		// Vertical grid lines
 		for x in left .. right {
@@ -260,6 +300,7 @@ impl Canvas {
     }
     
     pub fn render(&self) -> Result<(), JsValue> {
+        self.webgl.premultiplied_blend_mode();
         self.disable_clip();
         self.axes_shader.draw(self.transform)?;
         self.enable_clip();

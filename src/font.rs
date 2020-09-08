@@ -186,23 +186,27 @@ pub struct Glyph {
 }
 
 impl Glyph {
+    pub fn path(&self) -> &GlyphPath {
+        &self.path.get().unwrap()
+    }
+
     pub fn vertices(&self) -> &Vec4Buffer {
-        &self.path.get().unwrap().vertices
+        &self.path().vertices
     }
 
     pub fn bounding_box(&self) -> Rect {
-        self.path.get().unwrap().bounding_box
+        self.path().bounding_box
     }
 }
 
 
-struct GlyphPath {
-    vertices : Vec4Buffer,
-    bounding_box : Rect
+pub struct GlyphPath {
+    pub vertices : Vec4Buffer,
+    pub bounding_box : Rect
 } 
 
 
-struct GlyphCompiler {
+pub struct GlyphCompiler {
 	// const _pool GPU.BufferPool
 	vertices : Vec4Buffer,
 	first : Vec2,
@@ -212,7 +216,7 @@ struct GlyphCompiler {
 }
 
 impl GlyphCompiler {
-	fn new() -> Self {
+	pub fn new() -> Self {
         Self {
             vertices : Vec4Buffer::new(),
             first : Vec2::new(0.0, 0.0),
@@ -222,15 +226,15 @@ impl GlyphCompiler {
         }
     }
 
-	fn move_to(&mut self, p : Vec2) {
-        log_str(&format!("move_to {:?}", p));
+	pub fn move_to(&mut self, p : Vec2) {
+        // log_str(&format!("move_to {:?}", p));
         self.first = p;
         self.current = p;
 		self.contour_count = 0
 	}
 
-	fn line_to(&mut self, p : Vec2) {
-        log_str(&format!("line_to {:?}", p));
+	pub fn line_to(&mut self, p : Vec2) {
+        // log_str(&format!("line_to {:?}", p));
         self.contour_count += 1;
 		if self.contour_count >= 2 {
 			self.append_triangle(self.first, self.current, p)
@@ -239,8 +243,8 @@ impl GlyphCompiler {
 		self.current = p;
 	}
 
-	fn curve_to(&mut self, c : Vec2, p : Vec2) {
-        log_str(&format!("curve_to {:?}, {:?}", c, p));
+	pub fn curve_to(&mut self, c : Vec2, p : Vec2) {
+        // log_str(&format!("curve_to {:?}, {:?}", c, p));
         self.contour_count += 1;
         if self.contour_count >= 2 {
 			self.append_triangle(self.first, self.current, p)
@@ -249,14 +253,14 @@ impl GlyphCompiler {
 		self.current = p;
 	}
 
-	fn close(&mut self) {
-        log_str(&format!("close"));
+	pub fn close(&mut self) {
+        // log_str(&format!("close"));
         self.current = self.first;
 		self.contour_count = 0;
 	}
 
-	fn end(&mut self) -> GlyphPath {
-        log_str(&format!("Vertices ::\n\n {:?}", self.vertices));
+	pub fn end(mut self) -> GlyphPath {
+        // log_str(&format!("Vertices ::\n\n {:?}", self.vertices));
 		GlyphPath {
             vertices : std::mem::take(&mut self.vertices),
             bounding_box : self.bounding_box_builder.build()

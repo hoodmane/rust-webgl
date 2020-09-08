@@ -1,5 +1,5 @@
 use crate::log::log_str;
-use crate::font::Glyph;
+use crate::font::GlyphPath;
 use crate::shader::{Shader, Geometry};
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
@@ -7,7 +7,7 @@ use crate::webgl_wrapper::WebGlWrapper;
 
 
 use wasm_bindgen::JsValue;
-use web_sys::WebGl2RenderingContext;
+use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 static JITTER_PATTERN : [Vec2; 6] = [
     Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
@@ -36,13 +36,19 @@ static STANDARD_QUAD : [f32; 4 * 2] = [
 ];
 
 pub struct GlyphShader {
-    pub shader : Shader,
+    webgl : WebGlWrapper,
+    pub antialias_shader : Shader,
+    render_shader : Shader,
+    quad_geometry : Geometry,
+    antialias_buffer : WebGlTexture,
+    buffer_width : i32,
+    buffer_height : i32
 }
 
 impl GlyphShader {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
-        let mut shader = Shader::new(
-            webgl, 
+        let mut antialias_shader = Shader::new(
+            webgl.clone(), 
             r#"#version 300 es
                 in vec4 aVertexPosition;
                 out vec2 vBezierParameter;
@@ -68,43 +74,10 @@ impl GlyphShader {
                 }
             "#
         )?;
-        shader.add_attribute_vec4f("aVertexPosition", false)?;
-        Ok(Self {
-            shader
-        })
-    }
+        antialias_shader.add_attribute_vec4f("aVertexPosition", false)?;
 
-    // pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
-    pub fn draw(&mut self, transform : Transform, glyph : &Glyph, scale : f32, pixel_density : f64) -> Result<(), JsValue> {
-        self.shader.use_program();
-        let vertices = glyph.vertices();
-        let mut geometry = self.shader.create_geometry()?;
-        geometry.num_vertices = vertices.len() as i32;
-        self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*vertices)?;
-        for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
-            let mut cur_transform = transform;
-            cur_transform.translate_vec(offset * ((1.0 / pixel_density) as f32));
-            cur_transform.scale(scale, scale);
-            self.shader.set_uniform_vec4("uColor", color);
-            // self.shader.set_uniform_vec4("uColor", Vec4::new(2.0, 2.0, 2.0, 2.0));
-            self.shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
-            self.shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
-        }
-        Ok(())
-    }
-}
-
-
-
-pub struct TextShader {
-    pub shader : Shader,
-    quad_geometry : Geometry
-}
-
-impl TextShader {
-    pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
-        let mut shader = Shader::new(
-            webgl, 
+        let mut render_shader = Shader::new(
+            webgl.clone(), 
             r#"#version 300 es
                 uniform vec4 uBoundingBox;
                 uniform mat3 uTransformationMatrix;
@@ -153,29 +126,122 @@ impl TextShader {
                 }
             "#
         )?;
-        shader.add_attribute_vec2f("aVertexPosition", false)?;
-        let mut quad_geometry = shader.create_geometry()?;
-        shader.set_attribute_data(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
+        render_shader.add_attribute_vec2f("aVertexPosition", false)?;
+        let mut quad_geometry = render_shader.create_geometry()?;
+        quad_geometry.num_vertices = 4;
+        quad_geometry.num_instances = 1;
+        render_shader.set_attribute_data(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
+
+        let antialias_buffer = webgl.inner.create_texture().unwrap();
+
         Ok(Self {
-            shader,
-            quad_geometry
+            webgl,
+            antialias_shader,
+            render_shader,
+            quad_geometry,
+            antialias_buffer,
+            buffer_width : 0,
+            buffer_height : 0
         })
     }
 
-    pub fn draw(&mut self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
-        self.shader.use_program();
-        self.shader.set_uniform_transform("uTransformationMatrix", transform);        
+    pub fn resize_buffer(&mut self, width : i32, height : i32) -> Result<(), JsValue> {
+        self.webgl.delete_texture(Some(&self.antialias_buffer));
+        self.antialias_buffer = self.webgl.create_texture(width, height, WebGl2RenderingContext::RGBA8)?;
+        self.buffer_width = width;
+        self.buffer_height = height;
+        Ok(())
+    }
 
-        let bounding_box = glyph.bounding_box();
+
+    fn antialias_render(&self, glyph : &GlyphPath, transform : Transform, scale : f32) -> Result<(), JsValue>{
+        self.antialias_shader.use_program();
+        let vertices = &glyph.vertices;
+        let mut geometry = self.antialias_shader.create_geometry()?;
+        geometry.num_vertices = vertices.len() as i32;
+        geometry.num_instances = 1;
+        self.antialias_shader.set_attribute_data(&mut geometry, "aVertexPosition", &*vertices)?;
+        for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
+            let mut cur_transform = transform;
+            cur_transform.translate_vec(offset * (1.0 / WebGlWrapper::pixel_density() as f32));
+            cur_transform.scale(scale, scale);
+            self.antialias_shader.set_uniform_vec4("uColor", color);
+            // self.shader.set_uniform_vec4("uColor", Vec4::new(2.0, 2.0, 2.0, 2.0));
+            self.antialias_shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
+            self.antialias_shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
+        }
+        Ok(())
+    }
+
+    fn main_render(&self, glyph : &GlyphPath, transform : Transform, color : Vec4) -> Result<(), JsValue>{
+        self.render_shader.use_program();
+        self.render_shader.set_uniform_transform("uTransformationMatrix", transform);        
+
+        let bounding_box = glyph.bounding_box;
         let left = bounding_box.left();
         let right = bounding_box.right();
         let top = bounding_box.top();
         let bottom = bounding_box.bottom();
 
-        self.shader.set_uniform_int("uTexture", 0);
-        self.shader.set_uniform_vec4("uBoundingBox", Vec4::new(left, top, right, bottom));
-        self.shader.set_uniform_vec4("uColor", Vec4::new(0.0, 0.0, 0.0, 0.0));
-        self.shader.draw(&self.quad_geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
+        log_str(&format!("bounding_box : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
+            bounding_box.top(), bounding_box.bottom(), bounding_box.left(), bounding_box.right(),
+        ));
+
+        let trans_bb = transform.transform_rect(bounding_box);
+        log_str(&format!("trans_bb : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
+            trans_bb.top(), trans_bb.bottom(), trans_bb.left(), trans_bb.right(),
+        ));
+
+        self.render_shader.set_uniform_int("uTexture", 0);
+        self.render_shader.set_uniform_vec4("uBoundingBox", Vec4::new(left, top, right, bottom));
+        self.render_shader.set_uniform_vec4("uColor", color);
+        self.render_shader.draw(&self.quad_geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
+        Ok(())
+    }
+
+    // pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
+    pub fn draw(&mut self, glyph : &GlyphPath, mut transform : Transform, pos : Vec2, scale : f32) -> Result<(), JsValue> {
+        transform.translate_vec(pos);
+
+
+
+        let bounding_box = glyph.bounding_box;
+
+        log_str(&format!("bounding_box : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
+            bounding_box.top(), bounding_box.bottom(), bounding_box.left(), bounding_box.right(),
+        ));
+
+        let trans_bb = transform.transform_rect(bounding_box);
+        log_str(&format!("trans_bb : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
+            trans_bb.top(), trans_bb.bottom(), trans_bb.left(), trans_bb.right(),
+        ));
+
+
+        self.webgl.add_blend_mode();
+        self.webgl.render_to_texture(&self.antialias_buffer);
+        self.webgl.viewport(0, 0, self.buffer_width, self.buffer_height);
+        self.webgl.clear_color(0.0, 0.0, 0.0, 1.0);
+        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        
+        self.antialias_render(glyph, transform, scale)?;
+        
+        self.webgl.render_to_canvas();
+        // self.webgl.copy_blend_mode();
+        // self.antialias_render(glyph, transform, scale)?;
+        
+
+        transform.scale(scale, scale);
+        self.webgl.enable(WebGl2RenderingContext::BLEND);
+        self.webgl.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
+        
+        self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.antialias_buffer));
+
+        self.main_render(glyph, transform, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
+
+
         Ok(())
     }
 }
+
+

@@ -26,10 +26,10 @@ function getTime(){
     return new Date().getTime();
 }
 
-const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true};
+const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true , "preserveDrawingBuffer" : true};
 
 export class App {
-    constructor(pkg, canvasSelector){
+    constructor(pkg, canvasSelector, font){
         this._oldTouches = [];
         this._previousMouseX = 0;
         this._previousMouseY = 0;
@@ -48,6 +48,7 @@ export class App {
         canvasElement.addEventListener("wheel", this.handleScroll.bind(this));
         this._needsRedraw = true;
         this._idleFrames = 0;
+        this.font = font;
         requestAnimationFrame(() => this.handleFrame());
     }
 
@@ -215,22 +216,27 @@ export class App {
 
 		if(this._needsRedraw) {
             this._idleFrames = 0;
-			this._isInvalid = false;
+			this._needsRedraw = false;
             this._draw();
             return;
-		}
+        }
 		// Render occasionally even when idle. Chrome must render at least 10fps to
 		// avoid stutter when starting to render at 60fps again.
-        this._idleFrames ++;
-        if(this._idleFrames % 6 == 0 && this._idleFrames < 60 * 2) {
-			this._draw();
-		}
+        // this._idleFrames ++;
+        // if(this._idleFrames % 6 == 0 && this._idleFrames < 60 * 2) {
+		// 	this._draw();
+		// }
 	}
 
     _draw(){
+        console.log("draw");
         this._canvas.start_frame();
         this._canvas.draw_grid();
         this._canvas.render();
+        this._canvas.draw_letter(this.font, "g".codePointAt(0), 
+            new Vec2(app._canvas.transform_x(0), app._canvas.transform_y(0)), 
+            20
+        );
         // _canvas.endFrame
     }
 }

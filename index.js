@@ -11,14 +11,15 @@ async function main(){
     window.Vec4 = pkg.Vec4;
 
     // window.canvasElement = document.querySelector("canvas");
+    // window.context = pkg.get_rust_context(canvasElement.getContext("webgl2"));
+    let font = await pkg.read_font();
     window.App = App;
-    window.app = new App(pkg, "canvas");
+    window.app = new App(pkg, "canvas", font);
 
     // // window.arc_shader = pkg.get_arc_shader();
     // window.line_shader = pkg.get_line_shader();
     // window.cubic_shader = pkg.get_cubic_shader();
     // window.context = pkg.get_context();
-    // window.font = await pkg.read_font();
 
     
 }

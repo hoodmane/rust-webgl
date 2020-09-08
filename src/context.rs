@@ -1,7 +1,7 @@
 use crate::log::{log_str };
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
-use crate::glyph_shader::{GlyphShader, TextShader};
+use crate::glyph_shader::GlyphShader;
 use crate::line_shader::LineShader;
 use crate::arc_shader::ArcShader;
 use crate::font::{Glyph, Font};
@@ -19,8 +19,6 @@ pub struct Context {
 
 
     glyph_shader : GlyphShader,
-    text_shader : TextShader,
-    glyph_buffer : WebGlTexture,
     
     arc_shader : ArcShader,
     line_shader : LineShader,
@@ -31,20 +29,16 @@ pub struct Context {
 
 impl Context {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
-        let glyph_buffer = webgl.inner.create_texture().unwrap();
         let glyph_shader = GlyphShader::new(webgl.clone())?;
-        let text_shader = TextShader::new(webgl.clone())?;
         let line_shader = LineShader::new(webgl.clone())?;
         let arc_shader = ArcShader::new(webgl.clone())?;
         let width = webgl.width();
         let height = webgl.height();
-        let density = WebGlWrapper::density();
+        let density = WebGlWrapper::pixel_density();
         Ok(Self {
             webgl,
             transform : Transform::new(),
             glyph_shader,
-            text_shader,
-            glyph_buffer,
 
 
             line_shader,
@@ -68,6 +62,7 @@ impl Context {
         canvas.style().set_property("height", &format!("{}px", self.height))?;
         canvas.set_width(self.pixel_width() as u32);
         canvas.set_height(self.pixel_height() as u32);
+        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
         Ok(())
     }
 
@@ -102,30 +97,6 @@ impl Context {
         self.webgl.disable(WebGl2RenderingContext::BLEND);
         self.webgl.clear_color(0.5, 0.5, 0.5, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        self.glyph_buffer = self.webgl.create_texture(self.pixel_width(), self.pixel_height(), WebGl2RenderingContext::RGBA8)?;
-        Ok(())
-    }
-
-    
-    pub fn draw_letter_inner(&mut self, glyph : &Glyph, x : f32, y : f32, scale : f32) -> Result<(), JsValue> {
-        self.webgl.add_blend_mode();
-        self.webgl.render_to_texture(&self.glyph_buffer);
-        self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
-        self.webgl.clear_color(0.0, 0.0, 0.0, 1.0);
-        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
-
-        let mut transform = self.transform();
-        transform.translate(x, y);
-        self.glyph_shader.draw(transform, glyph, scale, self.density)?;
-
-        transform.scale(scale, scale);
-        self.webgl.inner.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
-        self.webgl.render_to_canvas();
-        
-        self.webgl.inner.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.webgl.inner.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.glyph_buffer));
-        
-        self.text_shader.draw(transform, glyph)?;
         Ok(())
     }
 }
@@ -137,7 +108,8 @@ impl Context {
     }
 
     pub fn draw_letter(&mut self, font : &Font, codepoint : u16,  x : f32, y : f32, scale : f32) -> Result<(), JsValue> {
-        self.draw_letter_inner(font.glyph(codepoint)?, x, y, scale)?;
+        let glyph = font.glyph(codepoint)?.path();
+        self.glyph_shader.draw(glyph, self.transform, Vec2::new(x, y), scale)?;
         Ok(())
     }
 
