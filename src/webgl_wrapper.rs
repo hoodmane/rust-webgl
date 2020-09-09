@@ -1,4 +1,4 @@
-use web_sys::{HtmlCanvasElement, WebGlTexture, WebGl2RenderingContext};
+use web_sys::{HtmlCanvasElement, WebGlTexture, WebGl2RenderingContext, WebGlFramebuffer};
 use wasm_bindgen::{JsValue, JsCast};
 use std::ops::Deref;
 
@@ -49,7 +49,7 @@ impl WebGlWrapper {
     //     self.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
     // }
 
-    pub fn create_texture(&self, width : i32, height : i32, internal_format : u32) -> Result<WebGlTexture, JsValue> {
+    pub fn create_texture(&self, width : i32, height : i32, internal_format : u32) -> Result<Option<WebGlTexture>, JsValue> {
         let context = &self.inner;
         let texture = context.create_texture();
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
@@ -75,18 +75,18 @@ impl WebGlWrapper {
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::LINEAR as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
-        Ok(texture.unwrap())
+        Ok(texture)
     }
 
-    pub fn create_vec2_texture(&self, vecs : &[f32]) -> Result<WebGlTexture, JsValue> {
+    pub fn create_vec2_texture(&self, vecs : &[f32]) -> Result<Option<WebGlTexture>, JsValue> {
         self.create_float_storage_texture(2, WebGl2RenderingContext::RG, WebGl2RenderingContext::RG32F, vecs)
     }
 
-    pub fn create_vec4_texture(&self, vecs : &[f32]) -> Result<WebGlTexture, JsValue> {
+    pub fn create_vec4_texture(&self, vecs : &[f32]) -> Result<Option<WebGlTexture>, JsValue> {
         self.create_float_storage_texture(4, WebGl2RenderingContext::RGBA, WebGl2RenderingContext::RGBA32F, vecs)
     }
 
-    fn create_float_storage_texture(&self, size : usize, external_format : u32, internal_format : u32,  vecs : &[f32]) -> Result<WebGlTexture, JsValue> {
+    fn create_float_storage_texture(&self, size : usize, external_format : u32, internal_format : u32,  vecs : &[f32]) -> Result<Option<WebGlTexture>, JsValue> {
         let context = &self.inner;
         let texture = context.create_texture();
         let width = (vecs.len()/size) as i32;
@@ -115,19 +115,20 @@ impl WebGlWrapper {
                 Some(&array_view) // pixels: Option<&Object>
             )?;
         }
-        Ok(texture.unwrap())
+        Ok(texture)
     }
 
 
-    pub fn render_to_texture(&self, texture : &WebGlTexture) {
+    pub fn render_to_texture(&self, texture : Option<&WebGlTexture>) -> Option<WebGlFramebuffer> {
         let framebuffer = self.inner.create_framebuffer();
         self.inner.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer.as_ref());
         self.inner.framebuffer_texture_2d(
             WebGl2RenderingContext::FRAMEBUFFER, 
             WebGl2RenderingContext::COLOR_ATTACHMENT0, 
             WebGl2RenderingContext::TEXTURE_2D, 
-            Some(texture), 0
+            texture, 0
         );
+        framebuffer
     }
 
     pub fn render_to_canvas(&self) {

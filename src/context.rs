@@ -107,11 +107,11 @@ impl Context {
         self.start_frame()
     }
 
-    pub fn draw_letter(&mut self, font : &Font, codepoint : u16,  x : f32, y : f32, scale : f32) -> Result<(), JsValue> {
-        let glyph = font.glyph(codepoint)?.path();
-        self.glyph_shader.draw(glyph, self.transform, Vec2::new(x, y), scale)?;
-        Ok(())
-    }
+    // pub fn draw_letter(&mut self, font : &Font, codepoint : u16,  x : f32, y : f32, scale : f32) -> Result<(), JsValue> {
+    //     let glyph = font.glyph(codepoint)?.path();
+    //     self.glyph_shader.draw(glyph, self.transform, Vec2::new(x, y), scale)?;
+    //     Ok(())
+    // }
 
     pub fn draw_line(&self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
         let mut line_shader = LineShader::new(self.webgl.clone())?;

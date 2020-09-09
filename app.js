@@ -35,7 +35,8 @@ export class App {
         this._previousMouseY = 0;
         let canvasElement = document.querySelector(canvasSelector);
         let canvasContext = canvasElement.getContext("webgl2", WEBGL_OPTIONS);
-        this._canvas = pkg.get_rust_canvas(canvasContext);
+        this.pkg = pkg;
+        this._canvas = new pkg.Canvas(canvasContext);
         this._canvas.set_xrange(-10, 10);
         this._canvas.set_yrange(-10, 10);
         canvasElement.addEventListener("mousedown", this.handleMouseDown.bind(this));
@@ -45,14 +46,31 @@ export class App {
         canvasElement.addEventListener("touchmove", this.handleTouchMove.bind(this));
         canvasElement.addEventListener("touchend", this.handleTouchEnd.bind(this));
         
+        canvasElement.addEventListener("webglcontextlost", (event) => {
+            event.preventDefault();
+            console.log("context lost!");
+            cancelAnimationFrame(this.requestAnimationFrameId);
+        });
+        canvasElement.addEventListener("webglcontextrestored", (event) => {
+            console.log("context retored!");
+            let canvasContext = canvasElement.getContext("webgl2", WEBGL_OPTIONS);
+            this._canvas.restore_context(canvasContext);
+            this._requestRedraw();
+            this._requestFrame();
+        });
+
         canvasElement.addEventListener("wheel", this.handleScroll.bind(this));
         this._needsRedraw = true;
         this._idleFrames = 0;
         this.font = font;
-        requestAnimationFrame(() => this.handleFrame());
+        this._requestFrame();
     }
 
-    _invalidate(){
+    _requestFrame(){
+        this.requestAnimationFrameId = requestAnimationFrame(() => this.handleFrame());
+    }
+
+    _requestRedraw(){
         this._needsRedraw = true;
     }
     
@@ -65,13 +83,13 @@ export class App {
         this._stopAnimation();
         let direction = Math.sign(event.deltaY);
         this._canvas.scale_around(Math.pow(0.95, direction), new Vec2(event.clientX, event.clientY));
-        this._invalidate();
+        this._requestRedraw();
     }
     
     handlePinch(x, y, delta) {
         this._stopAnimation();
         this._canvas.scale_around(Math.pow(0.98, delta), new Vec2(x, y));
-        this._invalidate();
+        this._requestRedraw();
     }
     
     handleResize() {
@@ -99,7 +117,7 @@ export class App {
                 this._canvas.scale_around(averageDistance / previous.averageDistance, new Vec2(previous.centerX, previous.centerY));
             }
             this._canvas.translate(new Vec2(centerX - previous.centerX, centerY - previous.centerY));
-            this._invalidate();
+            this._requestRedraw();
         }
         let time = getTime();
         this._oldTouches.push({centerX, centerY, averageDistance, touchCount, time});
@@ -159,7 +177,7 @@ export class App {
         let { clientX : x, clientY : y, buttons } = event;
         if(buttons > 0){ 
             this._canvas.translate(new Vec2(x - this._previousMouseX, y - this._previousMouseY));
-            this._invalidate();
+            this._requestRedraw();
             // this.setCursor(.MOVE);
         }
     
@@ -181,7 +199,7 @@ export class App {
 
 
     handleFrame() {
-        requestAnimationFrame(() => this.handleFrame());
+        this._requestFrame();
         
 		// let time = getTime();
 
@@ -211,7 +229,7 @@ export class App {
 		// 			1 / (1 / _startScale + (1 / _endScale - 1 / _startScale) * t))
 		// 	}
 
-		// 	_invalidate
+		// 	_requestRedraw
 		// }
 
 		if(this._needsRedraw) {
@@ -229,13 +247,18 @@ export class App {
 	}
 
     _draw(){
-        console.log("draw");
         this._canvas.start_frame();
         this._canvas.draw_grid();
         this._canvas.render();
+        this._canvas.draw_box(
+            app._canvas.transform_x(1), app._canvas.transform_y(1), 
+            10, 10
+        );        
         this._canvas.draw_letter(this.font, "g".codePointAt(0), 
             new Vec2(app._canvas.transform_x(0), app._canvas.transform_y(0)), 
-            20
+            50,
+            this.pkg.HorizontalAlignment.Center,
+            this.pkg.VerticalAlignment.Center,
         );
         // _canvas.endFrame
     }

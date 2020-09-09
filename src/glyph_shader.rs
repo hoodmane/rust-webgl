@@ -7,6 +7,7 @@ use crate::webgl_wrapper::WebGlWrapper;
 
 
 use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 static JITTER_PATTERN : [Vec2; 6] = [
@@ -35,12 +36,29 @@ static STANDARD_QUAD : [f32; 4 * 2] = [
     1.0, 1.0
 ];
 
+#[wasm_bindgen]
+pub enum HorizontalAlignment {
+    Left,
+    Right,
+    Center,
+}
+
+#[wasm_bindgen]
+pub enum VerticalAlignment {
+    Top,
+    Center,
+    Baseline,
+    Bottom,
+}
+
+
+
 pub struct GlyphShader {
     webgl : WebGlWrapper,
     pub antialias_shader : Shader,
     render_shader : Shader,
     quad_geometry : Geometry,
-    antialias_buffer : WebGlTexture,
+    antialias_buffer : Option<WebGlTexture>,
     buffer_width : i32,
     buffer_height : i32
 }
@@ -132,7 +150,7 @@ impl GlyphShader {
         quad_geometry.num_instances = 1;
         render_shader.set_attribute_data(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
 
-        let antialias_buffer = webgl.inner.create_texture().unwrap();
+        let antialias_buffer = webgl.inner.create_texture();
 
         Ok(Self {
             webgl,
@@ -146,7 +164,7 @@ impl GlyphShader {
     }
 
     pub fn resize_buffer(&mut self, width : i32, height : i32) -> Result<(), JsValue> {
-        self.webgl.delete_texture(Some(&self.antialias_buffer));
+        self.webgl.delete_texture(self.antialias_buffer.as_ref());
         self.antialias_buffer = self.webgl.create_texture(width, height, WebGl2RenderingContext::RGBA8)?;
         self.buffer_width = width;
         self.buffer_height = height;
@@ -183,15 +201,6 @@ impl GlyphShader {
         let top = bounding_box.top();
         let bottom = bounding_box.bottom();
 
-        log_str(&format!("bounding_box : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
-            bounding_box.top(), bounding_box.bottom(), bounding_box.left(), bounding_box.right(),
-        ));
-
-        let trans_bb = transform.transform_rect(bounding_box);
-        log_str(&format!("trans_bb : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
-            trans_bb.top(), trans_bb.bottom(), trans_bb.left(), trans_bb.right(),
-        ));
-
         self.render_shader.set_uniform_int("uTexture", 0);
         self.render_shader.set_uniform_vec4("uBoundingBox", Vec4::new(left, top, right, bottom));
         self.render_shader.set_uniform_vec4("uColor", color);
@@ -200,25 +209,39 @@ impl GlyphShader {
     }
 
     // pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
-    pub fn draw(&mut self, glyph : &GlyphPath, mut transform : Transform, pos : Vec2, scale : f32) -> Result<(), JsValue> {
+    pub fn draw(&mut self, 
+        glyph : &GlyphPath, 
+        mut transform : Transform, 
+        mut pos : Vec2, scale : f32, 
+        horizontal_alignment : HorizontalAlignment,
+        vertical_alignment : VerticalAlignment,
+    ) -> Result<(), JsValue> {
+        let x_offset = match horizontal_alignment {
+            HorizontalAlignment::Left => { 0.0 }
+            HorizontalAlignment::Right => {
+                - glyph.bounding_box.right() + glyph.bounding_box.left()
+            }
+            HorizontalAlignment::Center => {
+                ( - glyph.bounding_box.right() + glyph.bounding_box.left() ) / 2.0
+            }
+        };
+        let y_offset = match vertical_alignment {
+            VerticalAlignment::Baseline => { 0.0 }
+            VerticalAlignment::Center => {
+                ( - glyph.bounding_box.top() - glyph.bounding_box.bottom() ) / 2.0
+            }
+            VerticalAlignment::Top => { - glyph.bounding_box.top() }
+            VerticalAlignment::Bottom => { - glyph.bounding_box.bottom() }            
+        };
+
+        pos.x += x_offset * scale;
+        pos.y += y_offset * scale;
+        
         transform.translate_vec(pos);
 
 
-
-        let bounding_box = glyph.bounding_box;
-
-        log_str(&format!("bounding_box : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
-            bounding_box.top(), bounding_box.bottom(), bounding_box.left(), bounding_box.right(),
-        ));
-
-        let trans_bb = transform.transform_rect(bounding_box);
-        log_str(&format!("trans_bb : {{ top : {},  bottom : {}, left : {}, right : {}}}", 
-            trans_bb.top(), trans_bb.bottom(), trans_bb.left(), trans_bb.right(),
-        ));
-
-
         self.webgl.add_blend_mode();
-        self.webgl.render_to_texture(&self.antialias_buffer);
+        let framebuffer = self.webgl.render_to_texture(self.antialias_buffer.as_ref());
         self.webgl.viewport(0, 0, self.buffer_width, self.buffer_height);
         self.webgl.clear_color(0.0, 0.0, 0.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
@@ -226,8 +249,6 @@ impl GlyphShader {
         self.antialias_render(glyph, transform, scale)?;
         
         self.webgl.render_to_canvas();
-        // self.webgl.copy_blend_mode();
-        // self.antialias_render(glyph, transform, scale)?;
         
 
         transform.scale(scale, scale);
@@ -235,10 +256,10 @@ impl GlyphShader {
         self.webgl.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
         
         self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.antialias_buffer));
+        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.antialias_buffer.as_ref());
 
         self.main_render(glyph, transform, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
-
+        self.webgl.delete_framebuffer(framebuffer.as_ref());
 
         Ok(())
     }

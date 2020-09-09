@@ -48,10 +48,7 @@ pub fn get_rust_canvas(context : &WebGl2RenderingContext) -> Result<Canvas, JsVa
     //     .ok_or(JsValue::from_str(&format!("No element found with selector \"{}\".", selector)))?
     //     .dyn_into()
     //     .map_err(|_e| JsValue::from_str(&format!("Element found with selector \"{}\" is not a canvas element.", selector)))?;
-    let webgl_wrapper = WebGlWrapper::new(
-        context.clone() //canvas_element.get_context_with_context_options("webgl2", options)?.unwrap().dyn_into()?
-    );
-    Ok(Canvas::new(webgl_wrapper)?)
+    Ok(Canvas::new(context)?)
 }
 
 #[wasm_bindgen]

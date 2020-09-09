@@ -91,7 +91,7 @@ impl LineShader {
         let position_texture = self.shader.webgl.create_vec2_texture(&self.vertices)?;
         // Put the position data into texture 0.
         self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&position_texture));
+        self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, position_texture.as_ref());
         self.shader.set_uniform_int("uPositionTexture", 0);
         self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())

@@ -1,7 +1,7 @@
 use crate::log::log_str;
 use crate::line_shader::LineShader;
 use crate::stencil_shader::StencilShader;
-use crate::glyph_shader::GlyphShader;
+use crate::glyph_shader::{GlyphShader, HorizontalAlignment, VerticalAlignment};
 
 use crate::font::{GlyphCompiler, GlyphPath, Font};
 
@@ -38,8 +38,13 @@ pub struct Canvas {
     transform : Transform
 }
 
+
+
+#[wasm_bindgen]
 impl Canvas {
-    pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
+    #[wasm_bindgen(constructor)]
+    pub fn new(webgl_context : &WebGl2RenderingContext) -> Result<Canvas, JsValue> {
+        let webgl = WebGlWrapper::new(webgl_context.clone());
         let stencil_shader = StencilShader::new(webgl.clone())?;
         let grid_shader = LineShader::new(webgl.clone())?;
         let axes_shader = LineShader::new(webgl.clone())?;
@@ -68,11 +73,18 @@ impl Canvas {
         result.resize(width, height, density)?;
         Ok(result)   
     }
-}
 
 
-#[wasm_bindgen]
-impl Canvas {
+    pub fn restore_context(&mut self, webgl_context : &WebGl2RenderingContext) -> Result<(), JsValue> {
+        self.webgl = WebGlWrapper::new(webgl_context.clone());
+        self.stencil_shader = StencilShader::new(self.webgl.clone())?;
+        self.grid_shader = LineShader::new(self.webgl.clone())?;
+        self.axes_shader = LineShader::new(self.webgl.clone())?;
+        self.glyph_shader = GlyphShader::new(self.webgl.clone())?;
+        Ok(())
+    }
+
+
     pub fn set_margins(&mut self, 
         left_margin : i32,
         right_margin : i32,
@@ -212,11 +224,11 @@ impl Canvas {
     pub fn start_frame(&mut self) -> Result<(), JsValue> {
         self.webgl.clear_color(1.0, 1.0, 1.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-
-
+        
         self.webgl.copy_blend_mode();
         self.webgl.render_to_canvas();
         self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
+        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
         self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
         Ok(())
     }
@@ -235,14 +247,17 @@ impl Canvas {
         // a.move_to(Vec2::new(x, y));        
         a.close();
         let glyph = a.end();
-        self.glyph_shader.draw(&glyph, self.transform, Vec2::new(x, y), 1.0)?;
+        self.glyph_shader.draw(&glyph, self.transform, Vec2::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center)?;
         Ok(())
     }
 
-    pub fn draw_letter(&mut self, font : &Font, codepoint : u16,  pos : Vec2, scale : f32) -> Result<(), JsValue> {
+    pub fn draw_letter(&mut self, 
+        font : &Font, codepoint : u16,  
+        pos : Vec2, scale : f32,
+        horizontal_alignment : HorizontalAlignment, vertical_alignment : VerticalAlignment
+    ) -> Result<(), JsValue> {
         let glyph = font.glyph(codepoint)?.path();
-        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
-        self.glyph_shader.draw(glyph, self.transform, pos, scale)?;
+        self.glyph_shader.draw(glyph, self.transform, pos, scale, horizontal_alignment, vertical_alignment)?;
         Ok(())
     }
 
@@ -266,8 +281,6 @@ impl Canvas {
         let right = f32::ceil(self.inverse_transform_x(chart_region.right()) / step + 1.0) as i32;
         let bottom =  f32::floor(self.inverse_transform_y(chart_region.bottom()) / step - 1.0) as i32;
         let top =  f32::ceil(self.inverse_transform_y(chart_region.top()) / step + 1.0) as i32;
-
-        log_str(&format!("left : {}, right : {}, top : {}, bottom : {}", left, right, top, bottom));
 
 		// Vertical grid lines
 		for x in left .. right {
