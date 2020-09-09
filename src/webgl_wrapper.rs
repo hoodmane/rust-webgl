@@ -1,4 +1,4 @@
-use web_sys::{HtmlCanvasElement, WebGlTexture, WebGl2RenderingContext, WebGlFramebuffer};
+use web_sys::{HtmlCanvasElement, Element, WebGlTexture, WebGl2RenderingContext, WebGlFramebuffer};
 use wasm_bindgen::{JsValue, JsCast};
 use std::ops::Deref;
 
@@ -24,25 +24,22 @@ impl WebGlWrapper {
         Ok(self.inner.canvas().unwrap().dyn_into()?)
     }
 
+    pub fn width_and_height(&self) -> Result<(i32, i32), JsValue> {
+        let canvas = self.canvas()?;
+        Ok((canvas.client_width(), canvas.client_height()))
+    }
+
     pub fn pixel_density() -> f64 {
         web_sys::window().unwrap().device_pixel_ratio()
     }
 
-    pub fn width(&self) -> i32 {
-        self.inner.drawing_buffer_width()
-    }
+    // pub fn pixel_width(&self) -> i32 {
+    //     (self.width() as f64 * WebGlWrapper::pixel_density()) as i32
+    // }
 
-    pub fn height(&self) -> i32 {
-        self.inner.drawing_buffer_height()
-    }
-
-    pub fn pixel_width(&self) -> i32 {
-        (self.width() as f64 * WebGlWrapper::pixel_density()) as i32
-    }
-
-    pub fn pixel_height(&self) -> i32 {
-        (self.height() as f64 * WebGlWrapper::pixel_density()) as i32
-    }
+    // pub fn pixel_height(&self) -> i32 {
+    //     (self.height() as f64 * WebGlWrapper::pixel_density()) as i32
+    // }
 
     // pub fn clear(&self){
     //     self.inner.clear_color(0.5, 0.5, 0.5, 1.0);

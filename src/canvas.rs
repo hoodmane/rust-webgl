@@ -49,8 +49,7 @@ impl Canvas {
         let grid_shader = LineShader::new(webgl.clone())?;
         let axes_shader = LineShader::new(webgl.clone())?;
         let glyph_shader = GlyphShader::new(webgl.clone())?;
-        let width = webgl.width();
-        let height = webgl.height();
+        let (width, height) = webgl.width_and_height()?;
         let density = WebGlWrapper::pixel_density();
         let mut result = Self {
             webgl,
@@ -136,6 +135,9 @@ impl Canvas {
     }
 
     pub fn resize(&mut self, width : i32, height : i32, density : f64) -> Result<(), JsValue> {
+        log_str(&format!("resize... old width : {}, new width : {}", self.width, width));
+        log_str(&format!("resize... old height : {}, new height : {}", self.height, height));
+        log_str(&format!("resize... old density : {}, new density : {}", self.density, density));
         self.width = width;
         self.height = height;
         self.density = density;
@@ -225,12 +227,11 @@ impl Canvas {
     }
 
     pub fn start_frame(&mut self) -> Result<(), JsValue> {
-        // let new_width = self.webgl.width();
-        // let new_height = self.webgl.height();
-        // let new_density = WebGlWrapper::pixel_density();
-        // if new_width != self.width || new_height != self.height || new_density != self.density {
-        //     self.resize(new_width, new_height, new_density)?;
-        // }
+        let (new_width, new_height) = self.webgl.width_and_height()?;
+        let new_density = WebGlWrapper::pixel_density();
+        if new_width != self.width || new_height != self.height || new_density != self.density {
+            self.resize(new_width, new_height, new_density)?;
+        }
         self.webgl.clear_color(1.0, 1.0, 1.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         

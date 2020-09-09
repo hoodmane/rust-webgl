@@ -32,8 +32,7 @@ impl Context {
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let line_shader = LineShader::new(webgl.clone())?;
         let arc_shader = ArcShader::new(webgl.clone())?;
-        let width = webgl.width();
-        let height = webgl.height();
+        let (width, height) = webgl.width_and_height()?;
         let density = WebGlWrapper::pixel_density();
         Ok(Self {
             webgl,

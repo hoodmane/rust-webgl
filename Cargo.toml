@@ -22,7 +22,7 @@ features = [
   'Element',
   'HtmlCanvasElement', 
   'HtmlElement',
-  'Response', 
+  'Response',
   'WebGlActiveInfo',
   'WebGlBuffer',
   'WebGlFramebuffer',
