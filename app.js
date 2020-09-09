@@ -250,12 +250,8 @@ export class App {
         this._canvas.start_frame();
         this._canvas.draw_grid();
         this._canvas.render();
-        // if(!this.notFirstDraw){
-        //     this.notFirstDraw = true;
-        //     return;
-        // }
         this._canvas.draw_box(
-            app._canvas.transform_x(1), app._canvas.transform_y(1), 
+            this._canvas.transform_x(1), this._canvas.transform_y(1), 
             10, 10
         );
 

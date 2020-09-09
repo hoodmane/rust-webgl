@@ -94,7 +94,7 @@ impl Canvas {
         self.right_margin = right_margin;
         self.bottom_margin = bottom_margin;
         self.top_margin = top_margin;
-        self.set_clip_rect(self.chart_region())?;
+        self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
         Ok(())
     }
 
@@ -104,11 +104,6 @@ impl Canvas {
             (self.width - self.left_margin - self.right_margin) as f32,
             (self.height - self.top_margin - self.bottom_margin) as f32
         )
-    }
-
-    fn set_clip_rect(&mut self, clip_rect : Rect) -> Result<(), JsValue>{
-        self.stencil_shader.set_stencil_rect(self.transform, clip_rect)?;
-        Ok(())
     }
 
     fn enable_clip(&self){
@@ -147,10 +142,10 @@ impl Canvas {
         canvas.set_width(self.pixel_width() as u32);
         canvas.set_height(self.pixel_height() as u32);
         self.reset_transform();
-        self.set_clip_rect(self.chart_region())?;
         
         self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
         self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
+        self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
         Ok(())
     }
 
@@ -235,9 +230,8 @@ impl Canvas {
         self.webgl.clear_color(1.0, 1.0, 1.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         
-        self.webgl.copy_blend_mode();
-        self.webgl.render_to_canvas();
-        self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
+        // self.webgl.copy_blend_mode();
+        // self.webgl.render_to_canvas();
         Ok(())
     }
 
