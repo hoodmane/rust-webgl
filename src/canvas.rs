@@ -146,6 +146,9 @@ impl Canvas {
         canvas.set_height(self.pixel_height() as u32);
         self.reset_transform();
         self.set_clip_rect(self.chart_region())?;
+        
+        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
+        self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
         Ok(())
     }
 
@@ -222,13 +225,17 @@ impl Canvas {
     }
 
     pub fn start_frame(&mut self) -> Result<(), JsValue> {
+        // let new_width = self.webgl.width();
+        // let new_height = self.webgl.height();
+        // let new_density = WebGlWrapper::pixel_density();
+        // if new_width != self.width || new_height != self.height || new_density != self.density {
+        //     self.resize(new_width, new_height, new_density)?;
+        // }
         self.webgl.clear_color(1.0, 1.0, 1.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         
         self.webgl.copy_blend_mode();
         self.webgl.render_to_canvas();
-        self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
-        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
         self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
         Ok(())
     }
@@ -312,7 +319,7 @@ impl Canvas {
         Ok(())
     }
     
-    pub fn render(&self) -> Result<(), JsValue> {
+    pub fn render(&mut self) -> Result<(), JsValue> {
         self.webgl.premultiplied_blend_mode();
         self.disable_clip();
         self.axes_shader.draw(self.transform)?;

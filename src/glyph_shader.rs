@@ -8,7 +8,7 @@ use crate::webgl_wrapper::WebGlWrapper;
 
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
-use web_sys::{WebGl2RenderingContext, WebGlTexture};
+use web_sys::{WebGl2RenderingContext, WebGlTexture, WebGlFramebuffer};
 
 static JITTER_PATTERN : [Vec2; 6] = [
     Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
@@ -58,7 +58,9 @@ pub struct GlyphShader {
     pub antialias_shader : Shader,
     render_shader : Shader,
     quad_geometry : Geometry,
-    antialias_buffer : Option<WebGlTexture>,
+    antialias_texture : Option<WebGlTexture>,
+    antialias_framebuffer : Option<WebGlFramebuffer>,
+    has_new_texture : bool,
     buffer_width : i32,
     buffer_height : i32
 }
@@ -150,24 +152,34 @@ impl GlyphShader {
         quad_geometry.num_instances = 1;
         render_shader.set_attribute_data(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
 
-        let antialias_buffer = webgl.inner.create_texture();
+        let antialias_texture = webgl.inner.create_texture();
+        let antialias_framebuffer = webgl.create_framebuffer();
 
         Ok(Self {
             webgl,
             antialias_shader,
             render_shader,
             quad_geometry,
-            antialias_buffer,
+            antialias_texture,
+            antialias_framebuffer,
+            has_new_texture : true,
             buffer_width : 0,
-            buffer_height : 0
+            buffer_height : 0,
         })
     }
 
+    pub fn recover_context(&mut self) {
+        self.webgl.delete_framebuffer(self.antialias_framebuffer.as_ref());
+        self.antialias_framebuffer = self.webgl.create_framebuffer();
+        self.has_new_texture = true;
+    }
+
     pub fn resize_buffer(&mut self, width : i32, height : i32) -> Result<(), JsValue> {
-        self.webgl.delete_texture(self.antialias_buffer.as_ref());
-        self.antialias_buffer = self.webgl.create_texture(width, height, WebGl2RenderingContext::RGBA8)?;
+        self.webgl.delete_texture(self.antialias_texture.as_ref());
+        self.antialias_texture = self.webgl.create_texture(width, height, WebGl2RenderingContext::RGBA8)?;
         self.buffer_width = width;
         self.buffer_height = height;
+        self.has_new_texture = true;
         Ok(())
     }
 
@@ -184,7 +196,6 @@ impl GlyphShader {
             cur_transform.translate_vec(offset * (1.0 / WebGlWrapper::pixel_density() as f32));
             cur_transform.scale(scale, scale);
             self.antialias_shader.set_uniform_vec4("uColor", color);
-            // self.shader.set_uniform_vec4("uColor", Vec4::new(2.0, 2.0, 2.0, 2.0));
             self.antialias_shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
             self.antialias_shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
         }
@@ -241,8 +252,18 @@ impl GlyphShader {
 
 
         self.webgl.add_blend_mode();
-        let framebuffer = self.webgl.render_to_texture(self.antialias_buffer.as_ref());
-        self.webgl.viewport(0, 0, self.buffer_width, self.buffer_height);
+        self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, self.antialias_framebuffer.as_ref());
+        if self.has_new_texture {
+            self.webgl.framebuffer_texture_2d(
+                WebGl2RenderingContext::FRAMEBUFFER, 
+                WebGl2RenderingContext::COLOR_ATTACHMENT0, 
+                WebGl2RenderingContext::TEXTURE_2D, 
+                self.antialias_texture.as_ref(), 0
+            );
+            self.webgl.viewport(0, 0, self.buffer_width, self.buffer_height);
+            self.has_new_texture = false;
+        }
+
         self.webgl.clear_color(0.0, 0.0, 0.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         
@@ -256,11 +277,9 @@ impl GlyphShader {
         self.webgl.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
         
         self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.antialias_buffer.as_ref());
+        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.antialias_texture.as_ref());
 
         self.main_render(glyph, transform, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
-        self.webgl.delete_framebuffer(framebuffer.as_ref());
-
         Ok(())
     }
 }

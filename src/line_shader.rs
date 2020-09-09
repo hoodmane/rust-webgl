@@ -80,13 +80,13 @@ impl LineShader {
         self.vertices.push_vec(q - pq_perp);
 
         self.colors.push_vec(color);
-        self.shader.set_attribute_data(&mut self.geometry, "aColor", &*self.colors)?;
         Ok(())
     }
 
 
-    pub fn draw(&self, transform : Transform) -> Result<(), JsValue> {
+    pub fn draw(&mut self, transform : Transform) -> Result<(), JsValue> {
         self.shader.use_program();
+        self.shader.set_attribute_data(&mut self.geometry, "aColor", &*self.colors)?;
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
         let position_texture = self.shader.webgl.create_vec2_texture(&self.vertices)?;
         // Put the position data into texture 0.

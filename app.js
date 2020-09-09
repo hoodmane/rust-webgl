@@ -250,10 +250,19 @@ export class App {
         this._canvas.start_frame();
         this._canvas.draw_grid();
         this._canvas.render();
+        // if(!this.notFirstDraw){
+        //     this.notFirstDraw = true;
+        //     return;
+        // }
         this._canvas.draw_box(
             app._canvas.transform_x(1), app._canvas.transform_y(1), 
             10, 10
-        );        
+        );
+
+        // this._canvas.draw_box(
+        //     app._canvas.transform_x(0), app._canvas.transform_y(0), 
+        //     10, 10
+        // );  
         this._canvas.draw_letter(this.font, "g".codePointAt(0), 
             new Vec2(app._canvas.transform_x(0), app._canvas.transform_y(0)), 
             50,
