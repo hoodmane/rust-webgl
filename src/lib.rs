@@ -8,10 +8,15 @@ mod font;
 mod matrix;
 mod vector;
 
+mod poly_line;
+mod arrow;
+
+
 mod webgl_wrapper;
 mod context;
 mod canvas;
 mod shader;
+mod default_shader;
 mod stencil_shader;
 mod arc_shader;
 mod cubic_shader;

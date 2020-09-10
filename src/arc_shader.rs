@@ -140,8 +140,7 @@ impl ArcShader {
         let center = (p + q) * 0.5 + pq_perp;
 
 
-        let center_to_p = (p - center).normalize();
-        let theta0 = f32::atan2(center_to_p.y, center_to_p.x);
+        let theta0 = (p - center).angle();
         let num_segments = f32::ceil(theta / FRAC_PI_4);//NUM_SEGMENTS as f32; //
         let envelope_thickness = thickness * 5.0;
         let inner_radius = radius - envelope_thickness;

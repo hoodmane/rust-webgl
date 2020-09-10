@@ -2,16 +2,21 @@ use crate::log::log_str;
 use crate::line_shader::LineShader;
 use crate::stencil_shader::StencilShader;
 use crate::glyph_shader::{GlyphShader, HorizontalAlignment, VerticalAlignment};
+use crate::default_shader::DefaultShader;
 
 use crate::font::{GlyphCompiler, GlyphPath, Font};
 
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::matrix::Transform;
-use crate::vector::{Vec2, Vec4};
+use crate::vector::{Vec2, Vec4, Vec2Buffer};
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext};
 
+use crate::arrow::normal_arrow;
+
 use crate::rect::Rect;
+
+use crate::poly_line::{PolyLine, LineStyle, LineJoinStyle};
 
 
 static BLACK : Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -28,6 +33,7 @@ pub struct Canvas {
     grid_shader : LineShader,
     axes_shader : LineShader,
     glyph_shader : GlyphShader,
+    default_shader : DefaultShader,
     width : i32,
     height : i32,
     density : f64,
@@ -48,6 +54,7 @@ impl Canvas {
         let stencil_shader = StencilShader::new(webgl.clone())?;
         let grid_shader = LineShader::new(webgl.clone())?;
         let axes_shader = LineShader::new(webgl.clone())?;
+        let default_shader = DefaultShader::new(webgl.clone())?;
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let (width, height) = webgl.width_and_height()?;
         let density = WebGlWrapper::pixel_density();
@@ -61,6 +68,7 @@ impl Canvas {
             grid_shader,
             axes_shader,
             glyph_shader,
+            default_shader,
             width,
             height,
             density,
@@ -271,6 +279,65 @@ impl Canvas {
     //     self.line_shader.add_line(p, q, color, thickness)?;
     //     Ok(())
     // }
+
+    pub fn draw_arrow(&mut self, line_width : f32, draw_triangles : bool) -> Result<(), JsValue> {
+        let poly_line = normal_arrow(line_width);
+        let xpos = -1.0;
+        let mut triangles = Vec2Buffer::new();
+        poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, line_width, 10.0, 0.5));
+        log_str(&format!("triangles : {:?}", triangles));
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(xpos), self.transform_y(2.0));
+        self.default_shader.draw(transform, &triangles, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+        
+        let mut triangles2 = Vec2Buffer::new();
+        poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, line_width, 10.0, 0.5));
+        let mut transform2 = self.transform;
+        transform2.translate(self.transform_x(xpos), self.transform_y(-2.0));
+        self.default_shader.draw(transform2, &triangles2, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+
+        let mut triangles3 = Vec2Buffer::new();
+        poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, line_width, 10.0, 0.5));
+        let mut transform3 = self.transform;
+        transform3.translate(self.transform_x(xpos), self.transform_y(-4.0));
+        self.default_shader.draw(transform3, &triangles3, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+
+
+
+        // for &(xpos, x) in &[(-1.0, -100.0), (3.0, 100.0)] {
+        //     let mut poly_line = PolyLine::new(Vec2::new(x, -y/2.0));
+        //     poly_line.line_to(Vec2::new(0.0, 0.0));
+        //     poly_line.line_to(Vec2::new(x, y/2.0));
+        //     let mut triangles = Vec2Buffer::new();
+        //     poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, line_width, 10.0, 0.5));
+        //     log_str(&format!("triangles : {:?}", triangles));
+        //     let mut transform = self.transform;
+        //     transform.translate(self.transform_x(xpos), self.transform_y(2.0));
+        //     self.default_shader.draw(transform, &triangles, 
+        //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+            
+        //     let mut triangles2 = Vec2Buffer::new();
+        //     poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, line_width, 10.0, 0.5));
+        //     let mut transform2 = self.transform;
+        //     transform2.translate(self.transform_x(xpos), self.transform_y(-2.0));
+        //     self.default_shader.draw(transform2, &triangles2, 
+        //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+
+        //     let mut triangles3 = Vec2Buffer::new();
+        //     poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, line_width, 10.0, 0.5));
+        //     let mut transform3 = self.transform;
+        //     transform3.translate(self.transform_x(xpos), self.transform_y(-4.0));
+        //     self.default_shader.draw(transform3, &triangles3, 
+        //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+        // }
+        Ok(())
+    }
 
     pub fn draw_grid(&mut self) -> Result<(), JsValue> {
         self.axes_shader.clear();

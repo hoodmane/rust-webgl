@@ -332,6 +332,77 @@ impl Neg for Vec4 {
 }
 
 
+impl Vec2 {
+    pub fn dot(v1 : Self, v2 : Self) -> f32 {
+        v1.x * v2.x + v1.y * v2.y
+    }
+    
+    pub fn cross(v1 : Self, v2 : Self) -> f32 {
+        (v1.x * v2.y) - (v1.y * v2.x)
+    }
+    
+
+    pub fn magnitude_sq(&self) -> f32 {
+        Self::dot(*self, *self)
+    }
+
+    pub fn magnitude(&self) -> f32 {
+        f32::sqrt(self.magnitude_sq())
+    }
+
+    pub fn normalize(self) -> Self {
+        self * (1.0/self.magnitude())
+    }
+
+    pub fn angle(self) -> f32 {
+        f32::atan2(self.y, self.x)
+    }
+
+    pub fn perp(self) -> Self {
+        let Vec2 {x, y} = self;
+        Self::new(-y, x)
+    }
+
+}
+
+
+impl Vec3 {
+    pub fn dot(v1 : Self, v2 : Self) -> f32 {
+        v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+    }
+
+    pub fn magnitude_sq(&self) -> f32 {
+        Self::dot(*self, *self)
+    }
+
+    pub fn magnitude(&self) -> f32 {
+        f32::sqrt(self.magnitude_sq())
+    }
+
+    pub fn normalize(self) -> Self {
+        self * (1.0/self.magnitude())
+    }
+}
+
+impl Vec4 {
+    pub fn dot(v1 : Self, v2 : Self) -> f32 {
+        v1.x * v2.x + v1.y * v2.y + v1.z * v2.z + v1.w * v2.w
+    }
+    
+    pub fn magnitude_sq(&self) -> f32 {
+        Self::dot(*self, *self)
+    }
+
+    pub fn magnitude(&self) -> f32 {
+        f32::sqrt(self.magnitude_sq())
+    }
+
+    pub fn normalize(self) -> Self {
+        self * (1.0/self.magnitude())
+    }
+}
+
+
 #[derive(Debug, Default)]
 pub struct Vec2Buffer {
     backing : Vec<f32>
@@ -382,6 +453,11 @@ impl Vec2Buffer {
             y : self.backing[2*idx + 1],
         }
     }
+
+    pub fn last(&self) -> Vec2 {
+        self.get(self.len() - 1)
+    }
+
 
     pub fn clear(&mut self) {
         self.backing.clear();
@@ -511,48 +587,5 @@ impl Vec4Buffer {
 
     pub fn clear(&mut self) {
         self.backing.clear();
-    }
-}
-
-impl Vec2 {
-    pub fn magnitude_sq(&self) -> f32 {
-        self.x * self.x + self.y * self.y
-    }
-
-    pub fn magnitude(&self) -> f32 {
-        f32::sqrt(self.magnitude_sq())
-    }
-
-    pub fn normalize(self) -> Self {
-        self * (1.0/self.magnitude())
-    }
-}
-
-
-impl Vec3 {
-    pub fn magnitude_sq(&self) -> f32 {
-        self.x * self.x + self.y * self.y + self.z * self.z
-    }
-
-    pub fn magnitude(&self) -> f32 {
-        f32::sqrt(self.magnitude_sq())
-    }
-
-    pub fn normalize(self) -> Self {
-        self * (1.0/self.magnitude())
-    }
-}
-
-impl Vec4 {
-    pub fn magnitude_sq(&self) -> f32 {
-        self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
-    }
-
-    pub fn magnitude(&self) -> f32 {
-        f32::sqrt(self.magnitude_sq())
-    }
-
-    pub fn normalize(self) -> Self {
-        self * (1.0/self.magnitude())
     }
 }

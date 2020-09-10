@@ -33,6 +33,10 @@ impl WebGlWrapper {
         web_sys::window().unwrap().device_pixel_ratio()
     }
 
+    pub fn point_to_pixels(points : f32) -> f32 {
+        ((points as f64) * WebGlWrapper::pixel_density()) as f32
+    }
+
     // pub fn pixel_width(&self) -> i32 {
     //     (self.width() as f64 * WebGlWrapper::pixel_density()) as i32
     // }
