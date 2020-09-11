@@ -16,7 +16,7 @@ use crate::arrow::normal_arrow;
 
 use crate::rect::Rect;
 
-use crate::poly_line::{PolyLine, LineStyle, LineJoinStyle};
+use crate::poly_line::{PolyLine, LineStyle, LineJoinStyle, LineCapStyle};
 
 
 static BLACK : Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -284,7 +284,7 @@ impl Canvas {
         let poly_line = normal_arrow(line_width);
         let xpos = -1.0;
         let mut triangles = Vec2Buffer::new();
-        poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, line_width, 10.0, 0.5));
+        poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, line_width, 10.0, 0.5));
         log_str(&format!("triangles : {:?}", triangles));
         let mut transform = self.transform;
         transform.translate(self.transform_x(xpos), self.transform_y(2.0));
@@ -292,15 +292,15 @@ impl Canvas {
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         
         let mut triangles2 = Vec2Buffer::new();
-        poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, line_width, 10.0, 0.5));
+        poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, LineCapStyle::Rect, line_width, 10.0, 0.5));
         let mut transform2 = self.transform;
-        transform2.translate(self.transform_x(xpos), self.transform_y(-2.0));
+        transform2.translate(self.transform_x(xpos), self.transform_y(-1.0));
         self.default_shader.draw(transform2, &triangles2, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
 
 
         let mut triangles3 = Vec2Buffer::new();
-        poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, line_width, 10.0, 0.5));
+        poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
         let mut transform3 = self.transform;
         transform3.translate(self.transform_x(xpos), self.transform_y(-4.0));
         self.default_shader.draw(transform3, &triangles3, 

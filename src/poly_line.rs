@@ -1,3 +1,9 @@
+// Note: We've been using the pixel screen coordinate system where (0, 0) is the top left hand corner of the screen
+// and y is measured down. This is a left-handed coordinate system so the clockwise / counterclockwise calculations
+// are a bit screwy =/
+
+// Stolen from: https://github.com/pixijs/pixi.js/blob/3dde07c107d20720dfeeae8d8b2795bfcf86f8ee/packages/graphics/src/utils/
+
 use std::f32::consts::PI;
 
 use crate::log::log_str;
@@ -13,17 +19,25 @@ pub enum LineJoinStyle {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub enum LineCapStyle {
+    Round,
+    Rect,
+    Butt
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct LineStyle {
     join : LineJoinStyle,
+    cap : LineCapStyle,
     width : f32,
     miter_limit : f32,
     alignment : f32
 }
 
 impl LineStyle {
-    pub fn new(join : LineJoinStyle, width : f32, miter_limit : f32, alignment : f32) -> Self{
+    pub fn new(join : LineJoinStyle, cap : LineCapStyle, width : f32, miter_limit : f32, alignment : f32) -> Self{
         Self {
-            join, width, miter_limit, alignment
+            join, cap, width, miter_limit, alignment
         }
     }
 }
@@ -95,11 +109,12 @@ impl PolyLine {
 
     pub fn get_triangles(&self, output : &mut Vec2Buffer, style : LineStyle) {
         let mut builder = PolyLineTriangleBuilder::new(output, style);
-        builder.start_line(self.points.get(0), self.points.get(1));
+        let closed_shape = false;
+        builder.start_line(self.points.get(0), self.points.get(1), closed_shape);
         for i in 0 .. self.points.len() - 2 {
             builder.line_join(self.points.get(i), self.points.get(i + 1), self.points.get(i + 2));
         }
-        builder.end_line(self.points.get(self.points.len() - 2), self.points.get(self.points.len() - 1));
+        builder.end_line(self.points.get(self.points.len() - 2), self.points.get(self.points.len() - 1), closed_shape);
     }
 }
 
@@ -123,6 +138,89 @@ impl<'a> PolyLineTriangleBuilder<'a> {
     fn outer_weight(&self) -> f32 {
         self.style.alignment * 2.0
     }
+
+
+
+
+    fn start_line(&mut self, p0 : Vec2, p1 : Vec2, closed_shape : bool){
+        let perp = (p0 - p1).perp().normalize() * self.style.width;
+        let start = true;
+        if !closed_shape {
+            self.line_cap(p0, perp, start);
+        }
+        self.line_end(p0, perp);
+    }
+
+    fn end_line(&mut self, p0 : Vec2, p1 : Vec2, closed_shape : bool){
+        let perp = (p0 - p1).perp().normalize() * self.style.width;
+        let start = false;
+        self.line_end(p1, perp);
+        if !closed_shape {
+            self.line_cap(p1, perp, start);
+        }
+    }
+
+    fn line_end(&mut self, p : Vec2, perp : Vec2){
+        let inner_weight = self.inner_weight();
+        let outer_weight = self.outer_weight();        
+        self.outputs.push_vec(p - perp * inner_weight);
+        self.outputs.push_vec(p + perp * outer_weight);
+    }
+
+    fn line_cap(&mut self, p : Vec2, perp : Vec2, start : bool){
+        let inner_weight = self.inner_weight();
+        let outer_weight = self.outer_weight();        
+        match self.style.cap {
+            LineCapStyle::Round => self.arc(
+                p - perp * ((inner_weight - outer_weight) * 0.5),
+                p - perp * inner_weight,
+                p + perp * outer_weight,
+                !start,
+            ),
+            LineCapStyle::Rect => self.rect(p, perp, start),
+            LineCapStyle::Butt => ()
+        };
+    }
+
+
+    fn line_join(&mut self, p0 : Vec2, p1 : Vec2, p2 : Vec2){
+        let width = self.style.width;
+        let perp0 = (p0 - p1).perp().normalize() * width;
+        let perp1 = (p1 - p2).perp().normalize() * width;
+        
+        // Going nearly straight?
+        let cross = Vec2::cross(p0 - p1, p1 - p2);
+        let clockwise = cross > 0.0;
+        if f32::abs(cross) < 0.1 {
+            self.outputs.push_vec(p1 - perp0 * self.inner_weight());
+            self.outputs.push_vec(p1 + perp0 * self.outer_weight());
+            return;
+        }
+
+        let (miter_point, inner_miter, outer_miter) = Self::compute_miter_points(
+            p0, p1, p2, perp0, perp1, self.inner_weight(), self.outer_weight()
+        );
+
+        match self.style.join {
+            LineJoinStyle::Bevel => {
+                self.bevel_join(clockwise, p1, inner_miter, outer_miter, perp0, perp1);
+            }
+            LineJoinStyle::Round => {
+                self.round_join(clockwise, p1, inner_miter, outer_miter, perp0, perp1);
+            }
+            LineJoinStyle::Miter => {
+                let pdist_sq = (miter_point - p1).magnitude_sq();
+                let threshold = (width * width) * (self.style.miter_limit * self.style.miter_limit);
+                if pdist_sq > threshold {
+                    self.bevel_join(clockwise, p1, inner_miter, outer_miter, perp0, perp1);
+                } else {
+                    self.outputs.push_vec(inner_miter);
+                    self.outputs.push_vec(outer_miter);
+                }
+            }
+        }
+    }
+
 
     fn compute_miter_points(
         p0 : Vec2, p1 : Vec2, p2 : Vec2, 
@@ -220,60 +318,6 @@ impl<'a> PolyLineTriangleBuilder<'a> {
         }
     }
 
-    fn start_line(&mut self, p0 : Vec2, p1 : Vec2){
-        let perp = (p0 - p1).perp().normalize() * self.style.width;
-        let inner_weight = self.inner_weight();
-        let outer_weight = self.outer_weight();        
-        self.outputs.push_vec(p0 - perp * inner_weight);
-        self.outputs.push_vec(p0 + perp * outer_weight);
-    }
-
-    fn end_line(&mut self, p0 : Vec2, p1 : Vec2){
-        let perp = (p0 - p1).perp().normalize() * self.style.width;
-        let inner_weight = self.inner_weight();
-        let outer_weight = self.outer_weight();
-        self.outputs.push_vec(p1 - perp * inner_weight);
-        self.outputs.push_vec(p1 + perp * outer_weight);
-    }
-
-    fn line_join(&mut self, p0 : Vec2, p1 : Vec2, p2 : Vec2){
-        let width = self.style.width;
-        let perp0 = (p0 - p1).perp().normalize() * width;
-        let perp1 = (p1 - p2).perp().normalize() * width;
-        
-        // Going nearly straight?
-        let cross = Vec2::cross(p0 - p1, p1 - p2);
-        let clockwise = cross > 0.0;
-        if f32::abs(cross) < 0.1 {
-            self.outputs.push_vec(p1 - perp0 * self.inner_weight());
-            self.outputs.push_vec(p1 + perp0 * self.outer_weight());
-            return;
-        }
-        log_str(&format!("clockwise : {}", clockwise));
-
-        let (miter_point, inner_miter, outer_miter) = Self::compute_miter_points(
-            p0, p1, p2, perp0, perp1, self.inner_weight(), self.outer_weight()
-        );
-
-        match self.style.join {
-            LineJoinStyle::Bevel => {
-                self.bevel_join(clockwise, p1, inner_miter, outer_miter, perp0, perp1);
-            }
-            LineJoinStyle::Round => {
-                self.round_join(clockwise, p1, inner_miter, outer_miter, perp0, perp1);
-            }
-            LineJoinStyle::Miter => {
-                let pdist_sq = (miter_point - p1).magnitude_sq();
-                let threshold = (width * width) * (self.style.miter_limit * self.style.miter_limit);
-                if pdist_sq > threshold {
-                    self.bevel_join(clockwise, p1, inner_miter, outer_miter, perp0, perp1);
-                } else {
-                    self.outputs.push_vec(inner_miter);
-                    self.outputs.push_vec(outer_miter);
-                }
-            }
-        }
-    }
 
     fn arc(&mut self, 
         center : Vec2, start : Vec2, end : Vec2, clockwise: bool, // if not cap, then clockwise is turn of joint, otherwise rotation from angle0 to angle1
@@ -305,6 +349,20 @@ impl<'a> PolyLineTriangleBuilder<'a> {
         if clockwise {
             self.outputs.push_vec(center);
         }
+    }
+
+
+    fn rect(&mut self, 
+        p : Vec2, perp : Vec2, clockwise : bool, // rotation for square (true at left end, false at right end) 
+    ){
+        let inner_weight = self.inner_weight();
+        let outer_weight = self.outer_weight();
+        let inner = p - perp * inner_weight;
+        let outer = p + perp * outer_weight;
+        let extension = perp.perp() * if clockwise { -1.0 } else { 1.0 };
+        /* Square itself must be inserted clockwise*/
+        self.outputs.push_vec(inner + extension);
+        self.outputs.push_vec(outer + extension);
     }
 }
 

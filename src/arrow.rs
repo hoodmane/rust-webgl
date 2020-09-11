@@ -19,7 +19,7 @@ use crate::webgl_wrapper::WebGlWrapper;
 // {\pgfqpoint{-\pgfutil@tempdima}{-.5\pgfutil@tempdimb}}
 
 pub fn normal_arrow(line_width : f32) -> PolyLine {
-    let length = line_width * 2.2 + WebGlWrapper::point_to_pixels(1.6);
+    let length = line_width * 4.2 + WebGlWrapper::point_to_pixels(1.6);
     let width = 2.096774 * length;
     let mut poly_line = PolyLine::new(Vec2::new(-length, width/2.0));
     poly_line.cubic_curve_to(
