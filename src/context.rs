@@ -59,7 +59,7 @@ impl Context {
         canvas.style().set_property("height", &format!("{}px", self.height))?;
         canvas.set_width(self.pixel_width() as u32);
         canvas.set_height(self.pixel_height() as u32);
-        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
+        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height(), density)?;
         Ok(())
     }
 

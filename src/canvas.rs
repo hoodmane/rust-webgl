@@ -156,7 +156,7 @@ impl Canvas {
         canvas.set_height(self.pixel_height() as u32);
         self.reset_transform();
         
-        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height())?;
+        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height(), density)?;
         self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
         self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
         Ok(())
@@ -262,17 +262,18 @@ impl Canvas {
         // a.move_to(Vec2::new(x, y));        
         a.close();
         let glyph = a.end();
-        self.glyph_shader.draw(&glyph, self.transform, Vec2::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center)?;
+        self.glyph_shader.draw(&glyph, self.transform, Vec2::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
         Ok(())
     }
 
     pub fn draw_letter(&mut self, 
         font : &Font, codepoint : u16,  
         pos : Vec2, scale : f32,
-        horizontal_alignment : HorizontalAlignment, vertical_alignment : VerticalAlignment
+        horizontal_alignment : HorizontalAlignment, vertical_alignment : VerticalAlignment,
+        color : Vec4
     ) -> Result<(), JsValue> {
         let glyph = font.glyph(codepoint)?.path();
-        self.glyph_shader.draw(glyph, self.transform, pos, scale, horizontal_alignment, vertical_alignment)?;
+        self.glyph_shader.draw(glyph, self.transform, pos, scale, horizontal_alignment, vertical_alignment, color)?;
         Ok(())
     }
 
@@ -323,7 +324,7 @@ impl Canvas {
         for &v in &image {
             let mut v = v;
             v.y *= -1.0;
-            image_buffer.push_vec(v);
+            image_buffer.push_vec(v / (self.density as f32));
         }
         // log_str(&format!("image_buffer : {:?}", image_buffer));
         Ok(JsBuffer::new(image_buffer))

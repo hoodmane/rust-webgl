@@ -64,7 +64,8 @@ pub struct GlyphShader {
     antialias_framebuffer : Option<WebGlFramebuffer>,
     has_new_texture : bool,
     buffer_width : i32,
-    buffer_height : i32
+    buffer_height : i32,
+    buffer_density : f64
 }
 
 impl GlyphShader {
@@ -167,6 +168,7 @@ impl GlyphShader {
             has_new_texture : true,
             buffer_width : 0,
             buffer_height : 0,
+            buffer_density : 0.0
         })
     }
 
@@ -176,12 +178,13 @@ impl GlyphShader {
         self.has_new_texture = true;
     }
 
-    pub fn resize_buffer(&mut self, width : i32, height : i32) -> Result<(), JsValue> {
+    pub fn resize_buffer(&mut self, width : i32, height : i32, density : f64) -> Result<(), JsValue> {
         self.webgl.delete_texture(self.antialias_texture.as_ref());
         self.antialias_texture = self.webgl.create_texture(width, height, WebGl2RenderingContext::RGBA8)?;
         self.buffer_width = width;
         self.buffer_height = height;
         self.has_new_texture = true;
+        self.buffer_density = density;
         Ok(())
     }
 
@@ -227,8 +230,9 @@ impl GlyphShader {
         pos : Vec2, scale : f32, 
         horizontal_alignment : HorizontalAlignment,
         vertical_alignment : VerticalAlignment,
+        color : Vec4
     ) -> Result<(), JsValue> {
-        self.draw_to_target(glyph, transform, pos, scale, horizontal_alignment, vertical_alignment, Vec4::new(0.0, 0.0, 0.0, 0.0), None)
+        self.draw_to_target(glyph, transform, pos, scale, horizontal_alignment, vertical_alignment, color, None)
     }
 
     pub fn draw_to_fit(&mut self, 
@@ -254,8 +258,8 @@ impl GlyphShader {
             framebuffer.as_ref()
         )?;
         
-        let width = f32::ceil(glyph.bounding_box.right() * scale  * 2.8) as i32;
-        let height = f32::ceil((glyph.bounding_box.bottom() - glyph.bounding_box.top()) * scale * 2.8) as i32;
+        let width = f32::ceil(glyph.bounding_box.right() * scale  * (self.buffer_density as f32)) as i32;
+        let height = f32::ceil((glyph.bounding_box.bottom() - glyph.bounding_box.top()) * scale * (self.buffer_density as f32)) as i32;
         log_str(&format!("bounding box : {:?}", glyph.bounding_box));
         log_str(&format!("width : {} height : {}", width, height));
         
@@ -344,7 +348,7 @@ impl GlyphShader {
         self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.antialias_texture.as_ref());
 
         self.main_render(glyph, transform, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
-        if color.w != 0.0 {
+        if color.x != 0.0 || color.y != 0.0 || color.z != 0.0 {
             self.webgl.add_blend_mode();
             self.main_render(glyph, transform, color)?;
         }
