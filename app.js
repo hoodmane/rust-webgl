@@ -26,7 +26,7 @@ function getTime(){
     return new Date().getTime();
 }
 
-const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true , "preserveDrawingBuffer" : true};
+const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true , "preserveDrawingBuffer" : true, antialias : false };
 
 export class App {
     constructor(pkg, canvasSelector, font){
@@ -265,6 +265,8 @@ export class App {
             this.pkg.HorizontalAlignment.Center,
             this.pkg.VerticalAlignment.Center,
         );
+        // this._canvas.draw_letter_convex_hull(this.font, "g".codePointAt(0), new Vec2(0, 0), 100, true)
+        // this._canvas.draw_arrow(3, true);
         // _canvas.endFrame
     }
 }

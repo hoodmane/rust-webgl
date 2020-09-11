@@ -15,16 +15,10 @@ mod arrow;
 mod webgl_wrapper;
 mod context;
 mod canvas;
-mod shader;
-mod default_shader;
-mod stencil_shader;
-mod arc_shader;
-mod cubic_shader;
-mod line_shader;
-mod glyph_shader;
+
 
 mod convex_hull;
-
+mod shader;
 
 pub use font::read_font;
 
@@ -32,9 +26,7 @@ use crate::log::*;
 use crate::vector::*;
 
 use crate::webgl_wrapper::WebGlWrapper;
-use crate::cubic_shader::CubicBezierShader;
-use crate::arc_shader::ArcShader;
-use crate::line_shader::LineShader;
+
 use crate::context::Context;
 use crate::canvas::Canvas;
 use crate::matrix::Transform;

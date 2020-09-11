@@ -1,9 +1,7 @@
 use crate::log::{log_str };
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
-use crate::glyph_shader::GlyphShader;
-use crate::line_shader::LineShader;
-use crate::arc_shader::ArcShader;
+use crate::shader::{GlyphShader, LineShader, ArcShader};
 use crate::font::{Glyph, Font};
 use crate::webgl_wrapper::WebGlWrapper;
 

@@ -254,20 +254,20 @@ impl AddAssign for Vec4 {
 
 impl SubAssign for Vec2 {
     fn sub_assign(&mut self, other: Self) {
-        *self = *self + other;
+        *self = *self - other;
     }
 }
 
 
 impl SubAssign for Vec3 {
     fn sub_assign(&mut self, other: Self) {
-        *self = *self + other;
+        *self = *self - other;
     }
 }
 
 impl SubAssign for Vec4 {
     fn sub_assign(&mut self, other: Self) {
-        *self = *self + other;
+        *self = *self - other;
     }
 }
 

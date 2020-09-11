@@ -1,8 +1,5 @@
 use crate::log::log_str;
-use crate::line_shader::LineShader;
-use crate::stencil_shader::StencilShader;
-use crate::glyph_shader::{GlyphShader, HorizontalAlignment, VerticalAlignment};
-use crate::default_shader::DefaultShader;
+use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment, VerticalAlignment, DefaultShader};
 
 use crate::font::{GlyphCompiler, GlyphPath, Font};
 
@@ -44,7 +41,15 @@ pub struct Canvas {
     transform : Transform
 }
 
-
+#[wasm_bindgen]
+pub struct JsBuffer {
+    data : Vec2Buffer
+}
+impl JsBuffer {
+    fn new(data : Vec2Buffer) -> Self {
+        Self { data }
+    }
+}
 
 #[wasm_bindgen]
 impl Canvas {
@@ -269,6 +274,65 @@ impl Canvas {
         let glyph = font.glyph(codepoint)?.path();
         self.glyph_shader.draw(glyph, self.transform, pos, scale, horizontal_alignment, vertical_alignment)?;
         Ok(())
+    }
+
+    pub fn draw_js_buffer(&mut self, buffer : &JsBuffer, pos : Vec2, draw_triangles : bool ) -> Result<(), JsValue> {
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
+        log_str(&format!("buffer.data : {:?}", buffer.data));
+        self.default_shader.draw(transform, &buffer.data, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+        Ok(())
+    }
+
+    pub fn draw_js_buffer_points(&mut self, buffer : &JsBuffer, pos : Vec2) -> Result<(), JsValue> {
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
+        log_str(&format!("buffer.data : {:?}", buffer.data));
+        self.default_shader.draw(transform, &buffer.data, 
+            WebGl2RenderingContext::POINTS)?;
+        Ok(())
+    }
+
+    pub fn draw_js_buffer_fan(&mut self, buffer : &JsBuffer, pos : Vec2) -> Result<(), JsValue> {
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
+        log_str(&format!("buffer.data : {:?}", buffer.data));
+        self.default_shader.draw(transform, &buffer.data, 
+            WebGl2RenderingContext::TRIANGLE_FAN)?;
+        Ok(())
+    }
+
+    pub fn get_test_buffer(&self) -> JsBuffer {
+        let mut test_buffer = Vec2Buffer::new();
+        test_buffer.push_vec(Vec2::new(0.0, 0.0));
+        test_buffer.push_vec(Vec2::new(100.0, 100.0));
+        test_buffer.push_vec(Vec2::new(300.0, 50.0));
+        JsBuffer::new(test_buffer)
+    }
+
+    pub fn get_letter_convex_hull(&mut self, 
+        font : &Font, codepoint : u16,  
+         scale : f32, //draw_triangles : bool
+    ) -> Result<JsBuffer, JsValue> {
+
+        let glyph = font.glyph(codepoint)?.path();
+        let (letter, width, height) = self.glyph_shader.draw_to_fit(glyph, self.transform, scale)?;
+        let image = crate::convex_hull::convex_hull(&letter, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
+        let mut image_buffer = Vec2Buffer::new();
+        for &v in &image {
+            let mut v = v;
+            v.y *= -1.0;
+            image_buffer.push_vec(v);
+        }
+        // log_str(&format!("image_buffer : {:?}", image_buffer));
+        Ok(JsBuffer::new(image_buffer))
+        // // log_str(&format!("image : {:?}", image));
+        // let mut transform = self.transform;
+        // // transform.translate(self.transform_x(-3.0), self.transform_y(4.0) + 200.0);
+        // // log_str(&format!("image : {:?}", image));
+        // self.default_shader.draw(transform, &image_buffer, 
+        //     if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;      
     }
 
     pub fn end_frame(&self){

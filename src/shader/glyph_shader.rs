@@ -1,4 +1,4 @@
-use crate::log::log_str;
+use crate::log::{log_str, log_1};
 use crate::font::GlyphPath;
 use crate::shader::{Shader, Geometry};
 use crate::vector::{Vec2, Vec4};
@@ -9,6 +9,8 @@ use crate::webgl_wrapper::WebGlWrapper;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext, WebGlTexture, WebGlFramebuffer};
+use js_sys::{Uint8Array, ArrayBuffer};
+
 
 static JITTER_PATTERN : [Vec2; 6] = [
     Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
@@ -219,13 +221,75 @@ impl GlyphShader {
         Ok(())
     }
 
-    // pub fn draw(&self, transform : Transform, glyph : &Glyph) -> Result<(), JsValue> {
     pub fn draw(&mut self, 
+        glyph : &GlyphPath, 
+        transform : Transform, 
+        pos : Vec2, scale : f32, 
+        horizontal_alignment : HorizontalAlignment,
+        vertical_alignment : VerticalAlignment,
+    ) -> Result<(), JsValue> {
+        self.draw_to_target(glyph, transform, pos, scale, horizontal_alignment, vertical_alignment, Vec4::new(0.0, 0.0, 0.0, 0.0), None)
+    }
+
+    pub fn draw_to_fit(&mut self, 
+        glyph : &GlyphPath, 
+        transform : Transform, 
+        scale : f32, 
+    ) -> Result<(Vec<u8>, i32, i32), JsValue>{
+        let texture = self.webgl.create_texture(self.buffer_width, self.buffer_height, WebGl2RenderingContext::RGBA8)?;
+        let framebuffer = self.webgl.create_framebuffer();
+        self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer.as_ref());
+        self.webgl.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER, 
+            WebGl2RenderingContext::COLOR_ATTACHMENT0, 
+            WebGl2RenderingContext::TEXTURE_2D, 
+            texture.as_ref(), 0
+        );
+        self.webgl.viewport(0, 0, self.buffer_width, self.buffer_height);
+        self.webgl.clear_color(0.0, 0.0, 0.0, 0.0);
+        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        self.draw_to_target(
+            glyph, transform, Vec2::new(0.0, 0.0), scale, HorizontalAlignment::Left, VerticalAlignment::Top, Vec4::new(0.0, 0.0, 1.0, 1.0), 
+            // None 
+            framebuffer.as_ref()
+        )?;
+        
+        let width = f32::ceil(glyph.bounding_box.right() * scale  * 2.8) as i32;
+        let height = f32::ceil((glyph.bounding_box.bottom() - glyph.bounding_box.top()) * scale * 2.8) as i32;
+        log_str(&format!("bounding box : {:?}", glyph.bounding_box));
+        log_str(&format!("width : {} height : {}", width, height));
+        
+
+        let mut result = vec![0; (width * height * 4) as usize];
+        self.webgl.read_pixels_with_opt_u8_array(
+            0, self.buffer_height - height,
+            width, height,
+            WebGl2RenderingContext::RGBA,
+            WebGl2RenderingContext::UNSIGNED_BYTE,
+            Some(&mut result)
+        )?;
+
+        // self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+        // self.webgl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, framebuffer.as_ref());
+        // self.webgl.blit_framebuffer(
+        //     0, 0, self.buffer_width, self.buffer_height,
+        //     0, 0, self.buffer_width, self.buffer_height,
+        //     WebGl2RenderingContext::COLOR_BUFFER_BIT, WebGl2RenderingContext::NEAREST
+        // );
+
+        log_str(&format!("read_pixels : {:?}", result));
+        Ok((result, width, height))
+    }
+
+
+    pub fn draw_to_target(&mut self, 
         glyph : &GlyphPath, 
         mut transform : Transform, 
         mut pos : Vec2, scale : f32, 
         horizontal_alignment : HorizontalAlignment,
         vertical_alignment : VerticalAlignment,
+        color : Vec4,
+        target : Option<&WebGlFramebuffer>
     ) -> Result<(), JsValue> {
         let x_offset = match horizontal_alignment {
             HorizontalAlignment::Left => { 0.0 }
@@ -269,7 +333,7 @@ impl GlyphShader {
         
         self.antialias_render(glyph, transform, scale)?;
         
-        self.webgl.render_to_canvas();
+        self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, target);
         
 
         transform.scale(scale, scale);
@@ -280,6 +344,10 @@ impl GlyphShader {
         self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.antialias_texture.as_ref());
 
         self.main_render(glyph, transform, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
+        if color.w != 0.0 {
+            self.webgl.add_blend_mode();
+            self.main_render(glyph, transform, color)?;
+        }
         Ok(())
     }
 }
