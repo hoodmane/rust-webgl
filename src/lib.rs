@@ -23,6 +23,8 @@ mod cubic_shader;
 mod line_shader;
 mod glyph_shader;
 
+mod convex_hull;
+
 
 pub use font::read_font;
 
