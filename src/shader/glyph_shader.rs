@@ -1,6 +1,7 @@
 use crate::log::{log_str, log_1};
-use crate::font::GlyphPath;
+use crate::font::{GlyphPath};
 use crate::shader::{Shader, Geometry};
+use crate::rect::BufferDimensions;
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
 use crate::webgl_wrapper::WebGlWrapper;
@@ -31,11 +32,11 @@ static JITTER_COLORS : [Vec4; 6] = [
 ];
 
 
-static STANDARD_QUAD : [f32; 4 * 2] = [
-    0.0, 0.0, 
-    1.0, 0.0,
-    0.0, 1.0,
-    1.0, 1.0
+static STANDARD_QUAD : [Vec2; 4] = [
+    Vec2::new(0.0, 0.0), 
+    Vec2::new(1.0, 0.0), 
+    Vec2::new(0.0, 1.0), 
+    Vec2::new(1.0, 1.0), 
 ];
 
 #[wasm_bindgen]
@@ -63,9 +64,7 @@ pub struct GlyphShader {
     antialias_texture : Option<WebGlTexture>,
     antialias_framebuffer : Option<WebGlFramebuffer>,
     has_new_texture : bool,
-    buffer_width : i32,
-    buffer_height : i32,
-    buffer_density : f64
+    buffer_dimensions : BufferDimensions
 }
 
 impl GlyphShader {
@@ -153,7 +152,7 @@ impl GlyphShader {
         let mut quad_geometry = render_shader.create_geometry()?;
         quad_geometry.num_vertices = 4;
         quad_geometry.num_instances = 1;
-        render_shader.set_attribute_data(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
+        render_shader.set_attribute_vec2(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
 
         let antialias_texture = webgl.inner.create_texture();
         let antialias_framebuffer = webgl.create_framebuffer();
@@ -166,11 +165,11 @@ impl GlyphShader {
             antialias_texture,
             antialias_framebuffer,
             has_new_texture : true,
-            buffer_width : 0,
-            buffer_height : 0,
-            buffer_density : 0.0
+            buffer_dimensions : BufferDimensions::new(1, 1, 1.0)
         })
     }
+
+
 
     pub fn recover_context(&mut self) {
         self.webgl.delete_framebuffer(self.antialias_framebuffer.as_ref());
@@ -178,13 +177,11 @@ impl GlyphShader {
         self.has_new_texture = true;
     }
 
-    pub fn resize_buffer(&mut self, width : i32, height : i32, density : f64) -> Result<(), JsValue> {
+    pub fn resize_buffer(&mut self, buffer_dimensions : BufferDimensions) -> Result<(), JsValue> {
         self.webgl.delete_texture(self.antialias_texture.as_ref());
-        self.antialias_texture = self.webgl.create_texture(width, height, WebGl2RenderingContext::RGBA8)?;
-        self.buffer_width = width;
-        self.buffer_height = height;
+        self.antialias_texture = self.webgl.create_texture(buffer_dimensions.pixel_width(), buffer_dimensions.pixel_height(), WebGl2RenderingContext::RGBA8)?;
+        self.buffer_dimensions = buffer_dimensions;
         self.has_new_texture = true;
-        self.buffer_density = density;
         Ok(())
     }
 
@@ -195,7 +192,7 @@ impl GlyphShader {
         let mut geometry = self.antialias_shader.create_geometry()?;
         geometry.num_vertices = vertices.len() as i32;
         geometry.num_instances = 1;
-        self.antialias_shader.set_attribute_data(&mut geometry, "aVertexPosition", &*vertices)?;
+        self.antialias_shader.set_attribute_vec4(&mut geometry, "aVertexPosition", vertices.as_slice())?;
         for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
             let mut cur_transform = transform;
             cur_transform.translate_vec(offset * (1.0 / WebGlWrapper::pixel_density() as f32));
@@ -240,7 +237,7 @@ impl GlyphShader {
         transform : Transform, 
         scale : f32, 
     ) -> Result<(Vec<u8>, i32, i32), JsValue>{
-        let texture = self.webgl.create_texture(self.buffer_width, self.buffer_height, WebGl2RenderingContext::RGBA8)?;
+        let texture = self.webgl.create_texture(self.buffer_dimensions.pixel_width(), self.buffer_dimensions.pixel_height(), WebGl2RenderingContext::RGBA8)?;
         let framebuffer = self.webgl.create_framebuffer();
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer.as_ref());
         self.webgl.framebuffer_texture_2d(
@@ -249,7 +246,7 @@ impl GlyphShader {
             WebGl2RenderingContext::TEXTURE_2D, 
             texture.as_ref(), 0
         );
-        self.webgl.viewport(0, 0, self.buffer_width, self.buffer_height);
+        self.webgl.viewport(self.buffer_dimensions);
         self.webgl.clear_color(0.0, 0.0, 0.0, 0.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.draw_to_target(
@@ -257,16 +254,15 @@ impl GlyphShader {
             // None 
             framebuffer.as_ref()
         )?;
-        
-        let width = f32::ceil(glyph.bounding_box.right() * scale  * (self.buffer_density as f32)) as i32;
-        let height = f32::ceil((glyph.bounding_box.bottom() - glyph.bounding_box.top()) * scale * (self.buffer_density as f32)) as i32;
-        log_str(&format!("bounding box : {:?}", glyph.bounding_box));
-        log_str(&format!("width : {} height : {}", width, height));
+        let density = self.buffer_dimensions.density() as f32;
+        let left = f32::ceil(glyph.bounding_box.left() * scale  * density) as i32;
+        let width = f32::ceil((glyph.bounding_box.right() - glyph.bounding_box.left()) * scale  * density) as i32;
+        let height = f32::ceil((glyph.bounding_box.bottom() - glyph.bounding_box.top()) * scale * density) as i32;
         
 
         let mut result = vec![0; (width * height * 4) as usize];
         self.webgl.read_pixels_with_opt_u8_array(
-            0, self.buffer_height - height,
+            left, self.buffer_dimensions.height() - height,
             width, height,
             WebGl2RenderingContext::RGBA,
             WebGl2RenderingContext::UNSIGNED_BYTE,
@@ -328,7 +324,7 @@ impl GlyphShader {
                 WebGl2RenderingContext::TEXTURE_2D, 
                 self.antialias_texture.as_ref(), 0
             );
-            self.webgl.viewport(0, 0, self.buffer_width, self.buffer_height);
+            self.webgl.viewport(self.buffer_dimensions);
             self.has_new_texture = false;
         }
 
@@ -355,5 +351,3 @@ impl GlyphShader {
         Ok(())
     }
 }
-
-

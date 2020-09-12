@@ -1,17 +1,17 @@
 use crate::log::log_str;
 use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment, VerticalAlignment, DefaultShader};
 
-use crate::font::{GlyphCompiler, GlyphPath, Font};
+use crate::font::{GlyphCompiler, GlyphPath, Glyph, Font};
 
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::matrix::Transform;
-use crate::vector::{Vec2, Vec4, Vec2Buffer};
+use crate::vector::{Vec2, Vec4};
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext};
 
 use crate::arrow::normal_arrow;
 
-use crate::rect::Rect;
+use crate::rect::{Rect, BufferDimensions};
 
 use crate::poly_line::{PolyLine, LineStyle, LineJoinStyle, LineCapStyle};
 
@@ -31,9 +31,7 @@ pub struct Canvas {
     axes_shader : LineShader,
     glyph_shader : GlyphShader,
     default_shader : DefaultShader,
-    width : i32,
-    height : i32,
-    density : f64,
+    buffer_dimensions : BufferDimensions,
     left_margin : i32,
     right_margin : i32,
     bottom_margin : i32,
@@ -43,10 +41,10 @@ pub struct Canvas {
 
 #[wasm_bindgen]
 pub struct JsBuffer {
-    data : Vec2Buffer
+    data : Vec<Vec2>
 }
 impl JsBuffer {
-    fn new(data : Vec2Buffer) -> Self {
+    fn new(data : Vec<Vec2>) -> Self {
         Self { data }
     }
 }
@@ -61,8 +59,7 @@ impl Canvas {
         let axes_shader = LineShader::new(webgl.clone())?;
         let default_shader = DefaultShader::new(webgl.clone())?;
         let glyph_shader = GlyphShader::new(webgl.clone())?;
-        let (width, height) = webgl.width_and_height()?;
-        let density = WebGlWrapper::pixel_density();
+        let buffer_dimensions = BufferDimensions::new(1, 1, 0.0);
         let mut result = Self {
             webgl,
             origin : Vec2::new(0.0, 0.0),
@@ -74,15 +71,13 @@ impl Canvas {
             axes_shader,
             glyph_shader,
             default_shader,
-            width,
-            height,
-            density,
+            buffer_dimensions,
             left_margin : 10,
             right_margin : 50,
             bottom_margin : 10,
             top_margin : 10,
         };
-        result.resize(width, height, density)?;
+        result.resize(result.webgl.dimensions()?)?;
         Ok(result)   
     }
 
@@ -114,8 +109,8 @@ impl Canvas {
     fn chart_region(&self) -> Rect {
         Rect::new(
             self.left_margin as f32, self.top_margin  as f32, 
-            (self.width - self.left_margin - self.right_margin) as f32,
-            (self.height - self.top_margin - self.bottom_margin) as f32
+            (self.buffer_dimensions.width() - self.left_margin - self.right_margin) as f32,
+            (self.buffer_dimensions.height() - self.top_margin - self.bottom_margin) as f32
         )
     }
 
@@ -127,47 +122,37 @@ impl Canvas {
         self.webgl.disable(WebGl2RenderingContext::STENCIL_TEST);
     }
 
-    pub fn pixel_width(&self) -> i32 {
-        (self.width as f64 * self.density) as i32
-    }
-
-    pub fn pixel_height(&self) -> i32 {
-        (self.height as f64 * self.density) as i32
-    }
-
     fn reset_transform(&mut self){
         let mut transform = Transform::new();
         transform.translate(-1.0, 1.0);
-        transform.scale(2.0/ (self.width as f32), -2.0/(self.height as f32));
+        transform.scale(2.0/ (self.buffer_dimensions.width() as f32), -2.0/(self.buffer_dimensions.height() as f32));
         self.transform = transform;
     }
 
-    pub fn resize(&mut self, width : i32, height : i32, density : f64) -> Result<(), JsValue> {
-        log_str(&format!("resize... old width : {}, new width : {}", self.width, width));
-        log_str(&format!("resize... old height : {}, new height : {}", self.height, height));
-        log_str(&format!("resize... old density : {}, new density : {}", self.density, density));
-        self.width = width;
-        self.height = height;
-        self.density = density;
+    fn resize(&mut self, new_dimensions : BufferDimensions) -> Result<(), JsValue> {
+        if new_dimensions == self.buffer_dimensions {
+            return Ok(());
+        }
+        self.buffer_dimensions = new_dimensions;
         let canvas = self.webgl.canvas()?;
-        canvas.style().set_property("width", &format!("{}px", self.width))?;
-        canvas.style().set_property("height", &format!("{}px", self.height))?;
-        canvas.set_width(self.pixel_width() as u32);
-        canvas.set_height(self.pixel_height() as u32);
+        canvas.style().set_property("width", &format!("{}px", self.buffer_dimensions.width()))?;
+        canvas.style().set_property("height", &format!("{}px", self.buffer_dimensions.height()))?;
+        canvas.set_width(self.buffer_dimensions.pixel_width() as u32);
+        canvas.set_height(self.buffer_dimensions.pixel_height() as u32);
         self.reset_transform();
         
-        self.glyph_shader.resize_buffer(self.pixel_width(), self.pixel_height(), density)?;
-        self.webgl.viewport(0, 0, self.pixel_width(), self.pixel_height());
+        self.glyph_shader.resize_buffer(self.buffer_dimensions)?;
+        self.webgl.viewport(self.buffer_dimensions);
         self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
         Ok(())
     }
 
     fn screen_x_range(&self) -> (f32, f32) {
-        (self.left_margin as f32, (self.width - self.right_margin) as f32)
+        (self.left_margin as f32, (self.buffer_dimensions.width() - self.right_margin) as f32)
     }
 
     fn screen_y_range(&self) -> (f32, f32) {
-        (self.top_margin as f32, (self.height - self.bottom_margin) as f32)
+        (self.top_margin as f32, (self.buffer_dimensions.height() - self.bottom_margin) as f32)
     }
 
 
@@ -235,11 +220,7 @@ impl Canvas {
     }
 
     pub fn start_frame(&mut self) -> Result<(), JsValue> {
-        let (new_width, new_height) = self.webgl.width_and_height()?;
-        let new_density = WebGlWrapper::pixel_density();
-        if new_width != self.width || new_height != self.height || new_density != self.density {
-            self.resize(new_width, new_height, new_density)?;
-        }
+        self.resize(self.webgl.dimensions()?)?;
         self.webgl.clear_color(1.0, 1.0, 1.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         
@@ -254,12 +235,7 @@ impl Canvas {
         a.line_to(Vec2::new(width, 0.0));
         a.line_to(Vec2::new(width, height));
         a.line_to(Vec2::new(0.0, height));
-        a.move_to(Vec2::new(0.0, 0.0));
-        // a.move_to(Vec2::new(x, y));
-        // a.line_to(Vec2::new(x + width, y));
-        // a.line_to(Vec2::new(x + width, y + height));
-        // a.line_to(Vec2::new(x, y + height));
-        // a.move_to(Vec2::new(x, y));        
+        a.move_to(Vec2::new(0.0, 0.0));       
         a.close();
         let glyph = a.end();
         self.glyph_shader.draw(&glyph, self.transform, Vec2::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
@@ -304,51 +280,50 @@ impl Canvas {
         Ok(())
     }
 
+    fn compute_glyph_convex_hull(&mut self, glyph : &Glyph) -> Result<(), JsValue>{
+        let scale = 100.0;
+        let glyph_path = glyph.path();
+        let (letter, width, height) = self.glyph_shader.draw_to_fit(glyph_path, self.transform, scale)?;
+        let image = crate::convex_hull::convex_hull(&letter, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
+        let mut image_buffer = Vec::new();
+        for &v in &image {
+            let mut v = v;
+            v.y *= -1.0;
+            image_buffer.push(v / (self.buffer_dimensions.density() as f32));
+        }
+        Ok(())
+    }
+
     pub fn get_test_buffer(&self) -> JsBuffer {
-        let mut test_buffer = Vec2Buffer::new();
-        test_buffer.push_vec(Vec2::new(0.0, 0.0));
-        test_buffer.push_vec(Vec2::new(100.0, 100.0));
-        test_buffer.push_vec(Vec2::new(300.0, 50.0));
+        let mut test_buffer = Vec::new();
+        test_buffer.push(Vec2::new(0.0, 0.0));
+        test_buffer.push(Vec2::new(100.0, 100.0));
+        test_buffer.push(Vec2::new(300.0, 50.0));
         JsBuffer::new(test_buffer)
     }
 
     pub fn get_letter_convex_hull(&mut self, 
         font : &Font, codepoint : u16,  
-         scale : f32, //draw_triangles : bool
+        scale : f32,
     ) -> Result<JsBuffer, JsValue> {
 
         let glyph = font.glyph(codepoint)?.path();
         let (letter, width, height) = self.glyph_shader.draw_to_fit(glyph, self.transform, scale)?;
-        let image = crate::convex_hull::convex_hull(&letter, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
-        let mut image_buffer = Vec2Buffer::new();
-        for &v in &image {
-            let mut v = v;
+        let mut image = crate::convex_hull::convex_hull(&letter, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
+        for v in &mut image {
             v.y *= -1.0;
-            image_buffer.push_vec(v / (self.density as f32));
         }
-        // log_str(&format!("image_buffer : {:?}", image_buffer));
-        Ok(JsBuffer::new(image_buffer))
-        // // log_str(&format!("image : {:?}", image));
-        // let mut transform = self.transform;
-        // // transform.translate(self.transform_x(-3.0), self.transform_y(4.0) + 200.0);
-        // // log_str(&format!("image : {:?}", image));
-        // self.default_shader.draw(transform, &image_buffer, 
-        //     if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;      
+        Ok(JsBuffer::new(image))
     }
 
     pub fn end_frame(&self){
 
     }
 
-    // pub fn add_line(&mut self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
-    //     self.line_shader.add_line(p, q, color, thickness)?;
-    //     Ok(())
-    // }
-
     pub fn draw_arrow(&mut self, line_width : f32, draw_triangles : bool) -> Result<(), JsValue> {
         let poly_line = normal_arrow(line_width);
         let xpos = -1.0;
-        let mut triangles = Vec2Buffer::new();
+        let mut triangles = Vec::new();
         poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, line_width, 10.0, 0.5));
         log_str(&format!("triangles : {:?}", triangles));
         let mut transform = self.transform;
@@ -356,7 +331,7 @@ impl Canvas {
         self.default_shader.draw(transform, &triangles, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         
-        let mut triangles2 = Vec2Buffer::new();
+        let mut triangles2 = Vec::new();
         poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, LineCapStyle::Rect, line_width, 10.0, 0.5));
         let mut transform2 = self.transform;
         transform2.translate(self.transform_x(xpos), self.transform_y(-1.0));
@@ -364,43 +339,12 @@ impl Canvas {
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
 
 
-        let mut triangles3 = Vec2Buffer::new();
+        let mut triangles3 = Vec::new();
         poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
         let mut transform3 = self.transform;
         transform3.translate(self.transform_x(xpos), self.transform_y(-4.0));
         self.default_shader.draw(transform3, &triangles3, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
-
-
-
-
-        // for &(xpos, x) in &[(-1.0, -100.0), (3.0, 100.0)] {
-        //     let mut poly_line = PolyLine::new(Vec2::new(x, -y/2.0));
-        //     poly_line.line_to(Vec2::new(0.0, 0.0));
-        //     poly_line.line_to(Vec2::new(x, y/2.0));
-        //     let mut triangles = Vec2Buffer::new();
-        //     poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, line_width, 10.0, 0.5));
-        //     log_str(&format!("triangles : {:?}", triangles));
-        //     let mut transform = self.transform;
-        //     transform.translate(self.transform_x(xpos), self.transform_y(2.0));
-        //     self.default_shader.draw(transform, &triangles, 
-        //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
-            
-        //     let mut triangles2 = Vec2Buffer::new();
-        //     poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, line_width, 10.0, 0.5));
-        //     let mut transform2 = self.transform;
-        //     transform2.translate(self.transform_x(xpos), self.transform_y(-2.0));
-        //     self.default_shader.draw(transform2, &triangles2, 
-        //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
-
-
-        //     let mut triangles3 = Vec2Buffer::new();
-        //     poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, line_width, 10.0, 0.5));
-        //     let mut transform3 = self.transform;
-        //     transform3.translate(self.transform_x(xpos), self.transform_y(-4.0));
-        //     self.default_shader.draw(transform3, &triangles3, 
-        //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
-        // }
         Ok(())
     }
 

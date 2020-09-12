@@ -11,9 +11,7 @@ mod vector;
 mod poly_line;
 mod arrow;
 
-
 mod webgl_wrapper;
-mod context;
 mod canvas;
 
 
@@ -27,7 +25,6 @@ use crate::vector::*;
 
 use crate::webgl_wrapper::WebGlWrapper;
 
-use crate::context::Context;
 use crate::canvas::Canvas;
 use crate::matrix::Transform;
 
@@ -48,19 +45,4 @@ pub fn get_rust_canvas(context : &WebGl2RenderingContext) -> Result<Canvas, JsVa
     //     .dyn_into()
     //     .map_err(|_e| JsValue::from_str(&format!("Element found with selector \"{}\" is not a canvas element.", selector)))?;
     Ok(Canvas::new(context)?)
-}
-
-#[wasm_bindgen]
-pub fn get_rust_context(context : &WebGl2RenderingContext) -> Result<Context, JsValue> {
-    // let webgl = WebGlWrapper::new(canvas.get_context("webgl2")?.unwrap().dyn_into()?);
-    // let document = web_sys::window().unwrap().document().unwrap();
-    // let canvas_element : HtmlCanvasElement = 
-    //     document.query_selector(selector)?
-    //     .ok_or(JsValue::from_str(&format!("No element found with selector \"{}\".", selector)))?
-    //     .dyn_into()
-    //     .map_err(|_e| JsValue::from_str(&format!("Element found with selector \"{}\" is not a canvas element.", selector)))?;
-    let webgl_wrapper = WebGlWrapper::new(
-        context.clone() //canvas_element.get_context_with_context_options("webgl2", options)?.unwrap().dyn_into()?
-    );
-    Ok(Context::new(webgl_wrapper)?)
 }

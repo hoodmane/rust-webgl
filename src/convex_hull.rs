@@ -6,10 +6,10 @@ use crate::log::log_str;
 use crate::vector::Vec2;
 
 
-pub fn convex_hull(source : &[u8], width : usize, height : usize, pivot : Vec2, spacing : usize, precision : f32) -> Vec<Vec2> {
+pub fn convex_hull(raster : &[u8], width : usize, height : usize, pivot : Vec2, spacing : usize, precision : f32) -> Vec<Vec2> {
 	let point_count = ray_count(width, height, spacing);
-	let mut convex_hull = crop(source, width, height, pivot, point_count);
-	average_close_together_points(&mut convex_hull, precision);
+	let mut convex_hull = sample_raster_outline(raster, width, height, pivot, point_count);
+	average_nearby_points(&mut convex_hull, precision);
 	graham_scan(&mut convex_hull);
 	// convex_hull.shrink_to_fit();
 	convex_hull
@@ -21,14 +21,14 @@ fn ray_count(_width : usize, _height : usize, _spacing : usize) -> usize {
 }
 
 
-fn scan_ray_for_nontransparent_pixel(source : &[u8], width : usize,  start_position : Vec2, direction : Vec2, radius : i32) -> Vec2 {
+fn scan_ray_for_nontransparent_pixel(raster : &[u8], width : usize,  start_position : Vec2, direction : Vec2, radius : i32) -> Vec2 {
 	// Crop until opaque pixel is found
 	for i in 0 .. radius {
 		let current_position = start_position - direction * i as f32;
 		let x = current_position.x as usize;
 		let y = current_position.y as usize;
 		// Check alpha // Currently reading the blue channel....
-		if source[(x + y * width) * 4 + 2 ] != 0 {
+		if raster[(x + y * width) * 4 + 2 ] != 0 {
 			return current_position;
 		}
 	}
@@ -36,7 +36,7 @@ fn scan_ray_for_nontransparent_pixel(source : &[u8], width : usize,  start_posit
 }
 
 
-fn crop(source : &[u8], width : usize, height : usize, pivot : Vec2, point_count : usize) -> Vec<Vec2> {
+pub fn sample_raster_outline(raster : &[u8], width : usize, height : usize, pivot : Vec2, point_count : usize) -> Vec<Vec2> {
 	let angle_step = 2.0 * PI / (point_count as f32);
 	let half_dim = Vec2::new((width/2) as f32, (height/2) as f32);
 
@@ -50,7 +50,7 @@ fn crop(source : &[u8], width : usize, height : usize, pivot : Vec2, point_count
 		let abssin = direction.y.abs();
 
 		let radius = f32::min(half_dim.x / abscos, half_dim.y / abssin) - 1.0;
-		let position = scan_ray_for_nontransparent_pixel(source, width, direction * radius + half_dim, direction, f32::ceil(radius) as i32);
+		let position = scan_ray_for_nontransparent_pixel(raster, width, direction * radius + half_dim, direction, f32::ceil(radius) as i32);
 
 		result.push(position - pivot);
 	}
@@ -59,7 +59,7 @@ fn crop(source : &[u8], width : usize, height : usize, pivot : Vec2, point_count
 
 
 // Average together collections of nearby points. In place.
-fn average_close_together_points(points : &mut Vec<Vec2>, trim_distance : f32) {
+fn average_nearby_points(points : &mut Vec<Vec2>, trim_distance : f32) {
 	let mut input_idx = 0;
 	let mut output_idx = 0;
 	while input_idx < points.len() {
@@ -74,7 +74,6 @@ fn average_close_together_points(points : &mut Vec<Vec2>, trim_distance : f32) {
 		output_idx += 1;
 		input_idx += num_points;
 	}
-	log_str(&format!("output_idx : {}", output_idx));
 	// Shrink list to new length (panic if somehow output_idx > points.len())
 	points.resize_with(output_idx, || unreachable!());
 }
@@ -118,25 +117,22 @@ fn graham_scan(points : &mut Vec<Vec2>) {
 	points.swap(0, min_idx);
 
 	let compare_point = points[0];
-	log_str(&format!("unsorted : {:?}", points));
 	points.sort_by(	
 		move |&p1, &p2| // sort first by the handedness of (compare_point, p1, p2) then by distance from compare_pt.
 		orientation(compare_point, p1, p2).partial_cmp(&0.0).unwrap().then_with(|| compare_magnitudes(p1 - compare_point, p2 - compare_point))
 	);
-	log_str(&format!("sorted : {:?}", points));
 
 	// Create & initialize stack
 	let mut stack_length : usize = 3;
 	for i in 3 .. points.len() {
 		// Seems like this could lead to an infinite loop here...
-		// Luckily, Rust panics if stack_index underflows!
+		// Luckily, Rust will panic if stack_index becomes less than 2!
 		while orientation(points[stack_length - 2], points[stack_length - 1], points[i]) >= 0.0 {
 			stack_length -= 1;
 		}
 		points[stack_length] = points[i];
 		stack_length += 1;
 	}
-	log_str(&format!("stack_length : {}, points.len() : {}", stack_length, points.len()));
 	// Shrink list to new length (panic if somehow output_idx > points.len())
 	points.resize_with(stack_length, || unreachable!());
 }

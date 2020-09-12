@@ -2,6 +2,9 @@ use web_sys::{HtmlCanvasElement, Element, WebGlTexture, WebGl2RenderingContext, 
 use wasm_bindgen::{JsValue, JsCast};
 use std::ops::Deref;
 
+use crate::vector::{MutPtrF32, Vec2, Vec4};
+use crate::rect::BufferDimensions;
+
 
 #[derive(Clone)]
 pub struct WebGlWrapper {
@@ -24,9 +27,12 @@ impl WebGlWrapper {
         Ok(self.inner.canvas().unwrap().dyn_into()?)
     }
 
-    pub fn width_and_height(&self) -> Result<(i32, i32), JsValue> {
+    pub fn dimensions(&self) -> Result<BufferDimensions, JsValue> {
         let canvas = self.canvas()?;
-        Ok((canvas.client_width(), canvas.client_height()))
+        let width = canvas.client_width();
+        let height = canvas.client_height();
+        let density = WebGlWrapper::pixel_density();
+        Ok(BufferDimensions::new(width, height, density))
     }
 
     pub fn pixel_density() -> f64 {
@@ -35,6 +41,10 @@ impl WebGlWrapper {
 
     pub fn point_to_pixels(points : f32) -> f32 {
         ((points as f64) * WebGlWrapper::pixel_density()) as f32
+    }
+
+    pub fn viewport(&self, dimensions : BufferDimensions){
+        self.inner.viewport(0, 0, dimensions.pixel_width(), dimensions.pixel_height());
     }
 
     // pub fn pixel_width(&self) -> i32 {
@@ -79,18 +89,18 @@ impl WebGlWrapper {
         Ok(texture)
     }
 
-    pub fn create_vec2_texture(&self, vecs : &[f32]) -> Result<Option<WebGlTexture>, JsValue> {
-        self.create_float_storage_texture(2, WebGl2RenderingContext::RG, WebGl2RenderingContext::RG32F, vecs)
+    pub fn create_vec2_texture(&self, vecs : &[Vec2]) -> Result<Option<WebGlTexture>, JsValue> {
+        self.create_float_storage_texture(2, WebGl2RenderingContext::RG, WebGl2RenderingContext::RG32F, &vecs)
     }
 
-    pub fn create_vec4_texture(&self, vecs : &[f32]) -> Result<Option<WebGlTexture>, JsValue> {
-        self.create_float_storage_texture(4, WebGl2RenderingContext::RGBA, WebGl2RenderingContext::RGBA32F, vecs)
+    pub fn create_vec4_texture(&self, vecs : &[Vec4]) -> Result<Option<WebGlTexture>, JsValue> {
+        self.create_float_storage_texture(4, WebGl2RenderingContext::RGBA, WebGl2RenderingContext::RGBA32F, &vecs)
     }
 
-    fn create_float_storage_texture(&self, size : usize, external_format : u32, internal_format : u32,  vecs : &[f32]) -> Result<Option<WebGlTexture>, JsValue> {
+    fn create_float_storage_texture<T : MutPtrF32>(&self, size : usize, external_format : u32, internal_format : u32,  vecs : &T) -> Result<Option<WebGlTexture>, JsValue> {
         let context = &self.inner;
         let texture = context.create_texture();
-        let width = (vecs.len()/size) as i32;
+        let width = (vecs.length()/size) as i32;
         let height = 1;
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
         context.tex_storage_2d(
@@ -104,8 +114,9 @@ impl WebGlWrapper {
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         // tex_sub_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_f32_array doesn't exist =(
+        let size = vecs.length();
         unsafe {
-            let array_view = js_sys::Float32Array::view(&vecs);
+            let array_view = js_sys::Float32Array::view_mut_raw(vecs.mut_ptr_f32(), size);
             context.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_array_buffer_view(
                 WebGl2RenderingContext::TEXTURE_2D, 
                 0, // mip level

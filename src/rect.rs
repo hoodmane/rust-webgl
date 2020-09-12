@@ -76,3 +76,36 @@ impl RectBuilder {
 		self.max_y = self.max_y.max(y);
 	}
 }
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct BufferDimensions {
+	width : i32,
+	height : i32,
+	density : f64
+}
+
+impl BufferDimensions {
+	pub fn new(width : i32, height : i32, density : f64) -> Self {
+		Self { width, height, density }
+	}
+	
+	pub fn width(&self) -> i32 {
+		self.width
+	}
+
+	pub fn height(&self) -> i32 {
+		self.height 
+	}
+
+	pub fn density(&self) -> f64 {
+		self.density
+	}
+
+	pub fn pixel_width(&self) -> i32 {
+        (self.width as f64 * self.density) as i32
+    }
+
+    pub fn pixel_height(&self) -> i32 {
+        (self.height as f64 * self.density) as i32
+    }
+}

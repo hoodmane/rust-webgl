@@ -1,5 +1,5 @@
 use crate::log::log_str;
-use crate::vector::{Vec2, Vec2Buffer, Vec4, Vec4Buffer};
+use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::{Shader, Geometry};
@@ -10,8 +10,8 @@ use web_sys::WebGl2RenderingContext;
 
 pub struct LineShader {
     pub shader : Shader,
-    vertices : Vec2Buffer,
-    colors : Vec4Buffer,
+    vertices : Vec<Vec2>,
+    colors : Vec<Vec4>,
     geometry : Geometry
 }
 
@@ -58,8 +58,8 @@ impl LineShader {
         Ok(Self {
             shader,
             geometry,
-            vertices : Vec2Buffer::new(),
-            colors : Vec4Buffer::new(),
+            vertices : Vec::new(),
+            colors : Vec::new(),
         })
     }
 
@@ -74,21 +74,21 @@ impl LineShader {
         let pq = q - p;
         let pq_perp = Vec2::new(pq.y, -pq.x).normalize() * thickness;
 
-        self.vertices.push_vec(p + pq_perp);
-        self.vertices.push_vec(p - pq_perp);
-        self.vertices.push_vec(q + pq_perp);
-        self.vertices.push_vec(q - pq_perp);
+        self.vertices.push(p + pq_perp);
+        self.vertices.push(p - pq_perp);
+        self.vertices.push(q + pq_perp);
+        self.vertices.push(q - pq_perp);
 
-        self.colors.push_vec(color);
+        self.colors.push(color);
         Ok(())
     }
 
 
     pub fn draw(&mut self, transform : Transform) -> Result<(), JsValue> {
         self.shader.use_program();
-        self.shader.set_attribute_data(&mut self.geometry, "aColor", &*self.colors)?;
+        self.shader.set_attribute_vec4(&mut self.geometry, "aColor", &self.colors)?;
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
-        let position_texture = self.shader.webgl.create_vec2_texture(&self.vertices)?;
+        let position_texture = self.shader.webgl.create_vec2_texture(self.vertices.as_slice())?;
         // Put the position data into texture 0.
         self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, position_texture.as_ref());

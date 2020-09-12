@@ -7,7 +7,7 @@
 use std::f32::consts::PI;
 
 use crate::log::log_str;
-use crate::vector::{Vec2, Vec2Buffer};
+use crate::vector::Vec2;
 use wasm_bindgen::JsValue;
 
 
@@ -44,37 +44,37 @@ impl LineStyle {
 
 
 pub struct PolyLine {
-    points : Vec2Buffer,
+    points : Vec<Vec2>,
 }
 
 impl PolyLine {
     pub fn new(start_pt : Vec2) -> Self {
-        let mut points = Vec2Buffer::new();
-        points.push_vec(start_pt);
+        let mut points = Vec::new();
+        points.push(start_pt);
         PolyLine {
             points
         }
     }
 
     pub fn line_to(&mut self, to : Vec2){
-        self.points.push_vec(to);
+        self.points.push(to);
     }
 
     pub fn cubic_curve_to(&mut self, cp1 : Vec2, cp2 : Vec2, to : Vec2) {
-        let from = self.points.last();
+        let from = self.points[self.points.len() - 1];
         let n = segments_count(cubic_curve_length(from, cp1, cp2, to));
         for i in 1 ..= n {
             let t = (i as f32) / (n as f32);
-            self.points.push_vec(cubic_bezier_point(from, cp1, cp2, to, t));
+            self.points.push(cubic_bezier_point(from, cp1, cp2, to, t));
         }
     }
 
     pub fn quadratic_curve_to(&mut self, cp : Vec2, to : Vec2) {
-        let from = self.points.last();
+        let from = self.points[self.points.len() - 1];
         let n = segments_count(quadratic_curve_length(from, cp, to));
         for i in 1 ..= n {
             let t = (i as f32) / (n as f32);
-            self.points.push_vec(quadratic_bezier_point(from, cp, to, t));
+            self.points.push(quadratic_bezier_point(from, cp, to, t));
         }
     }
 
@@ -82,7 +82,7 @@ impl PolyLine {
         if theta == 0.0 {
             return Err(JsValue::from_str(&"Theta should be nonzero."));
         }
-        let p = self.points.last();
+        let p = self.points[self.points.len() - 1];
         let pq = q - p;
         // half of distance between p and q
         let d = pq.magnitude() * 0.5;
@@ -102,29 +102,29 @@ impl PolyLine {
 
         for i in 1 ..= n {
             let angle = theta0 + sweep * (i as f32 / n as f32);
-            self.points.push_vec(center + Vec2::direction(angle) * radius)
+            self.points.push(center + Vec2::direction(angle) * radius)
         }
         Ok(())
     }
 
-    pub fn get_triangles(&self, output : &mut Vec2Buffer, style : LineStyle) {
+    pub fn get_triangles(&self, output : &mut Vec<Vec2>, style : LineStyle) {
         let mut builder = PolyLineTriangleBuilder::new(output, style);
         let closed_shape = false;
-        builder.start_line(self.points.get(0), self.points.get(1), closed_shape);
+        builder.start_line(self.points[0], self.points[1], closed_shape);
         for i in 0 .. self.points.len() - 2 {
-            builder.line_join(self.points.get(i), self.points.get(i + 1), self.points.get(i + 2));
+            builder.line_join(self.points[i], self.points[i + 1], self.points[i + 2]);
         }
-        builder.end_line(self.points.get(self.points.len() - 2), self.points.get(self.points.len() - 1), closed_shape);
+        builder.end_line(self.points[self.points.len() - 2], self.points[self.points.len() - 1], closed_shape);
     }
 }
 
 struct PolyLineTriangleBuilder<'a> {
-    outputs : &'a mut Vec2Buffer,
+    outputs : &'a mut Vec<Vec2>,
     style : LineStyle
 }
 
 impl<'a> PolyLineTriangleBuilder<'a> {
-    fn new(outputs : &'a mut Vec2Buffer, style : LineStyle) -> Self {
+    fn new(outputs : &'a mut Vec<Vec2>, style : LineStyle) -> Self {
         Self {
             outputs,
             style
@@ -163,8 +163,8 @@ impl<'a> PolyLineTriangleBuilder<'a> {
     fn line_end(&mut self, p : Vec2, perp : Vec2){
         let inner_weight = self.inner_weight();
         let outer_weight = self.outer_weight();        
-        self.outputs.push_vec(p - perp * inner_weight);
-        self.outputs.push_vec(p + perp * outer_weight);
+        self.outputs.push(p - perp * inner_weight);
+        self.outputs.push(p + perp * outer_weight);
     }
 
     fn line_cap(&mut self, p : Vec2, perp : Vec2, start : bool){
@@ -192,8 +192,8 @@ impl<'a> PolyLineTriangleBuilder<'a> {
         let cross = Vec2::cross(p0 - p1, p1 - p2);
         let clockwise = cross > 0.0;
         if f32::abs(cross) < 0.1 {
-            self.outputs.push_vec(p1 - perp0 * self.inner_weight());
-            self.outputs.push_vec(p1 + perp0 * self.outer_weight());
+            self.outputs.push(p1 - perp0 * self.inner_weight());
+            self.outputs.push(p1 + perp0 * self.outer_weight());
             return;
         }
 
@@ -214,8 +214,8 @@ impl<'a> PolyLineTriangleBuilder<'a> {
                 if pdist_sq > threshold {
                     self.bevel_join(clockwise, p1, inner_miter, outer_miter, perp0, perp1);
                 } else {
-                    self.outputs.push_vec(inner_miter);
-                    self.outputs.push_vec(outer_miter);
+                    self.outputs.push(inner_miter);
+                    self.outputs.push(outer_miter);
                 }
             }
         }
@@ -290,7 +290,7 @@ impl<'a> PolyLineTriangleBuilder<'a> {
                 p1 - perp1 * inner_weight, outer_miter
             ]};
         for &point in &points {
-            self.outputs.push_vec(point);
+            self.outputs.push(point);
         }
     }
 
@@ -300,21 +300,21 @@ impl<'a> PolyLineTriangleBuilder<'a> {
         if clockwise { // arc is outside
             let start = p1 + perp0 * outer_weight;
             let end = p1 + perp1 * outer_weight;
-            self.outputs.push_vec(inner_miter);
-            self.outputs.push_vec(start);
+            self.outputs.push(inner_miter);
+            self.outputs.push(start);
 
             self.arc(p1, start, end, !clockwise);
 
-            self.outputs.push_vec(inner_miter);
-            self.outputs.push_vec(end);
+            self.outputs.push(inner_miter);
+            self.outputs.push(end);
         } else { // arc is inside
             let start = p1 - perp0 * inner_weight;
             let end = p1 - perp1 * inner_weight;
-            self.outputs.push_vec(start);
-            self.outputs.push_vec(outer_miter);
+            self.outputs.push(start);
+            self.outputs.push(outer_miter);
             self.arc(p1, start, end, !clockwise);
-            self.outputs.push_vec(end);
-            self.outputs.push_vec(outer_miter);
+            self.outputs.push(end);
+            self.outputs.push(outer_miter);
         }
     }
 
@@ -337,17 +337,17 @@ impl<'a> PolyLineTriangleBuilder<'a> {
         let angle_increment = (angle1 - angle0) / (seg_count as f32);
     
         if !clockwise {
-            self.outputs.push_vec(center);
+            self.outputs.push(center);
         }
 
         for i in 0 .. seg_count {
             let angle = angle0 + (i as f32) * angle_increment;
-            self.outputs.push_vec(center + Vec2::direction(angle) * radius);
-            self.outputs.push_vec(center);
+            self.outputs.push(center + Vec2::direction(angle) * radius);
+            self.outputs.push(center);
         }
-        self.outputs.push_vec(end);
+        self.outputs.push(end);
         if clockwise {
-            self.outputs.push_vec(center);
+            self.outputs.push(center);
         }
     }
 
@@ -361,8 +361,8 @@ impl<'a> PolyLineTriangleBuilder<'a> {
         let outer = p + perp * outer_weight;
         let extension = perp.perp() * if clockwise { -1.0 } else { 1.0 };
         /* Square itself must be inserted clockwise*/
-        self.outputs.push_vec(inner + extension);
-        self.outputs.push_vec(outer + extension);
+        self.outputs.push(inner + extension);
+        self.outputs.push(outer + extension);
     }
 }
 

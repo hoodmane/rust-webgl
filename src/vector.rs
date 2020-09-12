@@ -5,6 +5,7 @@ use std::ops::{Add, Sub, Mul, Div, Neg, Deref, AddAssign, SubAssign, MulAssign, 
 
 #[wasm_bindgen(inspectable)]
 #[derive(Copy, Clone, Debug)]
+#[repr(C)]
 pub struct Vec2 {
     pub x : f32,
     pub y : f32
@@ -36,6 +37,7 @@ impl Vec2 {
 
 #[wasm_bindgen(inspectable)]
 #[derive(Copy, Clone, Debug)]
+#[repr(C)]
 pub struct Vec3 {
     pub x : f32,
     pub y : f32,
@@ -60,6 +62,7 @@ impl Vec3 {
 
 #[wasm_bindgen(inspectable)]
 #[derive(Copy, Clone, Debug)]
+#[repr(C)]
 pub struct Vec4 {
     pub x : f32,
     pub y : f32,
@@ -402,190 +405,44 @@ impl Vec4 {
     }
 }
 
+// We need to pass WebGl a js_sys::Float32Array as input data for various purposes. These are not modified by WebGl.
+// To get a js_sys::Float32Array from rust data we either need to use Float32Array::view(&[f32]) or Float32Array::view_mut_raw(*mut f32, length : usize).
+// Both are pretty unsafe because the slice could be dropped or reallocated while the view exists. For some reason, the slice api takes an immutable slice &[f32]
+// but the raw pointer api takes a *mut f32. The mutable option seems to make more sense to me. However, we are not planning to ever use the Float32Array view
+// to modify the slice, and we want to allow our functions to take an immutable borrow &[f32].
+// So we use std::mem::transmute!
+pub trait MutPtrF32 {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32;
 
-#[derive(Debug, Default)]
-pub struct Vec2Buffer {
-    backing : Vec<f32>
+    fn length(&self) -> usize;
 }
 
-impl Deref for Vec2Buffer {
-    type Target = Vec<f32>;
-    fn deref(&self) -> &Self::Target {
-        &self.backing
+impl MutPtrF32 for &[Vec2] {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+        std::mem::transmute::<_,*mut f32>(self.as_ptr())
     }
-}
-
-
-impl Vec2Buffer {
-    pub fn new() -> Self {
-        Self {
-            backing : Vec::new()
-        }
-    }
-
-    pub fn push(&mut self, x : f32, y : f32){
-        self.backing.push(x);
-        self.backing.push(y);
-    }
-
-    pub fn push_vec(&mut self, v : Vec2){
-        self.backing.push(v.x);
-        self.backing.push(v.y);
-    }
-
-    pub fn len(&self) -> usize {
-        self.backing.len()/2
-    }
-
-    pub fn set(&mut self, idx : usize, x : f32, y : f32) {
-        self.backing[2*idx] = x;
-        self.backing[2*idx + 1] = y;
-    }
-
-    pub fn set_vec(&mut self, idx : usize, v : Vec2) {
-        self.backing[2*idx] = v.x;
-        self.backing[2*idx + 1] = v.y;
-    }
-
-    pub fn get(&self, idx : usize) -> Vec2 {
-        Vec2 {
-            x : self.backing[2*idx],
-            y : self.backing[2*idx + 1],
-        }
-    }
-
-    pub fn last(&self) -> Vec2 {
-        self.get(self.len() - 1)
-    }
-
-
-    pub fn clear(&mut self) {
-        self.backing.clear();
+    
+    fn length(&self) -> usize {
+        self.len() * 2
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Vec3Buffer {
-    backing : Vec<f32>
-}
-
-impl Deref for Vec3Buffer {
-    type Target = Vec<f32>;
-    fn deref(&self) -> &Self::Target {
-        &self.backing
+impl MutPtrF32 for &[Vec3] {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+        std::mem::transmute::<_,*mut f32>(self.as_ptr())
+    }
+    
+    fn length(&self) -> usize {
+        self.len() * 3
     }
 }
 
-impl Vec3Buffer {
-    pub fn new() -> Self {
-        Self {
-            backing : Vec::new()
-        }
+impl MutPtrF32 for &[Vec4] {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+        std::mem::transmute::<_,*mut f32>(self.as_ptr())
     }
 
-    pub fn push(&mut self, x : f32, y : f32, z : f32){
-        self.backing.push(x);
-        self.backing.push(y);
-        self.backing.push(z);
-    }
-
-    pub fn push_vec(&mut self, v : Vec3){
-        self.backing.push(v.x);
-        self.backing.push(v.y);
-        self.backing.push(v.z);
-    }
-
-    pub fn get(&self, idx : usize) -> Vec3 {
-        Vec3 {
-            x : self.backing[3*idx],
-            y : self.backing[3*idx + 1],
-            z : self.backing[3*idx + 2],
-        }
-    }
-
-    pub fn set(&mut self, idx : usize, x : f32, y : f32, z : f32) {
-        self.backing[3*idx] = x;
-        self.backing[3*idx + 1] = y;
-        self.backing[3*idx + 2] = z;
-    }
-
-    pub fn set_vec(&mut self, idx : usize, v : Vec3) {
-        self.backing[3*idx] = v.x;
-        self.backing[3*idx + 1] = v.y;
-        self.backing[3*idx + 2] = v.z;
-    }
-
-    pub fn len(&self) -> usize {
-        self.backing.len()/3
-    }
-
-    pub fn clear(&mut self) {
-        self.backing.clear();
-    }
-
-}
-
-
-#[derive(Debug, Default)]
-pub struct Vec4Buffer {
-    backing : Vec<f32>
-}
-
-impl Deref for Vec4Buffer {
-    type Target = Vec<f32>;
-    fn deref(&self) -> &Self::Target {
-        &self.backing
-    }
-}
-
-impl Vec4Buffer {
-    pub fn new() -> Self {
-        Self {
-            backing : Vec::new()
-        }
-    }
-    pub fn push(&mut self, x : f32, y : f32, z : f32, w : f32){
-        self.backing.push(x);
-        self.backing.push(y);
-        self.backing.push(z);
-        self.backing.push(w);
-    }
-
-    pub fn push_vec(&mut self, v : Vec4){
-        self.backing.push(v.x);
-        self.backing.push(v.y);
-        self.backing.push(v.z);
-        self.backing.push(v.w);
-    }
-
-    pub fn get(&self, idx : usize) -> Vec4 {
-        Vec4 {
-            x : self.backing[4*idx],
-            y : self.backing[4*idx + 1],
-            z : self.backing[4*idx + 2],
-            w : self.backing[4*idx + 3],
-        }
-    }
-
-    pub fn set(&mut self, idx : usize, x : f32, y : f32, z : f32, w : f32) {
-        self.backing[4*idx] = x;
-        self.backing[4*idx + 1] = y;
-        self.backing[4*idx + 2] = z;
-        self.backing[4*idx + 3] = w;
-    }
-
-    pub fn set_vec(&mut self, idx : usize, v : Vec4) {
-        self.backing[4*idx] = v.x;
-        self.backing[4*idx + 1] = v.y;
-        self.backing[4*idx + 2] = v.z;
-        self.backing[4*idx + 3] = v.w;
-    }
-
-    pub fn len(&self) -> usize {
-        self.backing.len() / 4
-    }
-
-    pub fn clear(&mut self) {
-        self.backing.clear();
+    fn length(&self) -> usize {
+        self.len() * 4
     }
 }

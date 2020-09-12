@@ -1,4 +1,4 @@
-use crate::vector::{Vec2, Vec2Buffer, Vec4, Vec4Buffer};
+use crate::vector::{Vec2, Vec4};
 use crate::matrix::{Matrix3, Matrix4};
 use crate::shader::Shader;
 use crate::log::log_str;
@@ -50,11 +50,11 @@ fn barycentric_average<V : Add<Output = V> + Mul<f32, Output=V>>(
 
 
 
-fn flatness(points : &Vec2Buffer, offset : usize) -> f32 {
-    let p1 = points.get(offset + 0);
-    let p2 = points.get(offset + 1);
-    let p3 = points.get(offset + 2);
-    let p4 = points.get(offset + 3);
+fn flatness(points : &Vec<Vec2>, offset : usize) -> f32 {
+    let p1 = points[offset + 0];
+    let p2 = points[offset + 1];
+    let p3 = points[offset + 2];
+    let p4 = points[offset + 3];
 
     let mut ux = 3.0 * p2.x - 2.0 * p1.x - p4.x; ux *= ux;
     let mut uy = 3.0 * p2.y - 2.0 * p1.y - p4.y; uy *= uy;
@@ -71,20 +71,20 @@ fn flatness(points : &Vec2Buffer, offset : usize) -> f32 {
     ux + uy
 }
 
-fn get_points_on_bezier_curve_with_splitting(points : &mut Vec2Buffer, offset : usize, tolerance : f32, out_points : &mut Vec2Buffer) {
+fn get_points_on_bezier_curve_with_splitting(points : &mut Vec<Vec2>, offset : usize, tolerance : f32, out_points : &mut Vec<Vec2>) {
     if flatness(points, offset) < tolerance {
         // just add the end points of this curve
-        out_points.push_vec(points.get(offset + 0));
-        // out_points.push_vec(points.get(offset + 3));
+        out_points.push(points[0]);
+        // out_points.push(points.get(offset + 3));
         return;
     } 
 
     // subdivide
     let t = 0.5;
-    let p1 = points.get(offset + 0);
-    let p2 = points.get(offset + 1);
-    let p3 = points.get(offset + 2);
-    let p4 = points.get(offset + 3);
+    let p1 = points[0];
+    let p2 = points[1];
+    let p3 = points[2];
+    let p4 = points[3];
 
     let q1 = p1 * (1.0 - t) + p2 * t;
     let q2 = p2 * (1.0 - t) + p3 * t;
@@ -96,47 +96,47 @@ fn get_points_on_bezier_curve_with_splitting(points : &mut Vec2Buffer, offset : 
     let red = r1 * (1.0 - t) + r2 * t;
 
     // do 1st half
-    points.set_vec(0, p1);
-    points.set_vec(1, q1);
-    points.set_vec(2, r1);
-    points.set_vec(3, red);
+    points[0] = p1;
+    points[1] = q1;
+    points[2] = r1;
+    points[3] = red;
     get_points_on_bezier_curve_with_splitting(points, 0, tolerance, out_points);
 
 
     // do 2nd half
-    points.set_vec(0, red);
-    points.set_vec(1, r2);
-    points.set_vec(2, q3);
-    points.set_vec(3, p4);
+    points[0] = red;
+    points[1] = r2;
+    points[2] = q3;
+    points[3] = p4;
     get_points_on_bezier_curve_with_splitting(points, 0, tolerance, out_points);
 }
 
 
-fn get_points_on_bezier_curve(p1 : Vec2, p2 : Vec2, p3 : Vec2, p4 : Vec2, tolerance : f32) -> Vec2Buffer {
-    let mut points = Vec2Buffer::new();
-    points.push_vec(p1);
-    points.push_vec(p2);
-    points.push_vec(p3);
-    points.push_vec(p4);
-    let mut new_points = Vec2Buffer::new();
+fn get_points_on_bezier_curve(p1 : Vec2, p2 : Vec2, p3 : Vec2, p4 : Vec2, tolerance : f32) -> Vec<Vec2> {
+    let mut points = Vec::new();
+    points.push(p1);
+    points.push(p2);
+    points.push(p3);
+    points.push(p4);
+    let mut new_points = Vec::new();
     let num_segments = (points.len() - 1) / 3;
     for i in 0 .. num_segments {
         let offset = i * 3;
         get_points_on_bezier_curve_with_splitting(&mut points, offset, tolerance, &mut new_points);
     }
-    new_points.push_vec(p4);
+    new_points.push(p4);
     return new_points;
 }
 
 
-fn simplify_points(points : &Vec2Buffer, start : usize, end : usize, epsilon : f32, out_points : &mut Vec2Buffer) {
+fn simplify_points(points : &Vec<Vec2>, start : usize, end : usize, epsilon : f32, out_points : &mut Vec<Vec2>) {
     // find the furthest point from the endpoints
-    let s = points.get(start);
-    let e = points.get(end - 1);
+    let s = points[start];
+    let e = points[end - 1];
     let mut max_dist_sq : f32 = 0.0;
     let mut max_ndx = 1;
     for i in start + 1 .. end - 1 {
-        let dist_sq = distance_to_segment_sq(points.get(i), s, e);
+        let dist_sq = distance_to_segment_sq(points[i], s, e);
         if dist_sq > max_dist_sq {
             max_dist_sq = dist_sq;
             max_ndx = i;
@@ -150,8 +150,8 @@ fn simplify_points(points : &Vec2Buffer, start : usize, end : usize, epsilon : f
         simplify_points(points, max_ndx, end, epsilon, out_points);
     } else {
         // add the 2 end points
-        out_points.push_vec(s);
-        // out_points.push_vec(e);
+        out_points.push(s);
+        // out_points.push(e);
     }
 }
 
@@ -288,8 +288,8 @@ fn classify_bezier(p0 : Vec2, p1 : Vec2, p2 : Vec2, p3 : Vec2) -> (Vec4, Vec4, V
 
 pub struct CubicBezierShader {
     pub shader : Shader,
-    vertices : Vec2Buffer,
-    bezier_helper_coords : Vec4Buffer,
+    vertices : Vec<Vec2>,
+    bezier_helper_coords : Vec<Vec4>,
 }
 
 impl CubicBezierShader {
@@ -352,8 +352,8 @@ impl CubicBezierShader {
         shader.add_attribute_vec4f("aBezierParameter", false)?;
         Ok(Self {
             shader,
-            vertices : Vec2Buffer::new(),
-            bezier_helper_coords : Vec4Buffer::new()
+            vertices : Vec::new(),
+            bezier_helper_coords : Vec::new()
         })
     }
 
@@ -367,27 +367,20 @@ impl CubicBezierShader {
         let (r1, r2, r3) = classify_bezier(p1, p2, p3, p4);
         
         let temp_points = get_points_on_bezier_curve(p1, p2, p3, p4, tolerance);
-        let mut bezier_points = Vec2Buffer::new();
+        let mut bezier_points = Vec::new();
         simplify_points(&temp_points, 0, temp_points.len(), distance, &mut bezier_points);
-        bezier_points.push_vec(p4);
+        bezier_points.push(p4);
 
-        let mut normals = Vec2Buffer::new();
+        let mut normals = Vec::new();
         for i in 0 .. bezier_points.len() - 1 {
-            let Vec2 { x : x0, y : y0 } = bezier_points.get(i);
-            let Vec2 { x : x1, y : y1 } = bezier_points.get(i+1);
-            let dx = x1 - x0;
-            let dy = y1 - y0;
-            let magnitude = f32::sqrt(dx * dx + dy * dy);
-            let scale = 0.1;
-            let n = Vec2::new(-dy * scale / magnitude, dx * scale / magnitude);
-            normals.push_vec(n);
+            normals.push((bezier_points[i + 1] - bezier_points[i]).normalize().perp() * 0.1);
         }
-        normals.push_vec(normals.get(normals.len() - 1));
+        normals.push(normals[normals.len() - 1]);
 
         let mut vertices = Vec::new();
         for i in 0 ..  bezier_points.len() {
-            let p = bezier_points.get(i);
-            let n = normals.get(i);
+            let p = bezier_points[i];
+            let n = normals[i];
             vertices.push([p + n, p - n]);
         }
     
@@ -400,8 +393,8 @@ impl CubicBezierShader {
     
         for i in 0 .. bezier_points.len() - 1 {
             for &(idx, pm) in &[(i, 0), (i, 1), (i+1, 1), (i, 0), (i + 1, 0), (i+1, 1)] {
-                self.vertices.push_vec(vertices[idx][pm] + q1);
-                self.bezier_helper_coords.push_vec(helper_coords[idx][pm])
+                self.vertices.push(vertices[idx][pm] + q1);
+                self.bezier_helper_coords.push(helper_coords[idx][pm])
             }
         }
     }
@@ -409,8 +402,8 @@ impl CubicBezierShader {
     pub fn draw(&self) -> Result<(), JsValue> {
         self.shader.use_program();
         let mut geometry = self.shader.create_geometry()?;
-        self.shader.set_attribute_data(&mut geometry, "aVertexPosition", &*self.vertices)?;
-        self.shader.set_attribute_data(&mut geometry,"aBezierParameter", &*self.bezier_helper_coords)?;
+        self.shader.set_attribute_vec2(&mut geometry, "aVertexPosition", &*self.vertices)?;
+        self.shader.set_attribute_vec4(&mut geometry,"aBezierParameter", &*self.bezier_helper_coords)?;
         self.shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
         Ok(())
     }

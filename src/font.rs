@@ -14,7 +14,7 @@ use wasm_bindgen_futures::JsFuture;
 use js_sys::{ArrayBuffer, DataView};
 use web_sys::Response;
 
-use crate::vector::{Vec2, Vec4Buffer};
+use crate::vector::{Vec2, Vec4};
 
 enum PathCommand {
     MoveTo = 0,
@@ -130,7 +130,8 @@ impl Font {
                 advance_width,
                 byte_offset,
                 byte_length,
-                path : OnceCell::new()
+                path : OnceCell::new(),
+                convex_hull : OnceCell::new(),
             });
             if code_point & 0x8000 == 0 {
                 glyphs.insert(code_point, glyph);
@@ -183,6 +184,7 @@ pub struct Glyph {
     byte_offset : usize,
     byte_length : usize,
     path : OnceCell<GlyphPath>,
+    convex_hull : OnceCell<Vec<Vec2>>
 }
 
 impl Glyph {
@@ -190,7 +192,7 @@ impl Glyph {
         &self.path.get().unwrap()
     }
 
-    pub fn vertices(&self) -> &Vec4Buffer {
+    pub fn vertices(&self) -> &Vec<Vec4> {
         &self.path().vertices
     }
 
@@ -201,14 +203,14 @@ impl Glyph {
 
 
 pub struct GlyphPath {
-    pub vertices : Vec4Buffer,
+    pub vertices : Vec<Vec4>,
     pub bounding_box : Rect
 } 
 
 
 pub struct GlyphCompiler {
 	// const _pool GPU.BufferPool
-	vertices : Vec4Buffer,
+	vertices : Vec<Vec4>,
 	first : Vec2,
 	current : Vec2,
     contour_count : u32,
@@ -218,7 +220,7 @@ pub struct GlyphCompiler {
 impl GlyphCompiler {
 	pub fn new() -> Self {
         Self {
-            vertices : Vec4Buffer::new(),
+            vertices : Vec::new(),
             first : Vec2::new(0.0, 0.0),
             current : Vec2::new(0.0, 0.0),
             contour_count : 0,
@@ -281,6 +283,6 @@ impl GlyphCompiler {
 
 	fn append_vertex(&mut self, p : Vec2, s : f32, t : f32) {
 		self.bounding_box_builder.include(p);
-		self.vertices.push(p.x, p.y, s, t);
+		self.vertices.push(Vec4::new(p.x, p.y, s, t));
 	}
 }

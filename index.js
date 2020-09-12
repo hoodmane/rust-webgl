@@ -12,7 +12,7 @@ async function main(){
 
     // window.canvasElement = document.querySelector("canvas");
     // window.context = pkg.get_rust_context(canvasElement.getContext("webgl2"));
-    let font = await pkg.read_font();
+    window.font = await pkg.read_font();
     window.App = App;
     window.app = new App(pkg, "canvas", font);
 

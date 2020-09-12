@@ -1,4 +1,4 @@
-use crate::vector::{Vec2, Vec3, Vec4};
+use crate::vector::{Vec2, Vec3, Vec4, MutPtrF32};
 use crate::matrix::{Matrix3, Transform};
 use crate::webgl_wrapper::WebGlWrapper;
 use std::collections::BTreeMap;
@@ -160,26 +160,62 @@ impl Shader {
         }
     }
 
+    fn set_array_buffer_data_from_mut_ptr_f32<T : MutPtrF32>(&self, data : &T){
+        unsafe {
+            let vert_array = js_sys::Float32Array::view_mut_raw(data.mut_ptr_f32(), data.length());
+            self.webgl.buffer_data_with_array_buffer_view(
+                WebGl2RenderingContext::ARRAY_BUFFER,
+                &vert_array,
+                WebGl2RenderingContext::STATIC_DRAW,
+            );
+        }
+    }
 
-    pub fn set_attribute_data(&self, geometry : &mut Geometry, name : &str, data : &[f32]) -> Result<(), JsValue> {
+    pub fn set_attribute_vec2(&self, geometry : &mut Geometry, name : &str, data : &[Vec2]) -> Result<(), JsValue> {
         self.check_geometry(geometry)?;
         self.webgl.bind_vertex_array(Some(&geometry.attribute_state));
         let loc = self.attrib_location(&name)?;
         let attribute = self.attributes.get(&loc).expect("TODO: return an error JsValue here.");
         let attribute_size = attribute.size as usize;
-        if data.len() % attribute_size != 0 {
+        if attribute_size != 2 {
             self.webgl.bind_vertex_array(None);
-            return Err(JsValue::from_str(&format!(
-                "Buffer has length {} not a multiple of attribute \"{}\" size {}", 
-                data.len(),
-                attribute.name,
-                attribute_size
-            )));
-        }
+            return Err(JsValue::from_str(&format!("Attribute \"{}\" has size {} not 2", attribute.name, attribute_size)));
+        }        
+        self.set_attribute_data(geometry, loc, 2, &data)
+    }
+
+    pub fn set_attribute_vec3(&self, geometry : &mut Geometry, name : &str, data : &[Vec3]) -> Result<(), JsValue> {
+        self.check_geometry(geometry)?;
+        self.webgl.bind_vertex_array(Some(&geometry.attribute_state));
+        let loc = self.attrib_location(&name)?;
+        let attribute = self.attributes.get(&loc).expect("TODO: return an error JsValue here.");
+        let attribute_size = attribute.size as usize;
+        if attribute_size != 3 {
+            self.webgl.bind_vertex_array(None);
+            return Err(JsValue::from_str(&format!("Attribute \"{}\" has size {} not 3", attribute.name, attribute_size)));
+        }        
+        self.set_attribute_data(geometry, loc, 3, &data)
+    }
+
+    pub fn set_attribute_vec4(&self, geometry : &mut Geometry, name : &str, data :  &[Vec4]) -> Result<(), JsValue> {
+        self.check_geometry(geometry)?;
+        self.webgl.bind_vertex_array(Some(&geometry.attribute_state));
+        let loc = self.attrib_location(&name)?;
+        let attribute = self.attributes.get(&loc).expect("TODO: return an error JsValue here.");
+        let attribute_size = attribute.size as usize;
+        if attribute_size != 4 {
+            self.webgl.bind_vertex_array(None);
+            return Err(JsValue::from_str(&format!("Attribute \"{}\" has size {} not 4", attribute.name, attribute_size)));
+        }        
+        self.set_attribute_data(geometry, loc, 4, &data)
+    }
+
+
+    fn set_attribute_data<T : MutPtrF32>(&self, geometry : &mut Geometry, loc : u32, attribute_size : usize, data : &T) -> Result<(), JsValue> {
         let mut buffer_size_tuple = geometry.buffers.get_mut(&loc).expect("TODO");
-        buffer_size_tuple.1 = data.len() / attribute_size;
+        buffer_size_tuple.1 = data.length() / attribute_size;
         self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer_size_tuple.0));
-        self.set_array_buffer_data_from_slice(data);
+        self.set_array_buffer_data_from_mut_ptr_f32(data);
         self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
         self.webgl.bind_vertex_array(None);
         Ok(())

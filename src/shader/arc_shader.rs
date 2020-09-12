@@ -1,5 +1,5 @@
 use crate::log::log_str;
-use crate::vector::{Vec2, Vec2Buffer, Vec4, Vec4Buffer};
+use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::{Shader, Geometry};
@@ -17,7 +17,7 @@ pub struct ArcShader {
 
 #[derive(Debug)]
 struct Arc {
-    vertices : Vec2Buffer,
+    vertices : Vec<Vec2>,
     center : Vec2,
     radius : f32,
     thickness : f32
@@ -146,11 +146,11 @@ impl ArcShader {
         let inner_radius = radius - envelope_thickness;
         let outer_radius = (radius + envelope_thickness) / f32::cos(theta / num_segments);
 
-        let mut vertices = Vec2Buffer::new();
+        let mut vertices = Vec::new();
         for i in 0 ..= num_segments as usize {
             let v = Vec2::direction(theta0 -  2.0 * (theta / num_segments) * i as f32);
-            vertices.push_vec(center + v * inner_radius);
-            vertices.push_vec(center + v * outer_radius);
+            vertices.push(center + v * inner_radius);
+            vertices.push(center + v * outer_radius);
         }
         Ok(Arc {
             vertices,
@@ -171,7 +171,7 @@ impl ArcShader {
         self.shader.set_uniform_float("uRadius", arc.radius);
         self.shader.set_uniform_float("uThickness", arc.thickness);
         self.shader.set_uniform_vec4("uColor", color);
-        self.shader.set_attribute_data(&mut self.geometry, "aVertexPosition", &*arc.vertices)?;
+        self.shader.set_attribute_vec2(&mut self.geometry, "aVertexPosition", &*arc.vertices)?;
         self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         Ok(())
     }

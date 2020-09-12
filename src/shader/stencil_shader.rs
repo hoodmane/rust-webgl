@@ -1,5 +1,5 @@
 use crate::log::log_str;
-use crate::vector::{Vec2, Vec2Buffer, Vec4, Vec4Buffer};
+use crate::vector::{Vec2};
 use crate::matrix::Transform;
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::{Shader, Geometry};
@@ -13,7 +13,7 @@ pub struct StencilShader {
     webgl : WebGlWrapper,
     pub shader : Shader,
     geometry : Geometry,
-    vertices : Vec2Buffer,
+    vertices : Vec<Vec2>,
 }
 
 
@@ -47,7 +47,7 @@ impl StencilShader {
             webgl,
             shader,
             geometry,
-            vertices : Vec2Buffer::new(),
+            vertices : Vec::new(),
         })
     }
 
@@ -64,11 +64,11 @@ impl StencilShader {
         self.shader.use_program();
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
         self.vertices.clear();
-        self.vertices.push_vec(Vec2::new(rect.left(), rect.top()));
-        self.vertices.push_vec(Vec2::new(rect.left(), rect.bottom()));
-        self.vertices.push_vec(Vec2::new(rect.right(), rect.top()));
-        self.vertices.push_vec(Vec2::new(rect.right(), rect.bottom()));
-        self.shader.set_attribute_data(&mut self.geometry, "aVertexPosition", &*self.vertices)?;
+        self.vertices.push(Vec2::new(rect.left(), rect.top()));
+        self.vertices.push(Vec2::new(rect.left(), rect.bottom()));
+        self.vertices.push(Vec2::new(rect.right(), rect.top()));
+        self.vertices.push(Vec2::new(rect.right(), rect.bottom()));
+        self.shader.set_attribute_vec2(&mut self.geometry, "aVertexPosition", &self.vertices)?;
         self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
 
         // Don't change stencil buffer in future
