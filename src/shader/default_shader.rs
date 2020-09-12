@@ -52,4 +52,24 @@ impl DefaultShader {
         self.shader.draw(&self.geometry, primitive)?;
         Ok(())
     }
+
+    // pub fn get_raster(&mut self, transform : Transform, vertices : &Vec<Vec2>, primitive : u32, target : Option<&WebGlFramebuffer>) -> Result<(Vec<u8>, i32, i32), JsValue> {
+    //     self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, target.as_ref());
+    //     self.webgl.clear_color(0.0, 0.0, 0.0, 0.0);
+    //     self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+
+    //     self.draw(transform, vertices, primitive)?;
+
+
+    //     let mut result = vec![0; (width * height * 4) as usize];
+    //     self.webgl.read_pixels_with_opt_u8_array(
+    //         left, self.buffer_dimensions.height() - height,
+    //         width, height,
+    //         WebGl2RenderingContext::RGBA,
+    //         WebGl2RenderingContext::UNSIGNED_BYTE,
+    //         Some(&mut result)
+    //     )?;
+    //     Ok(result, width, height)
+
+    // }
 }

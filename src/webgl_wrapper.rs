@@ -5,6 +5,92 @@ use std::ops::Deref;
 use crate::vector::{MutPtrF32, Vec2, Vec4};
 use crate::rect::BufferDimensions;
 
+pub trait RenderTarget {
+    fn use_as_render_target(&mut self, webgl : &WebGlWrapper) -> Result<(), JsValue>;
+}
+
+pub struct Buffer {
+    webgl : WebGlWrapper,
+    pub dimensions : BufferDimensions,
+    texture : Option<WebGlTexture>,
+    framebuffer : Option<WebGlFramebuffer>,
+    new_texture : bool
+}
+
+impl Buffer {
+    fn new(webgl : WebGlWrapper) -> Self {
+        let framebuffer = webgl.create_framebuffer();
+        Self {
+            webgl,
+            dimensions : BufferDimensions::new(1, 1, 1.0),
+            texture : None,
+            framebuffer,
+            new_texture : true
+        }
+    }
+
+    pub fn resize(&mut self, new_dimensions : BufferDimensions) -> Result<(), JsValue> {
+        if new_dimensions == self.dimensions {
+            return Ok(())
+        }
+        self.webgl.delete_texture(self.texture.as_ref());
+        self.new_texture = true;
+        self.dimensions = new_dimensions;
+        Ok(())
+    }
+
+    pub fn recover_context(&mut self) {
+        self.webgl.delete_framebuffer(self.framebuffer.as_ref());
+        self.framebuffer = self.webgl.create_framebuffer();
+        self.webgl.delete_texture(self.texture.as_ref());
+        self.new_texture = true;
+    }
+
+
+    pub fn use_as_texture(&self, texture_attachment : u32) {
+        self.webgl.active_texture(texture_attachment);
+        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.texture.as_ref());
+    }
+}
+
+impl RenderTarget for Buffer {
+    fn use_as_render_target(&mut self, _webgl : &WebGlWrapper) -> Result<(), JsValue> {
+        self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, self.framebuffer.as_ref());
+        if !self.new_texture {
+            return Ok(());
+        }
+        self.texture = self.webgl.create_texture(self.dimensions.pixel_width(), self.dimensions.pixel_height(), WebGl2RenderingContext::RGBA8)?;
+        self.webgl.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER, 
+            WebGl2RenderingContext::COLOR_ATTACHMENT0, 
+            WebGl2RenderingContext::TEXTURE_2D, 
+            self.texture.as_ref(), 0
+        );
+        self.webgl.viewport(self.dimensions);
+        self.new_texture = false;
+        Ok(())
+    }
+}
+
+
+impl RenderTarget for Option<&mut Buffer> {
+    fn use_as_render_target(&mut self, webgl : &WebGlWrapper) -> Result<(), JsValue> {
+        if let Some(buffer) = self {
+            buffer.use_as_render_target(webgl)?;
+        } else {
+            webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+        }
+        Ok(())
+    }
+}
+
+impl RenderTarget for Option<&WebGlFramebuffer> {
+    fn use_as_render_target(&mut self, webgl : &WebGlWrapper) -> Result<(), JsValue> {
+        webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, *self);
+        Ok(())
+    }
+}
+
 
 #[derive(Clone)]
 pub struct WebGlWrapper {
@@ -60,6 +146,11 @@ impl WebGlWrapper {
     //     self.inner.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT); 
     // }
 
+    pub fn new_buffer(&self) -> Buffer {
+        Buffer::new(self.clone())
+    }
+
+
     pub fn create_texture(&self, width : i32, height : i32, internal_format : u32) -> Result<Option<WebGlTexture>, JsValue> {
         let context = &self.inner;
         let texture = context.create_texture();
@@ -71,16 +162,6 @@ impl WebGlWrapper {
             width,
             height
         );
-        // context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-        //     WebGl2RenderingContext::TEXTURE_2D, 
-        //     0, // level, 
-        //     WebGl2RenderingContext::RGBA as i32, // internalFormat,
-        //     width, height, 
-        //     0, // border
-        //     WebGl2RenderingContext::RGBA,// format, 
-        //     WebGl2RenderingContext::UNSIGNED_BYTE, // type, 
-        //     None // data
-        // );
 
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::LINEAR as i32);
         context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::LINEAR as i32);
@@ -130,18 +211,22 @@ impl WebGlWrapper {
         Ok(texture)
     }
 
-
-    pub fn render_to_texture(&self, texture : Option<&WebGlTexture>) -> Option<WebGlFramebuffer> {
-        let framebuffer = self.inner.create_framebuffer();
-        self.inner.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer.as_ref());
-        self.inner.framebuffer_texture_2d(
-            WebGl2RenderingContext::FRAMEBUFFER, 
-            WebGl2RenderingContext::COLOR_ATTACHMENT0, 
-            WebGl2RenderingContext::TEXTURE_2D, 
-            texture, 0
-        );
-        framebuffer
+    pub fn render_to<T : RenderTarget>(&self, target : &mut T) -> Result<(), JsValue> {
+        target.use_as_render_target(self)
     }
+
+
+    // pub fn render_to_texture(&self, texture : Option<&WebGlTexture>) -> Option<WebGlFramebuffer> {
+    //     let framebuffer = self.inner.create_framebuffer();
+    //     self.inner.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer.as_ref());
+    //     self.inner.framebuffer_texture_2d(
+    //         WebGl2RenderingContext::FRAMEBUFFER, 
+    //         WebGl2RenderingContext::COLOR_ATTACHMENT0, 
+    //         WebGl2RenderingContext::TEXTURE_2D, 
+    //         texture, 0
+    //     );
+    //     framebuffer
+    // }
 
     pub fn render_to_canvas(&self) {
         self.inner.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
