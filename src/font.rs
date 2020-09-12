@@ -184,7 +184,7 @@ pub struct Glyph {
     byte_offset : usize,
     byte_length : usize,
     path : OnceCell<GlyphPath>,
-    convex_hull : OnceCell<Vec<Vec2>>
+    pub convex_hull : OnceCell<Vec<Vec2>>
 }
 
 impl Glyph {
@@ -261,10 +261,10 @@ impl GlyphCompiler {
 		self.contour_count = 0;
 	}
 
-	pub fn end(mut self) -> GlyphPath {
+	pub fn end(self) -> GlyphPath {
         // log_str(&format!("Vertices ::\n\n {:?}", self.vertices));
 		GlyphPath {
-            vertices : std::mem::take(&mut self.vertices),
+            vertices : self.vertices,
             bounding_box : self.bounding_box_builder.build()
         } 
 	}

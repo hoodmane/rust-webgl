@@ -221,11 +221,11 @@ impl GlyphShader {
         self.draw_to_target(glyph, transform, pos, scale, horizontal_alignment, vertical_alignment, color, &mut target)
     }
 
-    pub fn get_raster<T : RenderTarget>(&mut self, 
+    pub fn get_raster(&mut self, 
         glyph : &GlyphPath, 
         transform : Transform, 
         scale : f32, 
-        target : &mut T
+        target : &mut Buffer
     ) -> Result<(Vec<u8>, i32, i32), JsValue>{
         self.webgl.render_to(target)?;
         self.webgl.clear_color(0.0, 0.0, 0.0, 0.0);
@@ -243,12 +243,21 @@ impl GlyphShader {
 
         let mut result = vec![0; (width * height * 4) as usize];
         self.webgl.read_pixels_with_opt_u8_array(
-            left, dimensions.height() - height,
+            left, dimensions.pixel_height() - height,
             width, height,
             WebGl2RenderingContext::RGBA,
             WebGl2RenderingContext::UNSIGNED_BYTE,
             Some(&mut result)
         )?;
+
+
+        // self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+        // self.webgl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, target.framebuffer.as_ref());
+        // self.webgl.blit_framebuffer(
+        //     0, dimensions.pixel_height() - height, width, dimensions.pixel_height(),
+        //     0, dimensions.pixel_height() - height, width, dimensions.pixel_height(),
+        //     WebGl2RenderingContext::COLOR_BUFFER_BIT, WebGl2RenderingContext::NEAREST
+        // );
 
         Ok((result, width, height))
     }

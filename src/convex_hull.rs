@@ -8,7 +8,8 @@ use crate::vector::Vec2;
 
 pub fn convex_hull(raster : &[u8], width : usize, height : usize, pivot : Vec2, spacing : usize, precision : f32) -> Vec<Vec2> {
 	let point_count = ray_count(width, height, spacing);
-	let mut convex_hull = sample_raster_outline(raster, width, height, pivot, point_count);
+	let channel = 2; // blue
+	let mut convex_hull = sample_raster_outline(raster, width, height, channel, pivot, point_count);
 	average_nearby_points(&mut convex_hull, precision);
 	graham_scan(&mut convex_hull);
 	// convex_hull.shrink_to_fit();
@@ -21,14 +22,14 @@ fn ray_count(_width : usize, _height : usize, _spacing : usize) -> usize {
 }
 
 
-fn scan_ray_for_nontransparent_pixel(raster : &[u8], width : usize,  start_position : Vec2, direction : Vec2, radius : i32) -> Vec2 {
-	// Crop until opaque pixel is found
+fn scan_ray_for_nontransparent_pixel(raster : &[u8], width : usize, channel : usize,  start_position : Vec2, direction : Vec2, radius : i32) -> Vec2 {
+	// Scan for pixel with nonzero value on color channel "channel"
 	for i in 0 .. radius {
 		let current_position = start_position - direction * i as f32;
 		let x = current_position.x as usize;
 		let y = current_position.y as usize;
-		// Check alpha // Currently reading the blue channel....
-		if raster[(x + y * width) * 4 + 2 ] != 0 {
+		// Check channel
+		if raster[(x + y * width) * 4 + channel ] != 0 {
 			return current_position;
 		}
 	}
@@ -36,7 +37,7 @@ fn scan_ray_for_nontransparent_pixel(raster : &[u8], width : usize,  start_posit
 }
 
 
-pub fn sample_raster_outline(raster : &[u8], width : usize, height : usize, pivot : Vec2, point_count : usize) -> Vec<Vec2> {
+pub fn sample_raster_outline(raster : &[u8], width : usize, height : usize, channel : usize, pivot : Vec2, point_count : usize) -> Vec<Vec2> {
 	let angle_step = 2.0 * PI / (point_count as f32);
 	let half_dim = Vec2::new((width/2) as f32, (height/2) as f32);
 
@@ -50,7 +51,7 @@ pub fn sample_raster_outline(raster : &[u8], width : usize, height : usize, pivo
 		let abssin = direction.y.abs();
 
 		let radius = f32::min(half_dim.x / abscos, half_dim.y / abssin) - 1.0;
-		let position = scan_ray_for_nontransparent_pixel(raster, width, direction * radius + half_dim, direction, f32::ceil(radius) as i32);
+		let position = scan_ray_for_nontransparent_pixel(raster, width, channel, direction * radius + half_dim, direction, f32::ceil(radius) as i32);
 
 		result.push(position - pivot);
 	}

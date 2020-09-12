@@ -2,6 +2,7 @@ use web_sys::{HtmlCanvasElement, Element, WebGlTexture, WebGl2RenderingContext, 
 use wasm_bindgen::{JsValue, JsCast};
 use std::ops::Deref;
 
+use crate::log::log_str;
 use crate::vector::{MutPtrF32, Vec2, Vec4};
 use crate::rect::BufferDimensions;
 
@@ -13,7 +14,7 @@ pub struct Buffer {
     webgl : WebGlWrapper,
     pub dimensions : BufferDimensions,
     texture : Option<WebGlTexture>,
-    framebuffer : Option<WebGlFramebuffer>,
+    pub framebuffer : Option<WebGlFramebuffer>,
     new_texture : bool
 }
 
@@ -33,6 +34,7 @@ impl Buffer {
         if new_dimensions == self.dimensions {
             return Ok(())
         }
+        log_str(&format!("new_dimensions : {:?}, dimensions : {:?}", new_dimensions, self.dimensions));
         self.webgl.delete_texture(self.texture.as_ref());
         self.new_texture = true;
         self.dimensions = new_dimensions;
@@ -56,9 +58,11 @@ impl Buffer {
 impl RenderTarget for Buffer {
     fn use_as_render_target(&mut self, _webgl : &WebGlWrapper) -> Result<(), JsValue> {
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, self.framebuffer.as_ref());
+        self.webgl.viewport(self.dimensions);
         if !self.new_texture {
             return Ok(());
         }
+        log_str(&format!("New!"));
         self.texture = self.webgl.create_texture(self.dimensions.pixel_width(), self.dimensions.pixel_height(), WebGl2RenderingContext::RGBA8)?;
         self.webgl.framebuffer_texture_2d(
             WebGl2RenderingContext::FRAMEBUFFER, 
@@ -66,8 +70,8 @@ impl RenderTarget for Buffer {
             WebGl2RenderingContext::TEXTURE_2D, 
             self.texture.as_ref(), 0
         );
-        self.webgl.viewport(self.dimensions);
         self.new_texture = false;
+        self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         Ok(())
     }
 }
@@ -129,7 +133,7 @@ impl WebGlWrapper {
         ((points as f64) * WebGlWrapper::pixel_density()) as f32
     }
 
-    pub fn viewport(&self, dimensions : BufferDimensions){
+    pub fn viewport(&self, dimensions : BufferDimensions) {
         self.inner.viewport(0, 0, dimensions.pixel_width(), dimensions.pixel_height());
     }
 
@@ -228,8 +232,9 @@ impl WebGlWrapper {
     //     framebuffer
     // }
 
-    pub fn render_to_canvas(&self) {
+    pub fn render_to_canvas(&self, dimensions : BufferDimensions) {
         self.inner.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+        self.viewport(dimensions);
     }
 
     pub fn add_blend_mode(&self){

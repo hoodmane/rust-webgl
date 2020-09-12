@@ -266,6 +266,15 @@ export class App {
             this.pkg.VerticalAlignment.Center,
             new Vec4(0, 0, 0, 0)
         );
+
+        this._canvas.draw_letter(this.font, "e".codePointAt(0), 
+        new Vec2(app._canvas.transform_x(-1), app._canvas.transform_y(1)), 
+        50,
+        this.pkg.HorizontalAlignment.Center,
+        this.pkg.VerticalAlignment.Center,
+        new Vec4(0, 0, 0, 0)
+    );
+
         // this._canvas.draw_letter_convex_hull(this.font, "g".codePointAt(0), new Vec2(0, 0), 100, true)
         // this._canvas.draw_arrow(3, true);
         // _canvas.endFrame

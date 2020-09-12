@@ -57,14 +57,7 @@ impl RectBuilder {
         }
 	}
 
-	pub fn reset(&mut self) {
-		self.min_x = f32::INFINITY;
-        self.min_y = f32::INFINITY;
-		self.max_x = f32::NEG_INFINITY;
-		self.max_y = f32::NEG_INFINITY;        
-	}
-
-	pub fn build(&self) -> Rect {
+	pub fn build(self) -> Rect {
 		Rect::new(self.min_x, self.min_y, self.max_x - self.min_x, self.max_y - self.min_y)
 	}
 

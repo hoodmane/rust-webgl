@@ -162,7 +162,7 @@ impl ArcShader {
 
     fn render_arc(&mut self, transform : Transform, arc : &Arc, color : Vec4) -> Result<(), JsValue> {
         self.shader.use_program();
-        self.webgl.render_to_canvas();
+        // self.webgl.render_to_canvas();
         self.webgl.premultiplied_blend_mode();
 
         self.geometry.num_vertices = arc.vertices.len() as i32;

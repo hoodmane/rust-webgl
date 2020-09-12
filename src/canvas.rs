@@ -1,3 +1,8 @@
+use wasm_bindgen::prelude::*;
+use web_sys::{WebGl2RenderingContext, WebGlFramebuffer};
+use std::f32::consts::PI;
+
+
 use crate::log::log_str;
 use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment, VerticalAlignment, DefaultShader};
 
@@ -6,19 +11,19 @@ use crate::font::{GlyphCompiler, GlyphPath, Glyph, Font};
 use crate::webgl_wrapper::{WebGlWrapper, Buffer};
 use crate::matrix::Transform;
 use crate::vector::{Vec2, Vec4};
-use wasm_bindgen::prelude::*;
-use web_sys::{WebGl2RenderingContext, WebGlFramebuffer};
+
 
 use crate::arrow::normal_arrow;
 
 use crate::rect::{Rect, BufferDimensions};
 
 use crate::poly_line::{PolyLine, LineStyle, LineJoinStyle, LineCapStyle};
-
+use crate::convex_hull;
 
 static BLACK : Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
 static GRID_LIGHT_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 30.0 / 255.0);
 static GRID_DARK_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 90.0 / 255.0);
+static CONVEX_HULL_RESOLUTION : usize = 180;
 
 #[wasm_bindgen]
 pub struct Canvas {
@@ -229,8 +234,8 @@ impl Canvas {
         self.webgl.clear_color(1.0, 1.0, 1.0, 1.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         
-        // self.webgl.copy_blend_mode();
-        // self.webgl.render_to_canvas();
+        self.webgl.copy_blend_mode();
+        self.webgl.render_to_canvas(self.buffer_dimensions);
         Ok(())
     }
 
@@ -285,22 +290,83 @@ impl Canvas {
         Ok(())
     }
 
-    fn compute_glyph_convex_hull(&mut self, glyph : &Glyph) -> Result<(), JsValue>{
-        let scale = 100.0;
-        let glyph_path = glyph.path();
+    fn glyph_convex_hull<'a>(&mut self, glyph : &'a Glyph) -> Result<&'a Vec<Vec2>, JsValue>{
+        glyph.convex_hull.get_or_try_init(||{
+            let scale = 100.0;
+            let glyph_path = glyph.path();
+    
+            self.glyph_hull_buffer.resize(self.buffer_dimensions)?;
+            self.webgl.render_to(&mut self.glyph_hull_buffer)?;
+    
+            let (letter_raster, width, height) = self.glyph_shader.get_raster(glyph_path, self.transform, scale, &mut self.glyph_hull_buffer)?;
+            let mut letter_hull = convex_hull::convex_hull(&letter_raster, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
+            for v in &mut letter_hull {
+                v.y *= -1.0;
+                *v /= self.buffer_dimensions.density() as f32;
+            }
+    
+            let (letter_hull_raster, width, height) = self.default_shader.get_raster(self.transform, &letter_hull, WebGl2RenderingContext::TRIANGLE_FAN, &mut self.glyph_hull_buffer)?;
+            let channel = 3; // alpha channel
+            let mut outline = convex_hull::sample_raster_outline(&letter_hull_raster, width as usize, height as usize, channel, Vec2::new((width/2) as f32, (height/2) as f32), CONVEX_HULL_RESOLUTION);
+            for v in &mut outline {
+                v.y *= -1.0;
+                *v /= self.buffer_dimensions.density() as f32;
+            }
+            Ok(outline)
+        })
+    }
 
+    pub fn js_find_glyph_boundary_point(&mut self, font : &Font, codepoint : u16, angle : f32) -> Result<Vec2, JsValue> {
+        let glyph = font.glyph(codepoint)?;
+        self.find_glyph_boundary_point(glyph, angle)
+    }
+
+    fn find_glyph_boundary_point(&mut self, glyph : &Glyph, angle : f32) -> Result<Vec2, JsValue> {
+        let convex_hull = self.glyph_convex_hull(glyph)?;
+        let angle = angle.rem_euclid(2.0 * PI);
+        let index = ((CONVEX_HULL_RESOLUTION as f32) * (angle / (2.0 * PI))) as usize;
+        Ok(convex_hull[index])
+    }
+
+    pub fn js_draw_line_to_glyph(&mut self, start : Vec2, end : Vec2, font : &Font, codepoint : u16, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
+        let glyph = font.glyph(codepoint)?;
+        self.draw_line_to_glyph(start, end, glyph, glyph_scale)
+    }
+
+    fn draw_line_to_glyph(&mut self, start : Vec2, end : Vec2, glyph : &Glyph, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
+        let start = self.transform_point(start);
+        let end = self.transform_point(end);
+        let angle = (start - end).angle();
+        let boundary_point = self.find_glyph_boundary_point(glyph, -angle)? * 1.1;
+        let mut poly_line = PolyLine::new(start);
+        poly_line.line_to(end + boundary_point);
+        let mut triangles = Vec::new();
+        poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, 5.0, 10.0, 0.5));
+        self.default_shader.draw(self.transform, &triangles, WebGl2RenderingContext::TRIANGLE_STRIP)?;
+        self.glyph_shader.draw(glyph.path(), self.transform, end, glyph_scale, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.2, 0.5, 0.8, 1.0))?;
+        log_str(&format!("start : {:?}, end : {:?}, boundary_point : {:?}", start, end, boundary_point));
+        log_str(&format!("triangles : {:?}", triangles));
+        Ok(JsBuffer::new(triangles))
+    }
+
+    pub fn get_letter_convex_hull(&mut self, 
+        font : &Font, codepoint : u16,
+        scale : f32,
+    ) -> Result<JsBuffer, JsValue> {
+
+        let glyph = font.glyph(codepoint)?.path();
         self.glyph_hull_buffer.resize(self.buffer_dimensions)?;
         self.webgl.render_to(&mut self.glyph_hull_buffer)?;
-
-        let (letter_raster, width, height) = self.glyph_shader.get_raster(glyph_path, self.transform, scale, &mut self.glyph_hull_buffer)?;
-        let mut letter_hull = crate::convex_hull::convex_hull(&letter_raster, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
-        for v in &mut letter_hull {
+        let (letter, width, height) = self.glyph_shader.get_raster(glyph, self.transform, scale, &mut self.glyph_hull_buffer)?;
+        self.webgl.render_to_canvas(self.buffer_dimensions);
+        let mut image = convex_hull::convex_hull(&letter, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
+        for v in &mut image {
             v.y *= -1.0;
+            *v /= self.buffer_dimensions.density() as f32;
         }
-
-        self.default_shader.draw(self.transform, &letter_hull, WebGl2RenderingContext::TRIANGLE_FAN)?;
-        Ok(())
+        Ok(JsBuffer::new(image))
     }
+
 
     pub fn get_test_buffer(&self) -> JsBuffer {
         let mut test_buffer = Vec::new();
@@ -309,20 +375,6 @@ impl Canvas {
         test_buffer.push(Vec2::new(300.0, 50.0));
         JsBuffer::new(test_buffer)
     }
-
-    // pub fn get_letter_convex_hull(&mut self, 
-    //     font : &Font, codepoint : u16,  
-    //     scale : f32,
-    // ) -> Result<JsBuffer, JsValue> {
-
-    //     let glyph = font.glyph(codepoint)?.path();
-    //     let (letter, width, height) = self.glyph_shader.draw_to_fit(glyph, self.transform, scale)?;
-    //     let mut image = crate::convex_hull::convex_hull(&letter, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
-    //     for v in &mut image {
-    //         v.y *= -1.0;
-    //     }
-    //     Ok(JsBuffer::new(image))
-    // }
 
     pub fn end_frame(&self){
 
