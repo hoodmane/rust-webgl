@@ -1,4 +1,3 @@
-use crate::log::{log_str, log_1};
 use crate::font::{GlyphPath};
 use crate::shader::{Shader, Geometry};
 use crate::rect::BufferDimensions;
@@ -10,8 +9,6 @@ use crate::webgl_wrapper::{WebGlWrapper, Buffer, RenderTarget};
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext, WebGlTexture, WebGlFramebuffer};
-use js_sys::{Uint8Array, ArrayBuffer};
-
 
 static JITTER_PATTERN : [Vec2; 6] = [
     Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
@@ -249,15 +246,6 @@ impl GlyphShader {
             WebGl2RenderingContext::UNSIGNED_BYTE,
             Some(&mut result)
         )?;
-
-
-        // self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        // self.webgl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, target.framebuffer.as_ref());
-        // self.webgl.blit_framebuffer(
-        //     0, dimensions.pixel_height() - height, width, dimensions.pixel_height(),
-        //     0, dimensions.pixel_height() - height, width, dimensions.pixel_height(),
-        //     WebGl2RenderingContext::COLOR_BUFFER_BIT, WebGl2RenderingContext::NEAREST
-        // );
 
         Ok((result, width, height))
     }

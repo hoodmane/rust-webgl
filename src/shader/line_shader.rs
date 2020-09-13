@@ -1,4 +1,3 @@
-use crate::log::log_str;
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
 use crate::webgl_wrapper::WebGlWrapper;

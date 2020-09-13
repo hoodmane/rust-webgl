@@ -31,19 +31,6 @@ struct Attribute {
     instance_divisor : u32
 }
 
-impl Attribute {
-    fn dummy() -> Self {
-        Attribute {
-            name : String::new(),
-            attribute_type : u32::MAX,
-            size : -1,
-            loc : u32::MAX,
-            instance_divisor : 0
-        }
-    }
-    
-}
-
 pub struct Shader {
     pub webgl : WebGlWrapper,
     program : WebGlProgram,
@@ -149,17 +136,6 @@ impl Shader {
         Ok(())
     }
 
-    fn set_array_buffer_data_from_slice(&self, data : &[f32]){
-        unsafe {
-            let vert_array = js_sys::Float32Array::view(&data);
-            self.webgl.buffer_data_with_array_buffer_view(
-                WebGl2RenderingContext::ARRAY_BUFFER,
-                &vert_array,
-                WebGl2RenderingContext::STATIC_DRAW,
-            );
-        }
-    }
-
     fn set_array_buffer_data_from_mut_ptr_f32<T : MutPtrF32>(&self, data : &T){
         unsafe {
             let vert_array = js_sys::Float32Array::view_mut_raw(data.mut_ptr_f32(), data.length());
@@ -224,12 +200,7 @@ impl Shader {
     pub fn use_program(&self){
         self.webgl.use_program(Some(&self.program));
     }
-
-    pub fn unuse_program(&self){
-        self.webgl.use_program(None);
-        self.webgl.bind_vertex_array(None);
-    }
-
+    
     fn check_geometry_buffer_sizes(&self, geometry : &Geometry) -> Result<(), JsValue> {
         for (&buffer_size, attribute) in geometry.buffers.values().map(|(_buffer,size)| size).zip(self.attributes.values()) {
             if buffer_size == usize::MAX {

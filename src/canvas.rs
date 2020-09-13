@@ -1,12 +1,12 @@
 use wasm_bindgen::prelude::*;
-use web_sys::{WebGl2RenderingContext, WebGlFramebuffer};
+use web_sys::{WebGl2RenderingContext};
 use std::f32::consts::PI;
 
 
-use crate::log::log_str;
+use crate::log;
 use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment, VerticalAlignment, DefaultShader};
 
-use crate::font::{GlyphCompiler, GlyphPath, Glyph, Font};
+use crate::font::{GlyphCompiler, Glyph, Font};
 
 use crate::webgl_wrapper::{WebGlWrapper, Buffer};
 use crate::matrix::Transform;
@@ -266,7 +266,7 @@ impl Canvas {
     pub fn draw_js_buffer(&mut self, buffer : &JsBuffer, pos : Vec2, draw_triangles : bool ) -> Result<(), JsValue> {
         let mut transform = self.transform;
         transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
-        log_str(&format!("buffer.data : {:?}", buffer.data));
+        log!("buffer.data : {:?}", buffer.data);
         self.default_shader.draw(transform, &buffer.data, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())
@@ -275,7 +275,7 @@ impl Canvas {
     pub fn draw_js_buffer_points(&mut self, buffer : &JsBuffer, pos : Vec2) -> Result<(), JsValue> {
         let mut transform = self.transform;
         transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
-        log_str(&format!("buffer.data : {:?}", buffer.data));
+        log!("buffer.data : {:?}", buffer.data);
         self.default_shader.draw(transform, &buffer.data, 
             WebGl2RenderingContext::POINTS)?;
         Ok(())
@@ -284,7 +284,7 @@ impl Canvas {
     pub fn draw_js_buffer_fan(&mut self, buffer : &JsBuffer, pos : Vec2) -> Result<(), JsValue> {
         let mut transform = self.transform;
         transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
-        log_str(&format!("buffer.data : {:?}", buffer.data));
+        log!("buffer.data : {:?}", buffer.data);
         self.default_shader.draw(transform, &buffer.data, 
             WebGl2RenderingContext::TRIANGLE_FAN)?;
         Ok(())
@@ -344,8 +344,8 @@ impl Canvas {
         poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, 5.0, 10.0, 0.5));
         self.default_shader.draw(self.transform, &triangles, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         self.glyph_shader.draw(glyph.path(), self.transform, end, glyph_scale, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.2, 0.5, 0.8, 1.0))?;
-        log_str(&format!("start : {:?}, end : {:?}, boundary_point : {:?}", start, end, boundary_point));
-        log_str(&format!("triangles : {:?}", triangles));
+        log!("start : {:?}, end : {:?}, boundary_point : {:?}", start, end, boundary_point);
+        log!("triangles : {:?}", triangles);
         Ok(JsBuffer::new(triangles))
     }
 
@@ -385,7 +385,7 @@ impl Canvas {
         let xpos = -1.0;
         let mut triangles = Vec::new();
         poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, line_width, 10.0, 0.5));
-        log_str(&format!("triangles : {:?}", triangles));
+        log!("triangles : {:?}", triangles);
         let mut transform = self.transform;
         transform.translate(self.transform_x(xpos), self.transform_y(2.0));
         self.default_shader.draw(transform, &triangles, 

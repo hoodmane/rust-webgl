@@ -6,7 +6,6 @@
 
 use std::f32::consts::PI;
 
-use crate::log::log_str;
 use crate::vector::Vec2;
 use wasm_bindgen::JsValue;
 

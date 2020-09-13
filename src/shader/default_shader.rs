@@ -1,9 +1,8 @@
-use crate::log::log_str;
-use crate::vector::{Vec2, Vec4};
+use crate::vector::{Vec2};
 use crate::matrix::Transform;
 use crate::webgl_wrapper::{WebGlWrapper, Buffer};
 use crate::shader::{Shader, Geometry};
-use crate::rect::{RectBuilder, Rect};
+use crate::rect::{RectBuilder};
 
 use wasm_bindgen::JsValue;
 use web_sys::WebGl2RenderingContext;

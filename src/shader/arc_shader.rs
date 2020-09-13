@@ -1,11 +1,11 @@
-use crate::log::log_str;
+use crate::log;
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::Transform;
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::{Shader, Geometry};
 
 use wasm_bindgen::JsValue;
-use web_sys::{WebGlTexture, WebGl2RenderingContext};
+use web_sys::{WebGl2RenderingContext};
 
 use std::f32::consts::FRAC_PI_4;
 
@@ -108,7 +108,7 @@ impl ArcShader {
         theta : f32, color : Vec4, thickness : f32
     ) -> Result<(), JsValue> {
         let arc = self.compute_arc(p, q, theta, thickness)?;
-        log_str(&format!("{:?}", arc));
+        log!("{:?}", arc);
         self.render_arc(transform, &arc, color)?;
         Ok(())
     }

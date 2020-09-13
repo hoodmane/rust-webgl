@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 
 
-use std::ops::{Add, Sub, Mul, Div, Neg, Deref, AddAssign, SubAssign, MulAssign, DivAssign };
+use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign };
 
 #[wasm_bindgen(inspectable)]
 #[derive(Copy, Clone, Debug)]

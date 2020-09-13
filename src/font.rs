@@ -1,4 +1,3 @@
-use crate::log::log_str;
 use crate::rect::{Rect, RectBuilder};
 
 use std::rc::Rc;

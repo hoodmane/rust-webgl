@@ -2,7 +2,6 @@
 use std::f32::consts::PI;
 use std::cmp::Ordering;
 
-use crate::log::log_str;
 use crate::vector::Vec2;
 
 

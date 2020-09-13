@@ -1,8 +1,8 @@
-use web_sys::{HtmlCanvasElement, Element, WebGlTexture, WebGl2RenderingContext, WebGlFramebuffer};
+use web_sys::{HtmlCanvasElement, WebGlTexture, WebGl2RenderingContext, WebGlFramebuffer};
 use wasm_bindgen::{JsValue, JsCast};
 use std::ops::Deref;
 
-use crate::log::log_str;
+use crate::log;
 use crate::vector::{MutPtrF32, Vec2, Vec4};
 use crate::rect::BufferDimensions;
 
@@ -34,7 +34,7 @@ impl Buffer {
         if new_dimensions == self.dimensions {
             return Ok(())
         }
-        log_str(&format!("new_dimensions : {:?}, dimensions : {:?}", new_dimensions, self.dimensions));
+        log!("new_dimensions : {:?}, dimensions : {:?}", new_dimensions, self.dimensions);
         self.webgl.delete_texture(self.texture.as_ref());
         self.new_texture = true;
         self.dimensions = new_dimensions;
@@ -62,7 +62,7 @@ impl RenderTarget for Buffer {
         if !self.new_texture {
             return Ok(());
         }
-        log_str(&format!("New!"));
+        log!("New!");
         self.texture = self.webgl.create_texture(self.dimensions.pixel_width(), self.dimensions.pixel_height(), WebGl2RenderingContext::RGBA8)?;
         self.webgl.framebuffer_texture_2d(
             WebGl2RenderingContext::FRAMEBUFFER, 

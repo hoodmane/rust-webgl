@@ -1,7 +1,7 @@
+use crate::log;
 use crate::vector::{Vec2, Vec4};
 use crate::matrix::{Matrix3, Matrix4};
 use crate::shader::Shader;
-use crate::log::log_str;
 use crate::webgl_wrapper::WebGlWrapper;
 
 use wasm_bindgen::JsValue;
@@ -9,22 +9,16 @@ use web_sys::WebGl2RenderingContext;
 use std::ops::{Add, Mul};
 use std::cmp::Ordering;
 
-fn distance_sq(a : Vec2, b : Vec2) -> f32 {
-    let dx = a.x - b.x;
-    let dy = a.y - b.y;
-    dx * dx + dy * dy
-}
-
 // compute the distance squared from p to the line segment
 // formed by v and w
 fn distance_to_segment_sq(p : Vec2, v : Vec2, w : Vec2) -> f32 {
-    let l2 = distance_sq(v, w);
+    let l2 = (v - w).magnitude_sq();
     if l2 == 0.0 {
-        return distance_sq(p, v);
+        return (p - v).magnitude_sq();
     }
     let mut t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
     t = t.min(1.0).max(0.0);
-    distance_sq(p, v * (1.0 - t) +  w * t)
+    (v * (1.0 - t) +  w * t - p).magnitude_sq()
 }
 
 fn barycentric_coordinates(triangle : [Vec2; 3], p : Vec2) -> (f32, f32, f32) {
@@ -177,7 +171,7 @@ static FROM_BEZIER_BASIS : Matrix4 = Matrix4::new([
 // r3: (4) [0.10104369617581305, 0.03733209446585055, -0.12354768878937478, 1]
 
 fn classify_bezier(p0 : Vec2, p1 : Vec2, p2 : Vec2, p3 : Vec2) -> (Vec4, Vec4, Vec4) {
-    log_str(&format!("classify_bezier : {:?}", p3));
+    log!("classify_bezier : {:?}", p3);
     let Vec2 { x : p0x, y : p0y} = p0;
     let Vec2 { x : p1x, y : p1y} = p1;
     let Vec2 { x : p2x, y : p2y} = p2;
