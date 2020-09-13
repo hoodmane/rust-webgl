@@ -23,7 +23,8 @@ use crate::convex_hull;
 static BLACK : Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
 static GRID_LIGHT_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 30.0 / 255.0);
 static GRID_DARK_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 90.0 / 255.0);
-static CONVEX_HULL_RESOLUTION : usize = 180;
+static CONVEX_HULL_ANGLE_RESOLUTION : usize = 180;
+static CONVEX_HULL_GLYPH_SCALE : f32 = 100.0;
 
 #[wasm_bindgen]
 pub struct Canvas {
@@ -292,7 +293,7 @@ impl Canvas {
 
     fn glyph_convex_hull<'a>(&mut self, glyph : &'a Glyph) -> Result<&'a Vec<Vec2>, JsValue>{
         glyph.convex_hull.get_or_try_init(||{
-            let scale = 100.0;
+            let scale = CONVEX_HULL_GLYPH_SCALE;
             let glyph_path = glyph.path();
     
             self.glyph_hull_buffer.resize(self.buffer_dimensions)?;
@@ -307,10 +308,11 @@ impl Canvas {
     
             let (letter_hull_raster, width, height) = self.default_shader.get_raster(self.transform, &letter_hull, WebGl2RenderingContext::TRIANGLE_FAN, &mut self.glyph_hull_buffer)?;
             let channel = 3; // alpha channel
-            let mut outline = convex_hull::sample_raster_outline(&letter_hull_raster, width as usize, height as usize, channel, Vec2::new((width/2) as f32, (height/2) as f32), CONVEX_HULL_RESOLUTION);
+            let mut outline = convex_hull::sample_raster_outline(&letter_hull_raster, width as usize, height as usize, channel, Vec2::new((width/2) as f32, (height/2) as f32), CONVEX_HULL_ANGLE_RESOLUTION);
             for v in &mut outline {
                 v.y *= -1.0;
                 *v /= self.buffer_dimensions.density() as f32;
+                *v /= scale;
             }
             Ok(outline)
         })
@@ -324,7 +326,7 @@ impl Canvas {
     fn find_glyph_boundary_point(&mut self, glyph : &Glyph, angle : f32) -> Result<Vec2, JsValue> {
         let convex_hull = self.glyph_convex_hull(glyph)?;
         let angle = angle.rem_euclid(2.0 * PI);
-        let index = ((CONVEX_HULL_RESOLUTION as f32) * (angle / (2.0 * PI))) as usize;
+        let index = ((CONVEX_HULL_ANGLE_RESOLUTION as f32) * (angle / (2.0 * PI))) as usize;
         Ok(convex_hull[index])
     }
 
@@ -337,17 +339,21 @@ impl Canvas {
         let start = self.transform_point(start);
         let end = self.transform_point(end);
         let angle = (start - end).angle();
-        let boundary_point = self.find_glyph_boundary_point(glyph, -angle)? * 1.1;
+        let boundary_point = self.find_glyph_boundary_point(glyph, -angle)? * glyph_scale * 1.02;
         let mut poly_line = PolyLine::new(start);
         poly_line.line_to(end + boundary_point);
         let mut triangles = Vec::new();
         poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, 5.0, 10.0, 0.5));
         self.default_shader.draw(self.transform, &triangles, WebGl2RenderingContext::TRIANGLE_STRIP)?;
         self.glyph_shader.draw(glyph.path(), self.transform, end, glyph_scale, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.2, 0.5, 0.8, 1.0))?;
-        log!("start : {:?}, end : {:?}, boundary_point : {:?}", start, end, boundary_point);
-        log!("triangles : {:?}", triangles);
         Ok(JsBuffer::new(triangles))
     }
+
+    // pub fn draw_arrow(&mut self, start : Vec2, end : Vec2, line_width : f32) {
+    //     let mut poly_line = PolyLine::new(start);
+    //     poly_line.line_to(end);
+
+    // }
 
     pub fn get_letter_convex_hull(&mut self, 
         font : &Font, codepoint : u16,
