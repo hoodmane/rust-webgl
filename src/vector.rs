@@ -1,10 +1,12 @@
 use wasm_bindgen::prelude::*;
 
 
-use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign };
+// use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign };
+use derive_more::{From, Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign, Sum};
+
 
 #[wasm_bindgen(inspectable)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, From, Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign, Sum)]
 #[repr(C)]
 pub struct Vec2 {
     pub x : f32,
@@ -36,7 +38,7 @@ impl Vec2 {
 
 
 #[wasm_bindgen(inspectable)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, From, Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign, Sum)]
 #[repr(C)]
 pub struct Vec3 {
     pub x : f32,
@@ -61,7 +63,7 @@ impl Vec3 {
 }
 
 #[wasm_bindgen(inspectable)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, From, Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign, Sum)]
 #[repr(C)]
 pub struct Vec4 {
     pub x : f32,
@@ -83,254 +85,6 @@ impl Vec4 {
         Self {
             x, y, z, w
         }
-    }
-}
-
-impl Add for Vec2 {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self::Output {
-        Self {
-            x: self.x + other.x,
-            y: self.y + other.y,
-        }
-    }
-}
-
-
-impl Add for Vec3 {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self::Output {
-        Self {
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-        }
-    }
-}
-
-impl Add for Vec4 {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self::Output {
-        Self {
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-            w: self.w + other.w,
-        }
-    }
-}
-
-impl Sub for Vec2 {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self::Output {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
-        }
-    }
-}
-
-impl Sub for Vec3 {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self::Output {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
-        }
-    }
-}
-
-impl Sub for Vec4 {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self::Output {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
-            w: self.w - other.w,
-        }
-    }
-}
-
-impl Mul<f32> for Vec2 {
-    type Output = Self;
-
-    fn mul(self, other: f32) -> Self::Output {
-        Self {
-            x: self.x * other,
-            y: self.y * other,
-        }
-    }
-}
-
-impl Mul<f32> for Vec3 {
-    type Output = Self;
-
-    fn mul(self, other: f32) -> Self::Output {
-        Self {
-            x: self.x * other,
-            y: self.y * other,
-            z: self.z * other,
-        }
-    }
-}
-
-impl Mul<f32> for Vec4 {
-    type Output = Self;
-
-    fn mul(self, other: f32) -> Self::Output {
-        Self {
-            x: self.x * other,
-            y: self.y * other,
-            z: self.z * other,
-            w: self.w * other,
-        }
-    }
-}
-
-
-
-impl Div<f32> for Vec2 {
-    type Output = Self;
-
-    fn div(self, other: f32) -> Self::Output {
-        Self {
-            x: self.x / other,
-            y: self.y / other,
-        }
-    }
-}
-
-impl Div<f32> for Vec3 {
-    type Output = Self;
-
-    fn div(self, other: f32) -> Self::Output {
-        Self {
-            x: self.x / other,
-            y: self.y / other,
-            z: self.z / other,
-        }
-    }
-}
-
-impl Div<f32> for Vec4 {
-    type Output = Self;
-
-    fn div(self, other: f32) -> Self::Output {
-        Self {
-            x: self.x / other,
-            y: self.y / other,
-            z: self.z / other,
-            w: self.w / other,
-        }
-    }
-}
-
-
-impl AddAssign for Vec2 {
-    fn add_assign(&mut self, other: Self) {
-        *self = *self + other;
-    }
-}
-
-
-impl AddAssign for Vec3 {
-    fn add_assign(&mut self, other: Self) {
-        *self = *self + other;
-    }
-}
-
-impl AddAssign for Vec4 {
-    fn add_assign(&mut self, other: Self) {
-        *self = *self + other;
-    }
-}
-
-
-
-impl SubAssign for Vec2 {
-    fn sub_assign(&mut self, other: Self) {
-        *self = *self - other;
-    }
-}
-
-
-impl SubAssign for Vec3 {
-    fn sub_assign(&mut self, other: Self) {
-        *self = *self - other;
-    }
-}
-
-impl SubAssign for Vec4 {
-    fn sub_assign(&mut self, other: Self) {
-        *self = *self - other;
-    }
-}
-
-impl MulAssign<f32> for Vec2 {
-    fn mul_assign(&mut self, other : f32) {
-        *self = *self * other;
-    }
-}
-
-impl MulAssign<f32> for Vec3 {
-    fn mul_assign(&mut self, other : f32) {
-        *self = *self * other;
-    }
-}
-
-
-impl MulAssign<f32> for Vec4 {
-    fn mul_assign(&mut self, other : f32) {
-        *self = *self * other;
-    }
-}
-
-impl DivAssign<f32> for Vec2 {
-    fn div_assign(&mut self, other : f32) {
-        *self = *self / other;
-    }
-}
-
-impl DivAssign<f32> for Vec3 {
-    fn div_assign(&mut self, other : f32) {
-        *self = *self / other;
-    }
-}
-
-
-impl DivAssign<f32> for Vec4 {
-    fn div_assign(&mut self, other : f32) {
-        *self = *self / other;
-    }
-}
-
-
-impl Neg for Vec2 {
-    type Output = Self;
-    fn neg(self) -> Self::Output {
-        self * (-1.0)
-    }
-}
-
-impl Neg for Vec3 {
-    type Output = Self;
-    fn neg(self) -> Self::Output {
-        self * (-1.0)
-    }
-}
-
-impl Neg for Vec4 {
-    type Output = Self;
-    fn neg(self) -> Self::Output {
-        self * (-1.0)
     }
 }
 
