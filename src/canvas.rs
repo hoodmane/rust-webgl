@@ -17,7 +17,8 @@ use crate::arrow::normal_arrow;
 
 use crate::rect::{Rect, BufferDimensions};
 
-use crate::poly_line::{PolyLine, LineStyle, LineJoinStyle, LineCapStyle};
+use crate::poly_line::{LineStyle, LineJoinStyle, LineCapStyle, Path};
+use crate::arrow::Arrow;
 use crate::convex_hull;
 
 static BLACK : Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -340,7 +341,7 @@ impl Canvas {
         let end = self.transform_point(end);
         let angle = (start - end).angle();
         let boundary_point = self.find_glyph_boundary_point(glyph, -angle)? * glyph_scale * 1.02;
-        let mut poly_line = PolyLine::new(start);
+        let mut poly_line = Path::new(start);
         poly_line.line_to(end + boundary_point);
         let mut triangles = Vec::new();
         poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, 5.0, 10.0, 0.5));
@@ -386,21 +387,92 @@ impl Canvas {
 
     }
 
-    pub fn draw_arrow(&mut self, line_width : f32, draw_triangles : bool) -> Result<(), JsValue> {
-        let poly_line = normal_arrow(line_width);
+    pub fn test_polyline1(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+        let mut path1 = Path::new(Vec2::new(0.0, 0.0));
+        path1.line_to(self.transform_point(Vec2::new(50.0, 60.0)));
+        path1.line_to(self.transform_point(Vec2::new(100.0, 50.0)));
+
+        log!("get triangles 1");
+        let mut triangles1 = Vec::new();
+        path1.get_triangles(&mut triangles1, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Butt, line_width, 10.0, 0.5));
+        log!("triangles1 : {:?}", triangles1);
+        
+
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        self.default_shader.draw(transform, &triangles1,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+        Ok(JsBuffer::new(triangles1))
+    }
+
+
+    pub fn test_polyline2(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+        let mut path2 = Path::new(Vec2::new(0.0, 0.0));
+        // path1.arc_to(self.transform_point(Vec2::new(1.0, 1.0)), 90.0);
+        path2.cubic_curve_to(Vec2::new(100.0, 10.0), Vec2::new(50.0, 50.0), Vec2::new(50.0, 100.0));
+
+        // log!("get triangles 2");
+        let mut triangles2 = Vec::new();
+        path2.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
+        // log!("triangles2 : {:?}", triangles2);
+
+
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(1.0), self.transform_y(0.0));
+        self.default_shader.draw(transform, &triangles2,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+        Ok(JsBuffer::new(triangles2))
+    }
+
+    pub fn test_polyline3(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+        let mut path3 = Path::new(Vec2::new(0.0, 0.0));
+        path3.line_to(Vec2::new(50.0, 50.0));
+        path3.cubic_curve_to(Vec2::new(100.0, 50.0), Vec2::new(50.0, 50.0), Vec2::new(50.0, 100.0));
+
+        // log!("get triangles 3");
+        let mut triangles3 = Vec::new();
+        path3.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
+        // log!("triangles3 : {:?}", triangles3);
+
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(2.0), self.transform_y(0.0));
+        self.default_shader.draw(transform, &triangles3,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+        Ok(JsBuffer::new(triangles3))
+    }
+
+    pub fn test_arc(&mut self, line_width : f32, degrees : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+        let mut path3 = Path::new(Vec2::new(0.0, 0.0));
+        path3.arc_to(Vec2::new(50.0, 50.0), degrees * PI / 180.0);
+
+        // log!("get triangles 3");
+        let mut triangles3 = Vec::new();
+        path3.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
+        // log!("triangles3 : {:?}", triangles3);
+
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(2.0), self.transform_y(0.0));
+        self.default_shader.draw(transform, &triangles3,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+        Ok(JsBuffer::new(triangles3))
+    }
+
+    pub fn draw_arrow(&mut self, line_width : f32, x_offset : f32, draw_triangles : bool) -> Result<(), JsValue> {
+        let arrow = normal_arrow(line_width);
+        let poly_line = &arrow.path;
         let xpos = -1.0;
         let mut triangles = Vec::new();
         poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, line_width, 10.0, 0.5));
         log!("triangles : {:?}", triangles);
         let mut transform = self.transform;
-        transform.translate(self.transform_x(xpos), self.transform_y(2.0));
+        transform.translate(self.transform_x(xpos) + x_offset, self.transform_y(2.0));
         self.default_shader.draw(transform, &triangles, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         
         let mut triangles2 = Vec::new();
         poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, LineCapStyle::Rect, line_width, 10.0, 0.5));
         let mut transform2 = self.transform;
-        transform2.translate(self.transform_x(xpos), self.transform_y(-1.0));
+        transform2.translate(self.transform_x(xpos) + x_offset, self.transform_y(-1.0));
         self.default_shader.draw(transform2, &triangles2, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
 
@@ -408,7 +480,7 @@ impl Canvas {
         let mut triangles3 = Vec::new();
         poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
         let mut transform3 = self.transform;
-        transform3.translate(self.transform_x(xpos), self.transform_y(-4.0));
+        transform3.translate(self.transform_x(xpos) + x_offset, self.transform_y(-4.0));
         self.default_shader.draw(transform3, &triangles3, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())

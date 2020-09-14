@@ -2,13 +2,17 @@
 // and y is measured down. This is a left-handed coordinate system so the clockwise / counterclockwise calculations
 // are a bit screwy =/
 
-// Stolen from: https://github.com/pixijs/pixi.js/blob/3dde07c107d20720dfeeae8d8b2795bfcf86f8ee/packages/graphics/src/utils/
+// Inspired by: https://github.com/pixijs/pixi.js/blob/3dde07c107d20720dfeeae8d8b2795bfcf86f8ee/packages/graphics/src/utils/
 
 use std::f32::consts::PI;
-
-use crate::vector::Vec2;
+use std::rc::Rc;
 use wasm_bindgen::JsValue;
 
+
+use crate::vector::Vec2;
+use crate::matrix::Transform;
+use crate::arrow::Arrow;
+use crate::log;
 
 #[derive(Clone, Copy, Debug)]
 pub enum LineJoinStyle {
@@ -42,80 +46,386 @@ impl LineStyle {
 }
 
 
-pub struct PolyLine {
-    points : Vec<Vec2>,
+// pub struct PolyLineSegment {
+//     points : Vec<Vec2>,
+//     arrow_spec : ArrowSpec
+// }
+
+// struct ArrowSpec {
+//     ???
+// }
+
+
+#[derive(Clone, Copy, Debug)]
+enum PathCommand {
+    LineTo(Vec2),
+    ArcTo { end : Vec2, center : Vec2, radius : f32, start_angle : f32, end_angle : f32 },
+    QuadraticCurveTo(Vec2, Vec2),
+    CubicCurveTo(Vec2, Vec2, Vec2),
+    NoOp(Vec2),
 }
 
-impl PolyLine {
-    pub fn new(start_pt : Vec2) -> Self {
-        let mut points = Vec::new();
-        points.push(start_pt);
-        PolyLine {
-            points
+impl PathCommand {
+    fn end_point(self) -> Vec2 {
+        match self {
+            PathCommand::LineTo(v) => v,
+            PathCommand::ArcTo { end , .. } => end,
+            PathCommand::QuadraticCurveTo(_c, e) => e,
+            PathCommand::CubicCurveTo(_c1, _c2, e) => e,
+            PathCommand::NoOp(e) => e
+        }
+    }
+    
+}
+
+pub struct Path {
+    start : Vec2,
+    path : Vec<PathCommand>,
+    end_arrow : Option<Rc<Arrow>>
+}
+
+impl Path {
+    pub fn new(start : Vec2) -> Self {
+        Path {
+            start,
+            path : vec![],
+            end_arrow : None
         }
     }
 
-    pub fn line_to(&mut self, to : Vec2){
-        self.points.push(to);
+    pub fn line_to(&mut self, to : Vec2) {
+        self.path.push(PathCommand::LineTo(to));
     }
 
-    pub fn cubic_curve_to(&mut self, cp1 : Vec2, cp2 : Vec2, to : Vec2) {
-        let from = self.points[self.points.len() - 1];
-        let n = segments_count(cubic_curve_length(from, cp1, cp2, to));
-        for i in 1 ..= n {
-            let t = (i as f32) / (n as f32);
-            self.points.push(cubic_bezier_point(from, cp1, cp2, to, t));
-        }
+    pub fn quadratic_curve_to(&mut self, c1 : Vec2, to : Vec2) {
+        self.path.push(PathCommand::QuadraticCurveTo(c1, to));
     }
 
-    pub fn quadratic_curve_to(&mut self, cp : Vec2, to : Vec2) {
-        let from = self.points[self.points.len() - 1];
-        let n = segments_count(quadratic_curve_length(from, cp, to));
-        for i in 1 ..= n {
-            let t = (i as f32) / (n as f32);
-            self.points.push(quadratic_bezier_point(from, cp, to, t));
-        }
+    pub fn cubic_curve_to(&mut self, c1 : Vec2, c2 : Vec2, to : Vec2) {
+        self.path.push(PathCommand::CubicCurveTo(c1, c2, to));
     }
 
-    pub fn arc_to(&mut self, q : Vec2, theta : f32) -> Result<(), JsValue> {
+    pub fn arc_to(&mut self, q : Vec2, theta : f32) {
         if theta == 0.0 {
-            return Err(JsValue::from_str(&"Theta should be nonzero."));
+            self.line_to(q);
+            return;
         }
-        let p = self.points[self.points.len() - 1];
+        let p = self.last_point();
         let pq = q - p;
         // half of distance between p and q
         let d = pq.magnitude() * 0.5;
         if d == 0.0 {
-            return Err(JsValue::from_str(&"Two points should not be equal."));
+            return;
         }
         // distance from (p1 + p0)/2 to center (negative if we're left-handed)
         let e = d/f32::tan(theta);
         let radius = d/f32::sin(theta);
-        let pq_perp = Vec2::new(pq.y, -pq.x).normalize() * e;
+        let pq_perp = pq.perp().normalize() * -e;
         let center = (p + q) * 0.5 + pq_perp;
+        let start_angle = ((p - center) * theta.signum()).angle();
+        let end_angle = start_angle - 2.0 * theta;
+        log!("start_angle : {} end_angle : {}", start_angle, end_angle);
 
-
-        let theta0 = (p - center).angle();
-        let sweep = 2.0 * theta;
-        let n = segments_count(f32::abs(sweep) * radius);
-
-        for i in 1 ..= n {
-            let angle = theta0 + sweep * (i as f32 / n as f32);
-            self.points.push(center + Vec2::direction(angle) * radius)
-        }
-        Ok(())
+        self.path.push(PathCommand::ArcTo { end : q, center, radius, start_angle, end_angle });
     }
+
+    fn previous_point(&self, command_index : usize) -> Vec2 {
+        match command_index {
+            0 => self.start,
+            _ => self.path[command_index - 1].end_point()
+        }
+    }
+
+    fn last_point(&self) -> Vec2 {
+        self.previous_point(self.path.len())
+    }
+
+    // fn segment_length(&self, command_index : usize) -> f32 {
+    //     let previous_point = self.previous_point(command_index);
+    //     match self.path[command_index] {
+    //         PathCommand::LineTo(end_point) => (end_point - previous_point).magnitude(),
+    //         PathCommand::ArcTo(end)
+    //     }
+    // }
+
+    fn segment_start_end_distance(&self, command_index : usize) -> f32 {
+        let start_point = self.previous_point(command_index);
+        let end_point = self.path[command_index].end_point();
+        (end_point - start_point).magnitude()
+    }
+
+    fn delete_first_command(&mut self) {
+        let first_command_endpoint = self.path[0].end_point();
+        self.start = first_command_endpoint;
+        self.path[0] = PathCommand::NoOp(first_command_endpoint);
+    }
+
+    fn delete_last_command(&mut self) {
+        self.path.pop();
+    }
+
+    pub fn shorten_start(&mut self, shorten : f32){
+        // TODO: what if shorten > length?
+        let idx = 0;
+        match self.path[idx] {
+            PathCommand::LineTo(end_point) => { 
+                let segment_length = self.segment_start_end_distance(idx);
+                if shorten > segment_length {
+                    self.delete_first_command();
+                    return;
+                }
+                self.start += (end_point - self.start).normalize() * shorten;
+            }
+            PathCommand::ArcTo { end, center, radius, mut start_angle, end_angle } => {
+                if shorten > 2.0 * radius {
+                    if (end_angle - start_angle).abs() > PI {
+                        start_angle += PI * (end_angle - start_angle).signum();
+                    } else {
+                        self.delete_first_command();
+                        return;
+                    }
+                } else {
+                    start_angle += 2.0 * f32::asin(shorten / (2.0 * radius));
+                }
+                self.path[idx] = PathCommand::ArcTo { end, center, radius, start_angle, end_angle};
+                self.start = center + Vec2::direction(start_angle) * radius;
+            }
+            PathCommand::NoOp(_) => {}
+            _ => unimplemented!()
+        }
+    }
+
+    pub fn shorten_end(&mut self, shorten : f32){
+        let idx = self.path.len() - 1;
+        let previous_point = self.previous_point(idx);
+        match self.path[idx] {
+            PathCommand::LineTo(mut end_point) => { 
+                let segment_length = self.segment_start_end_distance(idx);
+                if shorten > segment_length {
+                    self.delete_last_command();
+                    return;
+                }
+                end_point -= (end_point - previous_point).normalize() * shorten;
+            }
+            PathCommand::ArcTo { end : _, center, radius, start_angle, mut end_angle } => {
+                if shorten > 2.0 * radius {
+                    if (start_angle - end_angle).abs() > PI {
+                        end_angle -= PI * (start_angle - end_angle).signum();
+                    } else {
+                        self.delete_last_command();
+                        return;
+                    }
+                } else {
+                    end_angle -= 2.0 * f32::asin(shorten / (2.0 * radius));
+                }
+                let end = center + Vec2::direction(end_angle) * radius;
+                self.path[0] = PathCommand::ArcTo { end, center, radius, start_angle, end_angle};
+            }
+            PathCommand::NoOp(_) => {}
+            _ => unimplemented!()
+        }
+    }
+
+
+    fn get_points(&self) -> impl Iterator<Item = Vec2>  + '_ {
+        std::iter::once(self.start).chain(self.path.iter().enumerate().flat_map(move |(idx, &command)|{
+            let from = self.previous_point(idx);
+            match command {
+                PathCommand::LineTo(to) => PathCommandIterator::line(to),
+                PathCommand::QuadraticCurveTo(cp, to) => PathCommandIterator::quadratic(from, cp, to),
+                PathCommand::CubicCurveTo(cp1, cp2, to) => PathCommandIterator::cubic(from, cp1, cp2, to),
+                PathCommand::ArcTo {end : _, center, radius, start_angle, end_angle } => PathCommandIterator::arc(center, radius, start_angle, end_angle),
+                PathCommand::NoOp(_) => PathCommandIterator::noop()
+            }
+        }))
+    }
+
+    fn get_points_with_transform(&self, offset : Vec2, angle : f32) -> impl Iterator<Item = Vec2>  + '_ {
+        let mut t = Transform::new();
+        t.translate_vec(offset);
+        t.rotate(angle);
+        std::iter::once(self.start).chain(self.path.iter().enumerate().flat_map(move |(idx, &command)|{
+            let from = self.previous_point(idx);
+            match command {
+                PathCommand::LineTo(to) => PathCommandIterator::line(t.transform_point(to)),
+                PathCommand::QuadraticCurveTo(cp, to) => PathCommandIterator::quadratic(t.transform_point(from), t.transform_point(cp), t.transform_point(to)),
+                PathCommand::CubicCurveTo(cp1, cp2, to) => PathCommandIterator::cubic(t.transform_point(from), t.transform_point(cp1), t.transform_point(cp2), t.transform_point(to)),
+                PathCommand::ArcTo {end : _, center, radius, start_angle, end_angle } => {
+                    let new_center = t.transform_point(center);
+                    let new_start_angle = start_angle + angle;
+                    let new_end_angle = end_angle + angle;
+                    PathCommandIterator::arc(new_center, radius, new_start_angle, new_end_angle)
+                },
+                PathCommand::NoOp(_) => PathCommandIterator::noop()
+            }
+        }))
+    }
+
 
     pub fn get_triangles(&self, output : &mut Vec<Vec2>, style : LineStyle) {
+        self.get_triangles_helper(output, style);
+    }
+
+    // A helper function so that we can use ?.
+    fn get_triangles_helper(&self, output : &mut Vec<Vec2>, style : LineStyle) -> Option<()> {
         let mut builder = PolyLineTriangleBuilder::new(output, style);
         let closed_shape = false;
-        builder.start_line(self.points[0], self.points[1], closed_shape);
-        for i in 0 .. self.points.len() - 2 {
-            builder.line_join(self.points[i], self.points[i + 1], self.points[i + 2]);
+        let mut points = self.get_points();
+        let mut p0 = points.next()?;
+        let mut p1 = points.next()?;
+
+        // log!("p0 : {:?}", p0);
+        // log!("p1 : {:?}", p1);
+        builder.start_line(p0, p1, !closed_shape);
+        // let start_idx = builder.setup_move();
+        for p2 in points {
+            // log!("new point : {:?}", p2);
+            builder.line_join(p0, p1, p2);
+            p0 = p1;
+            p1 = p2;
         }
-        builder.end_line(self.points[self.points.len() - 2], self.points[self.points.len() - 1], closed_shape);
+        builder.end_line(p0, p1, !closed_shape && self.end_arrow.is_none());
+        // builder.finish_move(start_idx);
+        // if let Some(arrow) = self.end_arrow {
+        //     builder.add_end_arrow(arrow);
+        // }
+        Some(())
+    }
+
+}
+
+enum PathCommandIterator {
+    Quadratic(QuadraticCurveIterator),
+    Cubic(CubicCurveIterator),
+    Arc(ArcIterator),
+    Empty(std::iter::Empty<Vec2>),
+    Once(std::iter::Once<Vec2>),
+}
+
+impl PathCommandIterator {
+    fn noop() -> Self {
+        Self::Empty(std::iter::empty())
+    }
+    
+    fn line(to : Vec2) -> Self {
+        Self::Once(std::iter::once(to))
+    }
+
+    fn quadratic(from : Vec2, cp : Vec2, to : Vec2) -> Self {
+        Self::Quadratic(QuadraticCurveIterator::new(from, cp, to))
+    }
+
+    fn cubic(from : Vec2, cp1 : Vec2, cp2 : Vec2, to : Vec2) -> Self {
+        Self::Cubic(CubicCurveIterator::new(from, cp1, cp2, to))
+    }
+
+    fn arc(center : Vec2, radius : f32, start_angle : f32, end_angle : f32) -> Self {
+        Self::Arc(ArcIterator::new(center, radius, start_angle, end_angle))
     }
 }
+
+impl Iterator for PathCommandIterator {
+    type Item = Vec2;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            PathCommandIterator::Quadratic(it) => it.next(),
+            PathCommandIterator::Cubic(it) => it.next(),
+            PathCommandIterator::Arc(it) => it.next(),
+            PathCommandIterator::Empty(it) => it.next(),
+            PathCommandIterator::Once(it) => it.next(),
+        }
+    }
+}
+
+struct QuadraticCurveIterator { from : Vec2, cp : Vec2, to : Vec2, i : usize, n : usize }
+
+impl QuadraticCurveIterator {
+    fn new(from : Vec2, cp : Vec2, to : Vec2) -> Self {
+        let i = 0;
+        let n = segments_count(quadratic_curve_length(from, cp, to));
+        Self { from, cp, to, i, n}
+    }
+}
+
+impl Iterator for QuadraticCurveIterator {
+    type Item = Vec2;
+    
+    fn next(&mut self) -> Option<Self::Item>{
+        self.i += 1;
+        if self.i > self.n {
+            return None;
+        }
+        let t = (self.i as f32) / (self.n as f32);
+        Some(quadratic_bezier_point(self.from, self.cp, self.to, t))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (n, Some(n))
+    }
+}
+
+struct CubicCurveIterator { from : Vec2, cp1 : Vec2, cp2 : Vec2, to : Vec2, i : usize, n : usize }
+
+impl CubicCurveIterator {
+    fn new(from : Vec2, cp1 : Vec2, cp2 : Vec2, to : Vec2) -> Self {
+        let i = 0;
+        let n = segments_count(cubic_curve_length(from, cp1, cp2, to));
+        Self { from, cp1, cp2, to, i, n}
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (n, Some(n))
+    }
+}
+
+impl Iterator for CubicCurveIterator {
+    type Item = Vec2;
+    
+    fn next(&mut self) -> Option<Self::Item>{
+        self.i += 1;
+        if self.i > self.n {
+            return None;
+        }
+        let t = (self.i as f32) / (self.n as f32);
+        Some(cubic_bezier_point(self.from, self.cp1, self.cp2, self.to, t))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (n, Some(n))
+    }
+}
+
+struct ArcIterator { center : Vec2, radius : f32, start_angle : f32, sweep : f32, i : usize, n : usize }
+
+impl ArcIterator {
+    fn new(center : Vec2, radius : f32, start_angle : f32, end_angle : f32) -> Self {
+        let sweep = end_angle - start_angle;
+        let i = 0;
+        let n = segments_count(f32::abs(sweep) * radius);
+        Self { center, radius, start_angle, sweep, i, n}
+    }
+}
+
+impl Iterator for ArcIterator {
+    type Item = Vec2;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        self.i += 1;
+        if self.i > self.n {
+            return None;
+        }
+        let t = (self.i as f32) / (self.n as f32);
+        Some(self.center + Vec2::direction(self.start_angle + self.sweep * t) * self.radius)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (n, Some(n))
+    }
+}
+
+
+
 
 struct PolyLineTriangleBuilder<'a> {
     outputs : &'a mut Vec<Vec2>,
@@ -137,24 +447,50 @@ impl<'a> PolyLineTriangleBuilder<'a> {
     fn outer_weight(&self) -> f32 {
         self.style.alignment * 2.0
     }
+    
+    // We are going to print these triangles with TRIANGLE_STRIP primitive.
+    // In order to make two disconnected strips, we double up the last vertex of the first strip
+    // and the first vertex of the second strip, connecting the two strips by two degenerate triangles.
+    // We use setup_move and finish_move to handle this.
+    fn setup_move(&mut self) -> usize {
+        // If there are prior vertices we need to do a move
+        if let Some(&last) = self.outputs.last() {
+            // Double up last vertex of first strip
+            self.outputs.push(last);
+            let result = self.outputs.len();
+            // Leave a gap to double the first vertex of the next strip. Will replace this with a call to 
+            // finish_move later.
+            self.outputs.push(Vec2::new(0.0, 0.0));
+            result
+        } else {
+            0
+        }
+    }
+
+    fn finish_move(&mut self, move_idx : usize) {
+        if move_idx > 0 && self.outputs.len() > move_idx + 1 {
+            self.outputs[move_idx] = self.outputs[move_idx + 1];
+        }
+    }
 
 
 
-
-    fn start_line(&mut self, p0 : Vec2, p1 : Vec2, closed_shape : bool){
+    fn start_line(&mut self, p0 : Vec2, p1 : Vec2, needs_line_cap : bool){
+        log!("start_line : p0 : {:?} -- p1 : {:?}", p0, p1);
         let perp = (p0 - p1).perp().normalize() * self.style.width;
         let start = true;
-        if !closed_shape {
+        if needs_line_cap {
             self.line_cap(p0, perp, start);
         }
         self.line_end(p0, perp);
     }
 
-    fn end_line(&mut self, p0 : Vec2, p1 : Vec2, closed_shape : bool){
+    fn end_line(&mut self, p0 : Vec2, p1 : Vec2, needs_line_cap : bool){
+        log!("end_line : p0 : {:?} -- p1 : {:?}", p0, p1);
         let perp = (p0 - p1).perp().normalize() * self.style.width;
         let start = false;
         self.line_end(p1, perp);
-        if !closed_shape {
+        if needs_line_cap {
             self.line_cap(p1, perp, start);
         }
     }
@@ -179,6 +515,10 @@ impl<'a> PolyLineTriangleBuilder<'a> {
             LineCapStyle::Rect => self.rect(p, perp, start),
             LineCapStyle::Butt => ()
         };
+    }
+
+    fn start_arrow(&mut self, ){
+
     }
 
 
