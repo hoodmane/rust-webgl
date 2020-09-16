@@ -5,10 +5,8 @@
 mod console_log;
 mod rect;
 mod font;
-mod matrix;
 mod vector;
 
-mod poly_line;
 mod arrow;
 
 mod webgl_wrapper;

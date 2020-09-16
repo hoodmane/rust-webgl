@@ -1,9 +1,8 @@
-use crate::vector::{Vec2, Vec3, Vec4, MutPtrF32};
-use crate::matrix::{Matrix3, Transform};
+use crate::vector::{Vec3, Vec4, MutPtrF32};
 use crate::webgl_wrapper::WebGlWrapper;
 use std::collections::BTreeMap;
 use uuid::Uuid;
-use lyon::geom::math::Point;
+use lyon::geom::math::{Point, Transform};
 
 
 use wasm_bindgen::JsValue;
@@ -241,9 +240,9 @@ impl ShaderIndexed {
         self.webgl.uniform1iv_with_i32_array(loc.as_ref(), &[x]);
     }
 
-    pub fn set_uniform_vec2(&self, name : &str, v2 : Vec2) {
+    pub fn set_uniform_vec2(&self, name : &str, v2 : Point) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
-        self.webgl.uniform2fv_with_f32_array(loc.as_ref(), &[v2.x, v2.y]);
+        self.webgl.uniform2fv_with_f32_array(loc.as_ref(), &v2.to_array());
     }
 
     pub fn set_uniform_vec3(&self, name : &str, v3 : Vec3) {
@@ -256,19 +255,11 @@ impl ShaderIndexed {
         self.webgl.uniform4fv_with_f32_array(loc.as_ref(), &[v4.x, v4.y, v4.z, v4.w]);
     }
 
-    pub fn set_uniform_mat3(&self, name : &str, mat3 : Matrix3) {
-        let loc = self.webgl.get_uniform_location(&self.program, name);  
-        self.webgl.uniform_matrix3fv_with_f32_array(loc.as_ref(), false, &mat3.data);
-    }
 
     pub fn set_uniform_transform(&self, name : &str, transform : Transform) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
-        self.webgl.uniform_matrix3fv_with_f32_array(loc.as_ref(), false, &transform.data);
-    }
-
-    pub fn set_uniform_transform_from_slice(&self, name : &str, slice : &[f32]) {
-        let loc = self.webgl.get_uniform_location(&self.program, name);  
-        self.webgl.uniform_matrix3fv_with_f32_array(loc.as_ref(), false, slice);
+        // self.webgl.uniform_matrix3x2fv_with_f32_array(loc.as_ref(), false, &transform.to_array_transposed());
+        self.webgl.uniform_matrix3x2fv_with_f32_array(loc.as_ref(), false, &transform.to_array());
     }
 }
 

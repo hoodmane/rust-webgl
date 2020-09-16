@@ -1,40 +1,65 @@
 use wasm_bindgen::prelude::*;
 
+use lyon::geom::math::{Point, Vector};
 
-// use std::ops::{Add, Sub, Mul, Div, Neg, AddAssign, SubAssign, MulAssign, DivAssign };
 use derive_more::{From, Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign, Sum};
+
+use std::convert::From;
+
 
 
 #[wasm_bindgen(inspectable)]
-#[derive(Copy, Clone, Debug, From, Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign, Sum)]
 #[repr(C)]
-pub struct Vec2 {
+pub struct JsPoint {
     pub x : f32,
     pub y : f32
 }
 
+impl From<JsPoint> for Point {
+    fn from(p : JsPoint) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+impl From<JsPoint> for Vector {
+    fn from(p : JsPoint) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+
+impl From<Point> for JsPoint {
+    fn from(p : Point) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+impl From<Vector> for JsPoint {
+    fn from(p : Vector) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+impl From<&Point> for JsPoint {
+    fn from(p : &Point) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+impl From<&Vector> for JsPoint {
+    fn from(p : &Vector) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
 #[wasm_bindgen]
-impl Vec2 {
+impl JsPoint {
     #[wasm_bindgen(constructor)]
-    pub fn new_js(x : f32, y : f32) -> Self {
-        Self::new(x, y)
+    pub fn new(x : f32, y : f32) -> Self {
+        Self { x, y }
     }
 }
 
-impl Vec2 {
-    pub const fn new(x : f32, y : f32) -> Self {
-        Self {
-            x, y
-        }
-    }
-
-    pub fn direction(theta : f32) -> Self {
-        let (y, x) = f32::sin_cos(theta);
-        Self {
-            x, y
-        }
-    }
-}
 
 
 #[wasm_bindgen(inspectable)]
@@ -89,38 +114,38 @@ impl Vec4 {
 }
 
 
-impl Vec2 {
-    pub fn dot(v1 : Self, v2 : Self) -> f32 {
-        v1.x * v2.x + v1.y * v2.y
-    }
+// impl Vec2 {
+//     pub fn dot(v1 : Self, v2 : Self) -> f32 {
+//         v1.x * v2.x + v1.y * v2.y
+//     }
     
-    pub fn cross(v1 : Self, v2 : Self) -> f32 {
-        (v1.x * v2.y) - (v1.y * v2.x)
-    }
+//     pub fn cross(v1 : Self, v2 : Self) -> f32 {
+//         (v1.x * v2.y) - (v1.y * v2.x)
+//     }
     
 
-    pub fn magnitude_sq(&self) -> f32 {
-        Self::dot(*self, *self)
-    }
+//     pub fn magnitude_sq(&self) -> f32 {
+//         Self::dot(*self, *self)
+//     }
 
-    pub fn magnitude(&self) -> f32 {
-        f32::sqrt(self.magnitude_sq())
-    }
+//     pub fn magnitude(&self) -> f32 {
+//         f32::sqrt(self.magnitude_sq())
+//     }
 
-    pub fn normalize(self) -> Self {
-        self * (1.0/self.magnitude())
-    }
+//     pub fn normalize(self) -> Self {
+//         self * (1.0/self.magnitude())
+//     }
 
-    pub fn angle(self) -> f32 {
-        f32::atan2(self.y, self.x)
-    }
+//     pub fn angle(self) -> f32 {
+//         f32::atan2(self.y, self.x)
+//     }
 
-    pub fn perp(self) -> Self {
-        let Vec2 {x, y} = self;
-        Self::new(-y, x)
-    }
+//     pub fn perp(self) -> Self {
+//         let Vec2 {x, y} = self;
+//         Self::new(-y, x)
+//     }
 
-}
+// }
 
 
 impl Vec3 {
@@ -171,7 +196,8 @@ pub trait MutPtrF32 {
     fn length(&self) -> usize;
 }
 
-impl MutPtrF32 for &[Vec2] {
+
+impl MutPtrF32 for &[Point] {
     unsafe fn mut_ptr_f32(&self) -> *mut f32 {
         std::mem::transmute::<_,*mut f32>(self.as_ptr())
     }
@@ -180,6 +206,84 @@ impl MutPtrF32 for &[Vec2] {
         self.len() * 2
     }
 }
+
+impl MutPtrF32 for &[Vector] {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+        std::mem::transmute::<_,*mut f32>(self.as_ptr())
+    }
+    
+    fn length(&self) -> usize {
+        self.len() * 2
+    }
+}
+
+impl MutPtrF32 for &Vec<Point> {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+        self.as_slice().mut_ptr_f32()
+    }
+    
+    fn length(&self) -> usize {
+        self.as_slice().length()
+    }
+}
+
+impl MutPtrF32 for &Vec<Vector> {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+        self.as_slice().mut_ptr_f32()
+    }
+    
+    fn length(&self) -> usize {
+        self.as_slice().length()
+    }
+}
+
+pub trait SliceVec2T : MutPtrF32 + IntoIterator {
+    // type Item;
+
+    fn len(&self) -> usize;
+}
+
+impl SliceVec2T for &[Point] {
+    // type Item = Point;
+    fn len(&self) -> usize {
+        let a : &[_] = self;
+        a.len()
+    }
+}
+impl SliceVec2T for &[Vector] {
+    // type Item = Vector;
+    fn len(&self) -> usize {
+        let a : &[_] = self;
+        a.len()
+    }
+}
+
+impl SliceVec2T for &Vec<Point> {
+    // type Item = Point;
+    fn len(&self) -> usize {
+        let a : &[_] = self;
+        a.len()
+    }
+}
+
+impl SliceVec2T for &Vec<Vector> {
+    // type Item = Vector;
+    fn len(&self) -> usize {
+        let a : &[_] = self;
+        a.len()
+    }
+}
+
+
+// impl MutPtrF32 for &[Vec2] {
+//     unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+//         std::mem::transmute::<_,*mut f32>(self.as_ptr())
+//     }
+    
+//     fn length(&self) -> usize {
+//         self.len() * 2
+//     }
+// }
 
 impl MutPtrF32 for &[Vec3] {
     unsafe fn mut_ptr_f32(&self) -> *mut f32 {
@@ -201,14 +305,3 @@ impl MutPtrF32 for &[Vec4] {
     }
 }
 
-
-use lyon::geom::math::Point;
-impl MutPtrF32 for &[Point] {
-    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
-        std::mem::transmute::<_,*mut f32>(self.as_ptr())
-    }
-    
-    fn length(&self) -> usize {
-        self.len() * 2
-    }
-}

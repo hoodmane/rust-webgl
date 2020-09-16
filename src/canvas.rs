@@ -9,8 +9,8 @@ use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment,
 use crate::font::{GlyphCompiler, Glyph, Font};
 
 use crate::webgl_wrapper::{WebGlWrapper, Buffer};
-use crate::matrix::Transform;
-use crate::vector::{Vec2, Vec4};
+use lyon::geom::math::{Point, Vector, point, vector, Transform};
+use crate::vector::{JsPoint, Vec4};
 
 
 use crate::arrow::normal_arrow;
@@ -29,7 +29,7 @@ static CONVEX_HULL_GLYPH_SCALE : f32 = 100.0;
 #[wasm_bindgen]
 pub struct Canvas {
     webgl : WebGlWrapper,
-    origin : Vec2,
+    origin : Point,
     xscale : f32,
     yscale : f32,
     stencil_shader : StencilShader,
@@ -49,10 +49,10 @@ pub struct Canvas {
 
 #[wasm_bindgen]
 pub struct JsBuffer {
-    data : Vec<Vec2>
+    data : Vec<Point>
 }
 impl JsBuffer {
-    fn new(data : Vec<Vec2>) -> Self {
+    fn new(data : Vec<Point>) -> Self {
         Self { data }
     }
 }
@@ -74,10 +74,10 @@ impl Canvas {
 
         let mut result = Self {
             webgl,
-            origin : Vec2::new(0.0, 0.0),
+            origin : Point::new(0.0, 0.0),
             xscale : 100.0,
             yscale : 100.0,
-            transform : Transform::new(),
+            transform : Transform::identity(),
             stencil_shader,
             grid_shader,
             axes_shader,
@@ -137,10 +137,14 @@ impl Canvas {
     }
 
     fn reset_transform(&mut self){
-        let mut transform = Transform::new();
-        transform.translate(-1.0, 1.0);
-        transform.scale(2.0/ (self.buffer_dimensions.width() as f32), -2.0/(self.buffer_dimensions.height() as f32));
-        self.transform = transform;
+        self.transform = Transform::scale(2.0/ (self.buffer_dimensions.width() as f32), -2.0/(self.buffer_dimensions.height() as f32))
+            .then_translate(vector(-1.0, 1.0));
+        log!("buffer_dimensions : {:?}", self.buffer_dimensions);
+        log!("transform : {:?}", self.transform);
+    }
+
+    pub fn apply_transform(&self, p : JsPoint) -> JsPoint {
+        self.transform.transform_point(p.into()).into()
     }
 
     fn resize(&mut self, new_dimensions : BufferDimensions) -> Result<(), JsValue> {
@@ -169,7 +173,6 @@ impl Canvas {
         (self.top_margin as f32, (self.buffer_dimensions.height() - self.bottom_margin) as f32)
     }
 
-
     pub fn set_xrange(&mut self, xmin : f32, xmax : f32){
         let (screen_x_min, screen_x_max) = self.screen_x_range();
         self.xscale = (screen_x_max - screen_x_min) / (xmax - xmin);
@@ -182,22 +185,21 @@ impl Canvas {
         self.origin.y = screen_y_min + ymax * self.yscale;
     }
 
-    pub fn translate(&mut self, delta : Vec2) {
+    pub fn translate(&mut self, delta : JsPoint) {
+        let delta : Vector = delta.into();
         self.origin += delta;
     }
 
-    pub fn scale_around(&mut self, scale : f32, center : Vec2){
+    pub fn scale_around(&mut self, scale : f32, center : JsPoint){
+        let center : Point = center.into();
         self.origin += (center - self.origin) * (1.0 - scale);
         self.xscale *= scale;
         self.yscale *= scale;
     }
 
-    pub fn transform_point(&self, point : Vec2) -> Vec2 {
-        let Vec2 {x, y} = point;
-        Vec2 {
-            x : self.transform_x(x),
-            y : self.transform_y(y)
-        }
+    pub fn transform_point(&self, point : JsPoint) -> JsPoint {
+        let JsPoint {x, y} = point;
+        Point::new(self.transform_x(x), self.transform_y(y)).into()
     }
 
     pub fn transform_x(&self, x : f32) -> f32 {
@@ -208,12 +210,12 @@ impl Canvas {
         self.origin.y - y * self.yscale
     }
 
-    pub fn inverse_transform_point(&self, point : Vec2) -> Vec2 {
-        let Vec2 {x, y} = point;
-        Vec2 {
-            x : self.inverse_transform_x(x),
-            y : self.inverse_transform_y(y)
-        }
+    pub fn inverse_transform_point(&self, point : JsPoint) -> JsPoint {
+        let JsPoint {x, y, ..} = point;
+        Point::new(
+            self.inverse_transform_x(x),
+            self.inverse_transform_y(y)
+        ).into()
     }
 
 
@@ -245,56 +247,53 @@ impl Canvas {
 
     pub fn draw_box(&mut self, x : f32, y : f32, width : f32, height : f32) -> Result<(), JsValue> {
         let mut a = GlyphCompiler::new();
-        a.move_to(Vec2::new(0.0, 0.0));
-        a.line_to(Vec2::new(width, 0.0));
-        a.line_to(Vec2::new(width, height));
-        a.line_to(Vec2::new(0.0, height));
-        a.move_to(Vec2::new(0.0, 0.0));       
+        a.move_to(Point::new(0.0, 0.0));
+        a.line_to(Point::new(width, 0.0));
+        a.line_to(Point::new(width, height));
+        a.line_to(Point::new(0.0, height));
+        a.move_to(Point::new(0.0, 0.0));       
         a.close();
         let glyph = a.end();
-        self.glyph_shader.draw(&glyph, self.transform, Vec2::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
+        self.glyph_shader.draw(&glyph, self.transform, Point::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
         Ok(())
     }
 
     pub fn draw_letter(&mut self, 
         font : &Font, codepoint : u16,  
-        pos : Vec2, scale : f32,
+        pos : JsPoint, scale : f32,
         horizontal_alignment : HorizontalAlignment, vertical_alignment : VerticalAlignment,
         color : Vec4
     ) -> Result<(), JsValue> {
         let glyph = font.glyph(codepoint)?.path();
-        self.glyph_shader.draw(glyph, self.transform, pos, scale, horizontal_alignment, vertical_alignment, color)?;
+        self.glyph_shader.draw(glyph, self.transform, pos.into(), scale, horizontal_alignment, vertical_alignment, color)?;
         Ok(())
     }
 
-    pub fn draw_js_buffer(&mut self, buffer : &JsBuffer, pos : Vec2, draw_triangles : bool ) -> Result<(), JsValue> {
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
+    pub fn draw_js_buffer(&mut self, buffer : &JsBuffer, pos : JsPoint, draw_triangles : bool ) -> Result<(), JsValue> {
+        let transform = self.transform.pre_translate(vector(self.transform_x(pos.x), self.transform_y(pos.y)));
         log!("buffer.data : {:?}", buffer.data);
-        self.default_shader.draw(transform, &buffer.data, 
+        self.default_shader.draw(transform, buffer.data.as_slice(), 
             if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())
     }
 
-    pub fn draw_js_buffer_points(&mut self, buffer : &JsBuffer, pos : Vec2) -> Result<(), JsValue> {
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
+    pub fn draw_js_buffer_points(&mut self, buffer : &JsBuffer, pos : JsPoint) -> Result<(), JsValue> {
+        let transform = self.transform.pre_translate(vector(self.transform_x(pos.x), self.transform_y(pos.y)));
         log!("buffer.data : {:?}", buffer.data);
-        self.default_shader.draw(transform, &buffer.data, 
+        self.default_shader.draw(transform, buffer.data.as_slice(), 
             WebGl2RenderingContext::POINTS)?;
         Ok(())
     }
 
-    pub fn draw_js_buffer_fan(&mut self, buffer : &JsBuffer, pos : Vec2) -> Result<(), JsValue> {
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(pos.x), self.transform_y(pos.y));
+    pub fn draw_js_buffer_fan(&mut self, buffer : &JsBuffer, pos : JsPoint) -> Result<(), JsValue> {
+        let transform = self.transform.pre_translate(vector(self.transform_x(pos.x), self.transform_y(pos.y)));
         log!("buffer.data : {:?}", buffer.data);
-        self.default_shader.draw(transform, &buffer.data, 
+        self.default_shader.draw(transform, buffer.data.as_slice(), 
             WebGl2RenderingContext::TRIANGLE_FAN)?;
         Ok(())
     }
 
-    fn glyph_convex_hull<'a>(&mut self, glyph : &'a Glyph) -> Result<&'a Vec<Vec2>, JsValue>{
+    fn glyph_convex_hull<'a>(&mut self, glyph : &'a Glyph) -> Result<&'a Vec<Vector>, JsValue>{
         glyph.convex_hull.get_or_try_init(||{
             let scale = CONVEX_HULL_GLYPH_SCALE;
             let glyph_path = glyph.path();
@@ -303,7 +302,7 @@ impl Canvas {
             self.webgl.render_to(&mut self.glyph_hull_buffer)?;
     
             let (letter_raster, width, height) = self.glyph_shader.get_raster(glyph_path, self.transform, scale, &mut self.glyph_hull_buffer)?;
-            let mut letter_hull = convex_hull::convex_hull(&letter_raster, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
+            let mut letter_hull = convex_hull::convex_hull(&letter_raster, width as usize, height as usize, Point::new((width/2) as f32, (height/2) as f32), 2, 0.1);
             for v in &mut letter_hull {
                 v.y *= -1.0;
                 *v /= self.buffer_dimensions.density() as f32;
@@ -311,7 +310,7 @@ impl Canvas {
     
             let (letter_hull_raster, width, height) = self.default_shader.get_raster(self.transform, &letter_hull, WebGl2RenderingContext::TRIANGLE_FAN, &mut self.glyph_hull_buffer)?;
             let channel = 3; // alpha channel
-            let mut outline = convex_hull::sample_raster_outline(&letter_hull_raster, width as usize, height as usize, channel, Vec2::new((width/2) as f32, (height/2) as f32), CONVEX_HULL_ANGLE_RESOLUTION);
+            let mut outline = convex_hull::sample_raster_outline(&letter_hull_raster, width as usize, height as usize, channel, Point::new((width/2) as f32, (height/2) as f32), CONVEX_HULL_ANGLE_RESOLUTION);
             for v in &mut outline {
                 v.y *= -1.0;
                 *v /= self.buffer_dimensions.density() as f32;
@@ -321,24 +320,24 @@ impl Canvas {
         })
     }
 
-    pub fn js_find_glyph_boundary_point(&mut self, font : &Font, codepoint : u16, angle : f32) -> Result<Vec2, JsValue> {
+    pub fn js_find_glyph_boundary_point(&mut self, font : &Font, codepoint : u16, angle : f32) -> Result<JsPoint, JsValue> {
         let glyph = font.glyph(codepoint)?;
-        self.find_glyph_boundary_point(glyph, angle)
+        Ok(self.find_glyph_boundary_point(glyph, angle)?.into())
     }
 
-    fn find_glyph_boundary_point(&mut self, glyph : &Glyph, angle : f32) -> Result<Vec2, JsValue> {
+    fn find_glyph_boundary_point(&mut self, glyph : &Glyph, angle : f32) -> Result<Vector, JsValue> {
         let convex_hull = self.glyph_convex_hull(glyph)?;
         let angle = angle.rem_euclid(2.0 * PI);
         let index = ((CONVEX_HULL_ANGLE_RESOLUTION as f32) * (angle / (2.0 * PI))) as usize;
         Ok(convex_hull[index])
     }
 
-    pub fn js_draw_line_to_glyph(&mut self, start : Vec2, end : Vec2, font : &Font, codepoint : u16, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
-        let glyph = font.glyph(codepoint)?;
-        self.draw_line_to_glyph(start, end, glyph, glyph_scale)
-    }
+    // pub fn js_draw_line_to_glyph(&mut self, start : JsPoint, end : JsPoint, font : &Font, codepoint : u16, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
+    //     let glyph = font.glyph(codepoint)?;
+    //     self.draw_line_to_glyph(start, end, glyph, glyph_scale)
+    // }
 
-    // fn draw_line_to_glyph(&mut self, start : Vec2, end : Vec2, glyph : &Glyph, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
+    // fn draw_line_to_glyph(&mut self, start : Point, end : Point, glyph : &Glyph, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
     //     let start = self.transform_point(start);
     //     let end = self.transform_point(end);
     //     let angle = (start - end).angle();
@@ -352,36 +351,36 @@ impl Canvas {
     //     Ok(JsBuffer::new(triangles))
     // }
 
-    // pub fn draw_arrow(&mut self, start : Vec2, end : Vec2, line_width : f32) {
+    // pub fn draw_arrow(&mut self, start : Point, end : Point, line_width : f32) {
     //     let mut poly_line = PolyLine::new(start);
     //     poly_line.line_to(end);
 
     // }
 
-    pub fn get_letter_convex_hull(&mut self, 
-        font : &Font, codepoint : u16,
-        scale : f32,
-    ) -> Result<JsBuffer, JsValue> {
+    // pub fn get_letter_convex_hull(&mut self, 
+    //     font : &Font, codepoint : u16,
+    //     scale : f32,
+    // ) -> Result<JsBuffer, JsValue> {
 
-        let glyph = font.glyph(codepoint)?.path();
-        self.glyph_hull_buffer.resize(self.buffer_dimensions)?;
-        self.webgl.render_to(&mut self.glyph_hull_buffer)?;
-        let (letter, width, height) = self.glyph_shader.get_raster(glyph, self.transform, scale, &mut self.glyph_hull_buffer)?;
-        self.webgl.render_to_canvas(self.buffer_dimensions);
-        let mut image = convex_hull::convex_hull(&letter, width as usize, height as usize, Vec2::new((width/2) as f32, (height/2) as f32), 2, 0.1);
-        for v in &mut image {
-            v.y *= -1.0;
-            *v /= self.buffer_dimensions.density() as f32;
-        }
-        Ok(JsBuffer::new(image))
-    }
+    //     let glyph = font.glyph(codepoint)?.path();
+    //     self.glyph_hull_buffer.resize(self.buffer_dimensions)?;
+    //     self.webgl.render_to(&mut self.glyph_hull_buffer)?;
+    //     let (letter, width, height) = self.glyph_shader.get_raster(glyph, self.transform, scale, &mut self.glyph_hull_buffer)?;
+    //     self.webgl.render_to_canvas(self.buffer_dimensions);
+    //     let mut image = convex_hull::convex_hull(&letter, width as usize, height as usize, Point::new((width/2) as f32, (height/2) as f32), 2, 0.1);
+    //     for v in &mut image {
+    //         v.y *= -1.0;
+    //         *v /= self.buffer_dimensions.density() as f32;
+    //     }
+    //     Ok(JsBuffer::new(image))
+    // }
 
 
     pub fn get_test_buffer(&self) -> JsBuffer {
         let mut test_buffer = Vec::new();
-        test_buffer.push(Vec2::new(0.0, 0.0));
-        test_buffer.push(Vec2::new(100.0, 100.0));
-        test_buffer.push(Vec2::new(300.0, 50.0));
+        test_buffer.push(Point::new(0.0, 0.0));
+        test_buffer.push(Point::new(100.0, 100.0));
+        test_buffer.push(Point::new(300.0, 50.0));
         JsBuffer::new(test_buffer)
     }
 
@@ -389,75 +388,75 @@ impl Canvas {
 
     }
 
-    pub fn test_polyline1(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
-        let mut path1 = Path::new(Vec2::new(0.0, 0.0));
-        path1.line_to(self.transform_point(Vec2::new(50.0, 60.0)));
-        path1.line_to(self.transform_point(Vec2::new(100.0, 50.0)));
+    // pub fn test_polyline1(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+    //     let mut path1 = Path::new(Point::new(0.0, 0.0));
+    //     path1.line_to(self.transform_point(Point::new(50.0, 60.0)));
+    //     path1.line_to(self.transform_point(Point::new(100.0, 50.0)));
 
-        log!("get triangles 1");
-        let mut triangles1 = Vec::new();
-        path1.get_triangles(&mut triangles1, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Butt, line_width, 10.0, 0.5));
-        log!("triangles1 : {:?}", triangles1);
+    //     log!("get triangles 1");
+    //     let mut triangles1 = Vec::new();
+    //     path1.get_triangles(&mut triangles1, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Butt, line_width, 10.0, 0.5));
+    //     log!("triangles1 : {:?}", triangles1);
         
 
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
-        self.default_shader.draw(transform, &triangles1,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+    //     let mut transform = self.transform;
+    //     transform.pre_translate(self.transform_x(0.0), self.transform_y(0.0));
+    //     self.default_shader.draw(transform, &triangles1,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
 
-        Ok(JsBuffer::new(triangles1))
-    }
-
-
-    pub fn test_polyline2(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
-        let mut path2 = Path::new(Vec2::new(0.0, 0.0));
-        // path1.arc_to(self.transform_point(Vec2::new(1.0, 1.0)), 90.0);
-        path2.cubic_curve_to(Vec2::new(100.0, 10.0), Vec2::new(50.0, 50.0), Vec2::new(50.0, 100.0));
-
-        // log!("get triangles 2");
-        let mut triangles2 = Vec::new();
-        path2.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
-        // log!("triangles2 : {:?}", triangles2);
+    //     Ok(JsBuffer::new(triangles1))
+    // }
 
 
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(1.0), self.transform_y(0.0));
-        self.default_shader.draw(transform, &triangles2,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+    // pub fn test_polyline2(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+    //     let mut path2 = Path::new(Point::new(0.0, 0.0));
+    //     // path1.arc_to(self.transform_point(Point::new(1.0, 1.0)), 90.0);
+    //     path2.cubic_curve_to(Point::new(100.0, 10.0), Point::new(50.0, 50.0), Point::new(50.0, 100.0));
 
-        Ok(JsBuffer::new(triangles2))
-    }
+    //     // log!("get triangles 2");
+    //     let mut triangles2 = Vec::new();
+    //     path2.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
+    //     // log!("triangles2 : {:?}", triangles2);
 
-    pub fn test_polyline3(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
-        let mut path3 = Path::new(Vec2::new(0.0, 0.0));
-        path3.line_to(Vec2::new(50.0, 50.0));
-        path3.cubic_curve_to(Vec2::new(100.0, 50.0), Vec2::new(50.0, 50.0), Vec2::new(50.0, 100.0));
 
-        // log!("get triangles 3");
-        let mut triangles3 = Vec::new();
-        path3.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
-        // log!("triangles3 : {:?}", triangles3);
+    //     let mut transform = self.transform;
+    //     transform.pre_translate(self.transform_x(1.0), self.transform_y(0.0));
+    //     self.default_shader.draw(transform, &triangles2,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
 
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(2.0), self.transform_y(0.0));
-        self.default_shader.draw(transform, &triangles3,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+    //     Ok(JsBuffer::new(triangles2))
+    // }
 
-        Ok(JsBuffer::new(triangles3))
-    }
+    // pub fn test_polyline3(&mut self, line_width : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+    //     let mut path3 = Path::new(Point::new(0.0, 0.0));
+    //     path3.line_to(Point::new(50.0, 50.0));
+    //     path3.cubic_curve_to(Point::new(100.0, 50.0), Point::new(50.0, 50.0), Point::new(50.0, 100.0));
 
-    pub fn test_arc(&mut self, line_width : f32, degrees : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
-        let mut path3 = Path::new(Vec2::new(0.0, 0.0));
-        path3.arc_to(Vec2::new(50.0, 50.0), degrees * PI / 180.0);
+    //     // log!("get triangles 3");
+    //     let mut triangles3 = Vec::new();
+    //     path3.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
+    //     // log!("triangles3 : {:?}", triangles3);
 
-        // log!("get triangles 3");
-        let mut triangles3 = Vec::new();
-        path3.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
-        // log!("triangles3 : {:?}", triangles3);
+    //     let mut transform = self.transform;
+    //     transform.pre_translate(self.transform_x(2.0), self.transform_y(0.0));
+    //     self.default_shader.draw(transform, &triangles3,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
 
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(2.0), self.transform_y(0.0));
-        self.default_shader.draw(transform, &triangles3,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+    //     Ok(JsBuffer::new(triangles3))
+    // }
 
-        Ok(JsBuffer::new(triangles3))
-    }
+    // pub fn test_arc(&mut self, line_width : f32, degrees : f32, draw_triangles : bool) -> Result<JsBuffer, JsValue> {
+    //     let mut path3 = Path::new(Point::new(0.0, 0.0));
+    //     path3.arc_to(Point::new(50.0, 50.0), degrees * PI / 180.0);
+
+    //     // log!("get triangles 3");
+    //     let mut triangles3 = Vec::new();
+    //     path3.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
+    //     // log!("triangles3 : {:?}", triangles3);
+
+    //     let mut transform = self.transform;
+    //     transform.pre_translate(self.transform_x(2.0), self.transform_y(0.0));
+    //     self.default_shader.draw(transform, &triangles3,  if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+    //     Ok(JsBuffer::new(triangles3))
+    // }
 
 
     // pub fn draw_arrow(&mut self, line_width : f32, x_offset : f32, draw_triangles : bool) -> Result<(), JsValue> {
@@ -468,7 +467,7 @@ impl Canvas {
     //     poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, line_width, 10.0, 0.5));
     //     log!("triangles : {:?}", triangles);
     //     let mut transform = self.transform;
-    //     transform.translate(self.transform_x(xpos) + x_offset, self.transform_y(2.0));
+    //     transform.pre_translate(self.transform_x(xpos) + x_offset, self.transform_y(2.0));
     //     self.default_shader.draw(transform, &triangles, 
     //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         
@@ -505,27 +504,27 @@ impl Canvas {
 		for x in left .. right {
             let (color, thickness) = Self::gridline_color_and_thickness(x);
             let tx = self.transform_x((x as f32) * step);
-			self.grid_shader.add_line(Vec2::new(tx, chart_region.top()), Vec2::new(tx, chart_region.bottom()), color, thickness)?;
+			self.grid_shader.add_line(Point::new(tx, chart_region.top()), Point::new(tx, chart_region.bottom()), color, thickness)?;
 		}
 
 		// Horizontal grid lines
 		for y in bottom .. top {
             let (color, thickness) = Self::gridline_color_and_thickness(y);
             let ty = self.transform_y((y as f32) * step);
-			self.grid_shader.add_line(Vec2::new(chart_region.left(), ty), Vec2::new(chart_region.right(), ty), color, thickness)?;
+			self.grid_shader.add_line(Point::new(chart_region.left(), ty), Point::new(chart_region.right(), ty), color, thickness)?;
         }
 
         // x axis
         self.axes_shader.add_line(
-            Vec2::new(chart_region.left(), chart_region.bottom()), 
-            Vec2::new(chart_region.right(), chart_region.bottom()), 
+            Point::new(chart_region.left(), chart_region.bottom()), 
+            Point::new(chart_region.right(), chart_region.bottom()), 
             BLACK, 0.5
         )?;
 
         // y axis
         self.axes_shader.add_line(
-            Vec2::new(chart_region.left(), chart_region.top()), 
-            Vec2::new(chart_region.left(), chart_region.bottom()), 
+            Point::new(chart_region.left(), chart_region.top()), 
+            Point::new(chart_region.left(), chart_region.bottom()), 
             BLACK, 0.5
         )?;
         Ok(())
@@ -537,6 +536,15 @@ impl Canvas {
         self.axes_shader.draw(self.transform)?;
         self.enable_clip();
         self.grid_shader.draw(self.transform)?;
+        Ok(())
+    }
+
+    pub fn draw_line(&mut self, p1 : JsPoint, p2 : JsPoint, p3 : JsPoint) -> Result<(), JsValue> {
+        let mut triangles : Vec<Point> = Vec::new();
+        triangles.push(p1.into());
+        triangles.push(p2.into());
+        triangles.push(p3.into());
+        self.default_shader.draw(Transform::identity(), triangles.as_slice(), WebGl2RenderingContext::TRIANGLES)?;
         Ok(())
     }
 
@@ -600,8 +608,7 @@ impl Canvas {
             ).unwrap();
         }
         log!("buffers : {:?}", buffers);
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        let transform = self.transform.pre_translate(vector(self.transform_x(0.0), self.transform_y(0.0)));
         self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
 
@@ -629,8 +636,7 @@ impl Canvas {
         log!("test : {:?}", test);
 
         let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        let transform = self.transform.pre_translate(vector(self.transform_x(0.0), self.transform_y(0.0)));
         self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())
@@ -651,11 +657,11 @@ impl Canvas {
 
         // let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
         // let mut transform = self.transform;
-        // transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        // transform.pre_translate(self.transform_x(0.0), self.transform_y(0.0));
         // self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
         //     if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
 
-        crate::arrow::
+        // crate::arrow::
         let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
 
         {
@@ -673,8 +679,7 @@ impl Canvas {
             ).map_err(convert_error)?;
         }
 
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        let transform = self.transform.pre_translate(vector(self.transform_x(0.0), self.transform_y(0.0)));
         self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())

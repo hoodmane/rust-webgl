@@ -1,5 +1,6 @@
-use crate::vector::{Vec2, Vec4};
-use crate::matrix::Transform;
+use crate::log;
+use crate::vector::{Vec4};
+use lyon::geom::math::{Point, vector, Transform};
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::{Shader, Geometry};
 
@@ -9,7 +10,7 @@ use web_sys::WebGl2RenderingContext;
 
 pub struct LineShader {
     pub shader : Shader,
-    vertices : Vec<Vec2>,
+    vertices : Vec<Point>,
     colors : Vec<Vec4>,
     geometry : Geometry
 }
@@ -21,7 +22,7 @@ impl LineShader {
             webgl,
             // vertexShader : 
             r#"#version 300 es
-                uniform mat3 uTransformationMatrix;
+                uniform mat3x2 uTransformationMatrix;
                 uniform sampler2D uPositionTexture;
 
                 in vec4 aColor;
@@ -38,7 +39,7 @@ impl LineShader {
                     int vertexIdx = gl_InstanceID * 4 + gl_VertexID;
                     vec2 vertexPosition = getValueByIndexFromTexture(uPositionTexture, vertexIdx).xy;
                     fColor = aColor;
-                    gl_Position = vec4(uTransformationMatrix * vec3(vertexPosition, 1.0), 0.0).xywz;
+                    gl_Position = vec4(uTransformationMatrix * vec3(vertexPosition, 1.0), 0.0, 1.0);
                 }
             "#,
             // fragmentShader :
@@ -68,10 +69,10 @@ impl LineShader {
         self.geometry.num_instances = 0;
     }
 
-    pub fn add_line(&mut self, p : Vec2, q : Vec2, color : Vec4, thickness : f32) -> Result<(), JsValue> {
+    pub fn add_line(&mut self, p : Point, q : Point, color : Vec4, thickness : f32) -> Result<(), JsValue> {
         self.geometry.num_instances += 1;
         let pq = q - p;
-        let pq_perp = Vec2::new(pq.y, -pq.x).normalize() * thickness;
+        let pq_perp = vector(pq.y, -pq.x).normalize() * thickness;
 
         self.vertices.push(p + pq_perp);
         self.vertices.push(p - pq_perp);
@@ -87,7 +88,7 @@ impl LineShader {
         self.shader.use_program();
         self.shader.set_attribute_vec4(&mut self.geometry, "aColor", &self.colors)?;
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
-        let position_texture = self.shader.webgl.create_vec2_texture(self.vertices.as_slice())?;
+        let position_texture = self.shader.webgl.create_point_texture(self.vertices.as_slice())?;
         // Put the position data into texture 0.
         self.shader.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.shader.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, position_texture.as_ref());

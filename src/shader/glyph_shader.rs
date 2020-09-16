@@ -1,8 +1,8 @@
 use crate::font::{GlyphPath};
 use crate::shader::{Shader, Geometry};
 use crate::rect::BufferDimensions;
-use crate::vector::{Vec2, Vec4};
-use crate::matrix::Transform;
+use crate::vector::{Vec4};
+use lyon::geom::math::{Point, point, Vector, vector, Transform};
 use crate::webgl_wrapper::{WebGlWrapper, Buffer, RenderTarget};
 
 
@@ -10,13 +10,13 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext, WebGlTexture, WebGlFramebuffer};
 
-static JITTER_PATTERN : [Vec2; 6] = [
-    Vec2::new(-1.0 / 12.0, -5.0 / 12.0),
-    Vec2::new( 1.0 / 12.0,  1.0 / 12.0),
-    Vec2::new( 3.0 / 12.0, -1.0 / 12.0),
-    Vec2::new( 5.0 / 12.0,  5.0 / 12.0),
-    Vec2::new( 7.0 / 12.0, -3.0 / 12.0),
-    Vec2::new( 9.0 / 12.0,  3.0 / 12.0),
+static JITTER_PATTERN : [Vector; 6] = [
+    Vector::new(-1.0 / 12.0, -5.0 / 12.0),
+    Vector::new( 1.0 / 12.0,  1.0 / 12.0),
+    Vector::new( 3.0 / 12.0, -1.0 / 12.0),
+    Vector::new( 5.0 / 12.0,  5.0 / 12.0),
+    Vector::new( 7.0 / 12.0, -3.0 / 12.0),
+    Vector::new( 9.0 / 12.0,  3.0 / 12.0),
 ];
 
 static JITTER_COLORS : [Vec4; 6] = [
@@ -29,11 +29,11 @@ static JITTER_COLORS : [Vec4; 6] = [
 ];
 
 
-static STANDARD_QUAD : [Vec2; 4] = [
-    Vec2::new(0.0, 0.0), 
-    Vec2::new(1.0, 0.0), 
-    Vec2::new(0.0, 1.0), 
-    Vec2::new(1.0, 1.0), 
+static STANDARD_QUAD : [Point; 4] = [
+    Point::new(0.0, 0.0), 
+    Point::new(1.0, 0.0), 
+    Point::new(0.0, 1.0), 
+    Point::new(1.0, 1.0), 
 ];
 
 #[wasm_bindgen]
@@ -68,10 +68,10 @@ impl GlyphShader {
             r#"#version 300 es
                 in vec4 aVertexPosition;
                 out vec2 vBezierParameter;
-                uniform mat3 uTransformationMatrix;
+                uniform mat3x2 uTransformationMatrix;
                 void main() {
                     vBezierParameter = aVertexPosition.zw;
-                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition.xy, 1.0), 0.0).xywz;
+                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition.xy, 1.0), 0.0, 1.0);
                 }
             "#,
             r#"#version 300 es
@@ -96,14 +96,14 @@ impl GlyphShader {
             webgl.clone(), 
             r#"#version 300 es
                 uniform vec4 uBoundingBox;
-                uniform mat3 uTransformationMatrix;
+                uniform mat3x2 uTransformationMatrix;
                 in vec2 aVertexPosition;
                 out vec2 vTextureCoord;
                 void main() {
                     gl_Position = vec4(
                         mix(
-                            (uTransformationMatrix * vec3(uBoundingBox.xy, 1.0)).xy, 
-                            (uTransformationMatrix * vec3(uBoundingBox.zw, 1.0)).xy, 
+                            uTransformationMatrix * vec3(uBoundingBox.xy, 1.0), 
+                            uTransformationMatrix * vec3(uBoundingBox.zw, 1.0), 
                             aVertexPosition
                         ), 
                         0.0, 1.0
@@ -146,7 +146,8 @@ impl GlyphShader {
         let mut quad_geometry = render_shader.create_geometry();
         quad_geometry.num_vertices = 4;
         quad_geometry.num_instances = 1;
-        render_shader.set_attribute_vec2(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
+        let standard_quad : &[_] = &STANDARD_QUAD; 
+        render_shader.set_attribute_point(&mut quad_geometry, "aVertexPosition", standard_quad)?;
 
         let antialias_buffer = webgl.new_buffer();
 
@@ -179,9 +180,8 @@ impl GlyphShader {
         geometry.num_instances = 1;
         self.antialias_shader.set_attribute_vec4(&mut geometry, "aVertexPosition", vertices.as_slice())?;
         for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
-            let mut cur_transform = transform;
-            cur_transform.translate_vec(offset * (1.0 / WebGlWrapper::pixel_density() as f32));
-            cur_transform.scale(scale, scale);
+            let cur_transform = transform.pre_translate(offset * (1.0 / WebGlWrapper::pixel_density() as f32))
+                .then_scale(scale, scale);
             self.antialias_shader.set_uniform_vec4("uColor", color);
             self.antialias_shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
             self.antialias_shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
@@ -209,7 +209,7 @@ impl GlyphShader {
     pub fn draw(&mut self, 
         glyph : &GlyphPath, 
         transform : Transform, 
-        pos : Vec2, scale : f32, 
+        pos : Point, scale : f32, 
         horizontal_alignment : HorizontalAlignment,
         vertical_alignment : VerticalAlignment,
         color : Vec4
@@ -228,7 +228,7 @@ impl GlyphShader {
         self.webgl.clear_color(0.0, 0.0, 0.0, 0.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.draw_to_target(
-            glyph, transform, Vec2::new(0.0, 0.0), scale, HorizontalAlignment::Left, VerticalAlignment::Top, Vec4::new(0.0, 0.0, 1.0, 1.0), 
+            glyph, transform, Point::new(0.0, 0.0), scale, HorizontalAlignment::Left, VerticalAlignment::Top, Vec4::new(0.0, 0.0, 1.0, 1.0), 
             target
         )?;
         let dimensions = self.antialias_buffer.dimensions;
@@ -253,8 +253,8 @@ impl GlyphShader {
 
     pub fn draw_to_target<T : RenderTarget>(&mut self, 
         glyph : &GlyphPath, 
-        mut transform : Transform, 
-        mut pos : Vec2, scale : f32, 
+        transform : Transform, 
+        mut pos : Point, scale : f32, 
         horizontal_alignment : HorizontalAlignment,
         vertical_alignment : VerticalAlignment,
         color : Vec4,
@@ -281,7 +281,7 @@ impl GlyphShader {
         pos.x += x_offset * scale;
         pos.y += y_offset * scale;
         
-        transform.translate_vec(pos);
+        let transform = transform.pre_translate(pos.to_vector());
 
 
         self.webgl.add_blend_mode();
@@ -294,7 +294,7 @@ impl GlyphShader {
         
         self.webgl.render_to(render_target)?;
 
-        transform.scale(scale, scale);
+        let transform = transform.then_scale(scale, scale);
         self.webgl.enable(WebGl2RenderingContext::BLEND);
         self.webgl.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
         

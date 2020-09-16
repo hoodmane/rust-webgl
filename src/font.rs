@@ -13,7 +13,8 @@ use wasm_bindgen_futures::JsFuture;
 use js_sys::{ArrayBuffer, DataView};
 use web_sys::Response;
 
-use crate::vector::{Vec2, Vec4};
+use lyon::geom::math::{Point, Vector};
+use crate::vector::{Vec4};
 
 enum PathCommand {
     MoveTo = 0,
@@ -148,10 +149,10 @@ impl Font {
         }
     }
 
-    fn read_vec(&self, data_reader : &mut DataReader) -> Vec2 {
+    fn read_point(&self, data_reader : &mut DataReader) -> Point {
         let x = (data_reader.read_i16() as f32) * self.scale;
         let y = (data_reader.read_i16() as f32) * self.scale; // + self.ascender;
-        Vec2::new(x, y)
+        Point::new(x, y)
     }    
 
 
@@ -164,9 +165,9 @@ impl Font {
             let mut glyph_compiler = GlyphCompiler::new();
             while data_reader.offset < end {
                 match data_reader.read_u8().try_into().or(Err(JsValue::from_str(&"Invalid path command in font data")))? {
-                    PathCommand::MoveTo => glyph_compiler.move_to(self.read_vec(&mut data_reader)),
-                    PathCommand::LineTo => glyph_compiler.line_to(self.read_vec(&mut data_reader)),
-                    PathCommand::CurveTo => glyph_compiler.curve_to(self.read_vec(&mut data_reader), self.read_vec(&mut data_reader)),
+                    PathCommand::MoveTo => glyph_compiler.move_to(self.read_point(&mut data_reader)),
+                    PathCommand::LineTo => glyph_compiler.line_to(self.read_point(&mut data_reader)),
+                    PathCommand::CurveTo => glyph_compiler.curve_to(self.read_point(&mut data_reader), self.read_point(&mut data_reader)),
                     PathCommand::Close => glyph_compiler.close(),
                 }
             }
@@ -183,7 +184,7 @@ pub struct Glyph {
     byte_offset : usize,
     byte_length : usize,
     path : OnceCell<GlyphPath>,
-    pub convex_hull : OnceCell<Vec<Vec2>>
+    pub convex_hull : OnceCell<Vec<Vector>>
 }
 
 impl Glyph {
@@ -210,8 +211,8 @@ pub struct GlyphPath {
 pub struct GlyphCompiler {
 	// const _pool GPU.BufferPool
 	vertices : Vec<Vec4>,
-	first : Vec2,
-	current : Vec2,
+	first : Point,
+	current : Point,
     contour_count : u32,
 	bounding_box_builder : RectBuilder,
 }
@@ -220,21 +221,21 @@ impl GlyphCompiler {
 	pub fn new() -> Self {
         Self {
             vertices : Vec::new(),
-            first : Vec2::new(0.0, 0.0),
-            current : Vec2::new(0.0, 0.0),
+            first : Point::new(0.0, 0.0),
+            current : Point::new(0.0, 0.0),
             contour_count : 0,
             bounding_box_builder : RectBuilder::new()
         }
     }
 
-	pub fn move_to(&mut self, p : Vec2) {
+	pub fn move_to(&mut self, p : Point) {
         // log_str(&format!("move_to {:?}", p));
         self.first = p;
         self.current = p;
 		self.contour_count = 0
 	}
 
-	pub fn line_to(&mut self, p : Vec2) {
+	pub fn line_to(&mut self, p : Point) {
         // log_str(&format!("line_to {:?}", p));
         self.contour_count += 1;
 		if self.contour_count >= 2 {
@@ -244,7 +245,7 @@ impl GlyphCompiler {
 		self.current = p;
 	}
 
-	pub fn curve_to(&mut self, c : Vec2, p : Vec2) {
+	pub fn curve_to(&mut self, c : Point, p : Point) {
         // log_str(&format!("curve_to {:?}, {:?}", c, p));
         self.contour_count += 1;
         if self.contour_count >= 2 {
@@ -268,19 +269,19 @@ impl GlyphCompiler {
         } 
 	}
 
-	fn append_triangle(&mut self, a : Vec2, b : Vec2, c : Vec2) {
+	fn append_triangle(&mut self, a : Point, b : Point, c : Point) {
         self.append_vertex(a, 0.0, 1.0);
         self.append_vertex(b, 0.0, 1.0);
         self.append_vertex(c, 0.0, 1.0);
     }
 
-    fn append_curve(&mut self, a : Vec2, b : Vec2, c : Vec2) {
+    fn append_curve(&mut self, a : Point, b : Point, c : Point) {
         self.append_vertex(a, 0.0, 0.0);
         self.append_vertex(b, 0.5, 0.0);
         self.append_vertex(c, 1.0, 1.0);
 	}
 
-	fn append_vertex(&mut self, p : Vec2, s : f32, t : f32) {
+	fn append_vertex(&mut self, p : Point, s : f32, t : f32) {
 		self.bounding_box_builder.include(p);
 		self.vertices.push(Vec4::new(p.x, p.y, s, t));
 	}

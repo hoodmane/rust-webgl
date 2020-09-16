@@ -2,8 +2,10 @@ use web_sys::{HtmlCanvasElement, WebGlTexture, WebGl2RenderingContext, WebGlFram
 use wasm_bindgen::{JsValue, JsCast};
 use std::ops::Deref;
 
+use lyon::geom::math::Point;
+
 use crate::log;
-use crate::vector::{MutPtrF32, Vec2, Vec4};
+use crate::vector::{MutPtrF32, Vec4};
 use crate::rect::BufferDimensions;
 
 pub trait RenderTarget {
@@ -174,7 +176,7 @@ impl WebGlWrapper {
         Ok(texture)
     }
 
-    pub fn create_vec2_texture(&self, vecs : &[Vec2]) -> Result<Option<WebGlTexture>, JsValue> {
+    pub fn create_point_texture(&self, vecs : &[Point]) -> Result<Option<WebGlTexture>, JsValue> {
         self.create_float_storage_texture(2, WebGl2RenderingContext::RG, WebGl2RenderingContext::RG32F, &vecs)
     }
 

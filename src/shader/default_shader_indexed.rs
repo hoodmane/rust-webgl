@@ -1,9 +1,7 @@
-use crate::matrix::Transform;
+use lyon::geom::math::{Point, Transform};
 use crate::webgl_wrapper::{WebGlWrapper, Buffer};
 use crate::shader::{ShaderIndexed, GeometryIndexed};
 use crate::rect::{RectBuilder};
-
-use lyon::geom::math::Point;
 
 
 use wasm_bindgen::JsValue;
@@ -23,10 +21,10 @@ impl DefaultShaderIndexed {
             webgl.clone(),
             // vertexShader : 
             r#"#version 300 es
-                uniform mat3 uTransformationMatrix;
+                uniform mat3x2 uTransformationMatrix;
                 in vec2 aVertexPosition;
                 void main() {
-                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition, 1.0), 0.0).xywz;
+                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition, 1.0), 0.0, 1.0);
                 }
             "#,
             // fragmentShader :

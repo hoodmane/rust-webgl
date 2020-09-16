@@ -7,7 +7,7 @@ function sleep(ms) {
 
 async function main(){
     window.pkg = await import("./pkg");
-    window.Vec2 = pkg.Vec2;
+    window.Vec2 = pkg.JsPoint;
     window.Vec4 = pkg.Vec4;
 
     // window.canvasElement = document.querySelector("canvas");

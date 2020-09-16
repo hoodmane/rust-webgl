@@ -1,5 +1,5 @@
-use crate::vector::{Vec2};
-use crate::matrix::Transform;
+use lyon::geom::math::{Point, Transform};
+
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::{Shader, Geometry};
 use crate::rect::Rect;
@@ -12,7 +12,7 @@ pub struct StencilShader {
     webgl : WebGlWrapper,
     pub shader : Shader,
     geometry : Geometry,
-    vertices : Vec<Vec2>,
+    vertices : Vec<Point>,
 }
 
 
@@ -22,11 +22,11 @@ impl StencilShader {
             webgl.clone(),
             // vertexShader : 
             r#"#version 300 es
-                uniform mat3 uTransformationMatrix;
+                uniform mat3x2 uTransformationMatrix;
                 in vec2 aVertexPosition;
 
                 void main() {
-                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition, 1.0), 0.0).xywz;
+                    gl_Position = vec4(uTransformationMatrix * vec3(aVertexPosition, 1.0), 0.0, 1.0);
                 }
             "#,
             // fragmentShader :
@@ -63,11 +63,11 @@ impl StencilShader {
         self.shader.use_program();
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
         self.vertices.clear();
-        self.vertices.push(Vec2::new(rect.left(), rect.top()));
-        self.vertices.push(Vec2::new(rect.left(), rect.bottom()));
-        self.vertices.push(Vec2::new(rect.right(), rect.top()));
-        self.vertices.push(Vec2::new(rect.right(), rect.bottom()));
-        self.shader.set_attribute_vec2(&mut self.geometry, "aVertexPosition", &self.vertices)?;
+        self.vertices.push(Point::new(rect.left(), rect.top()));
+        self.vertices.push(Point::new(rect.left(), rect.bottom()));
+        self.vertices.push(Point::new(rect.right(), rect.top()));
+        self.vertices.push(Point::new(rect.right(), rect.bottom()));
+        self.shader.set_attribute_point(&mut self.geometry, "aVertexPosition", &self.vertices)?;
         self.shader.draw(&self.geometry, WebGl2RenderingContext::TRIANGLE_STRIP)?;
 
         // Don't change stencil buffer in future
