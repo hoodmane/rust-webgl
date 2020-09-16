@@ -37,7 +37,7 @@ impl DefaultShader {
             "#
         )?;
         shader.add_attribute_vec2f(&"aVertexPosition", false)?;
-        let geometry = shader.create_geometry()?;
+        let geometry = shader.create_geometry();
         Ok(Self {
             webgl,
             shader,
@@ -54,6 +54,17 @@ impl DefaultShader {
         self.shader.draw(&self.geometry, primitive)?;
         Ok(())
     }
+
+
+    // pub fn draw_elements(&mut self, transform : Transform, vertices : &Vec<Vec2>, primitive : u32) -> Result<(), JsValue> {
+    //     self.shader.use_program();
+    //     self.geometry.num_vertices = vertices.len() as i32;
+    //     self.geometry.num_instances = 1;
+    //     self.shader.set_attribute_vec2(&mut self.geometry, "aVertexPosition", vertices)?;
+    //     self.shader.set_uniform_transform("uTransformationMatrix", transform);
+    //     self.shader.draw_elements(&self.geometry, primitive)?;
+    //     Ok(())
+    // }
 
     pub fn get_raster(&mut self, mut transform : Transform, vertices : &Vec<Vec2>, primitive : u32, target : &mut Buffer) -> Result<(Vec<u8>, i32, i32), JsValue> {
         self.webgl.render_to(target)?;

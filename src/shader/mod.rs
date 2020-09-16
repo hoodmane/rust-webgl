@@ -6,6 +6,10 @@ mod cubic_shader;
 mod line_shader;
 mod glyph_shader;
 
+mod shader_indexed;
+mod default_shader_indexed;
+
+
 pub use shader::{Shader, Geometry};
 pub use default_shader::DefaultShader;
 pub use cubic_shader::CubicBezierShader;
@@ -13,3 +17,6 @@ pub use arc_shader::ArcShader;
 pub use line_shader::LineShader;
 pub use stencil_shader::StencilShader;
 pub use glyph_shader::{GlyphShader, HorizontalAlignment, VerticalAlignment};
+
+pub use shader_indexed::{ShaderIndexed, GeometryIndexed};
+pub use default_shader_indexed::DefaultShaderIndexed;

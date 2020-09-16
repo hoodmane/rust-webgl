@@ -361,7 +361,7 @@ impl Iterator for QuadraticCurveIterator {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (n, Some(n))
+        (self.n, Some(self.n))
     }
 }
 
@@ -375,7 +375,7 @@ impl CubicCurveIterator {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (n, Some(n))
+        (self.n, Some(self.n))
     }
 }
 
@@ -392,7 +392,7 @@ impl Iterator for CubicCurveIterator {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (n, Some(n))
+        (self.n, Some(self.n))
     }
 }
 
@@ -420,7 +420,7 @@ impl Iterator for ArcIterator {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (n, Some(n))
+        (self.n, Some(self.n))
     }
 }
 

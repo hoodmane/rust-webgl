@@ -143,7 +143,7 @@ impl GlyphShader {
             "#
         )?;
         render_shader.add_attribute_vec2f("aVertexPosition", false)?;
-        let mut quad_geometry = render_shader.create_geometry()?;
+        let mut quad_geometry = render_shader.create_geometry();
         quad_geometry.num_vertices = 4;
         quad_geometry.num_instances = 1;
         render_shader.set_attribute_vec2(&mut quad_geometry, "aVertexPosition", &STANDARD_QUAD)?;
@@ -174,7 +174,7 @@ impl GlyphShader {
     fn antialias_render(&self, glyph : &GlyphPath, transform : Transform, scale : f32) -> Result<(), JsValue>{
         self.antialias_shader.use_program();
         let vertices = &glyph.vertices;
-        let mut geometry = self.antialias_shader.create_geometry()?;
+        let mut geometry = self.antialias_shader.create_geometry();
         geometry.num_vertices = vertices.len() as i32;
         geometry.num_instances = 1;
         self.antialias_shader.set_attribute_vec4(&mut geometry, "aVertexPosition", vertices.as_slice())?;

@@ -200,3 +200,15 @@ impl MutPtrF32 for &[Vec4] {
         self.len() * 4
     }
 }
+
+
+use lyon::geom::math::Point;
+impl MutPtrF32 for &[Point] {
+    unsafe fn mut_ptr_f32(&self) -> *mut f32 {
+        std::mem::transmute::<_,*mut f32>(self.as_ptr())
+    }
+    
+    fn length(&self) -> usize {
+        self.len() * 2
+    }
+}

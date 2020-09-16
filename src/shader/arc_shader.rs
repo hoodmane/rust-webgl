@@ -92,7 +92,7 @@ impl ArcShader {
             "#
         )?;
         shader.add_attribute_vec2f("aVertexPosition", false)?;
-        let mut geometry = shader.create_geometry()?;
+        let mut geometry = shader.create_geometry();
         geometry.num_instances = 1;
 
         Ok(Self {

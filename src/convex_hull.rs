@@ -126,7 +126,7 @@ fn graham_scan(points : &mut Vec<Vec2>) {
 	let mut stack_length : usize = 3;
 	for i in 3 .. points.len() {
 		// Seems like this could lead to an infinite loop here...
-		// Luckily, Rust will panic if stack_index becomes less than 2!
+		// Luckily, Rust will panic if stack_index becomes less than 2
 		while orientation(points[stack_length - 2], points[stack_length - 1], points[i]) >= 0.0 {
 			stack_length -= 1;
 		}

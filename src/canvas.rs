@@ -4,7 +4,7 @@ use std::f32::consts::PI;
 
 
 use crate::log;
-use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment, VerticalAlignment, DefaultShader};
+use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment, VerticalAlignment, DefaultShader, DefaultShaderIndexed};
 
 use crate::font::{GlyphCompiler, Glyph, Font};
 
@@ -39,6 +39,7 @@ pub struct Canvas {
     glyph_shader : GlyphShader,
     glyph_hull_buffer : Buffer,
     default_shader : DefaultShader,
+    default_shader_indexed : DefaultShaderIndexed,
     buffer_dimensions : BufferDimensions,
     left_margin : i32,
     right_margin : i32,
@@ -66,6 +67,7 @@ impl Canvas {
         let grid_shader = LineShader::new(webgl.clone())?;
         let axes_shader = LineShader::new(webgl.clone())?;
         let default_shader = DefaultShader::new(webgl.clone())?;
+        let default_shader_indexed = DefaultShaderIndexed::new(webgl.clone())?;
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let buffer_dimensions = BufferDimensions::new(1, 1, 0.0);
 
@@ -83,6 +85,7 @@ impl Canvas {
             glyph_shader,
             glyph_hull_buffer,
             default_shader,
+            default_shader_indexed,
             buffer_dimensions,
             left_margin : 10,
             right_margin : 50,
@@ -457,6 +460,7 @@ impl Canvas {
         Ok(JsBuffer::new(triangles3))
     }
 
+
     pub fn draw_arrow(&mut self, line_width : f32, x_offset : f32, draw_triangles : bool) -> Result<(), JsValue> {
         let arrow = normal_arrow(line_width);
         let poly_line = &arrow.path;
@@ -534,6 +538,18 @@ impl Canvas {
         self.axes_shader.draw(self.transform)?;
         self.enable_clip();
         self.grid_shader.draw(self.transform)?;
+        Ok(())
+    }
+
+        
+    pub fn test_lyon2(&mut self, draw_triangles : bool) -> Result<(), JsValue> {
+        let mut path = crate::lyon_path::Path::new((0.0, 0.0));
+        path.arc_to((100.0, 100.0), PI/180.0 * 15.0);
+        path.line_to((200.0, 0.0));
+        path.cubic_curve_to((250.0, 100.0), (550.0, 200.0), (300.0, 200.0));
+        let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
+        self.default_shader_indexed.draw(self.transform, &buffers.vertices, &buffers.indices, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())
     }
 }

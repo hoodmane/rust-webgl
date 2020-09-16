@@ -395,7 +395,7 @@ impl CubicBezierShader {
 
     pub fn draw(&self) -> Result<(), JsValue> {
         self.shader.use_program();
-        let mut geometry = self.shader.create_geometry()?;
+        let mut geometry = self.shader.create_geometry();
         self.shader.set_attribute_vec2(&mut geometry, "aVertexPosition", &*self.vertices)?;
         self.shader.set_attribute_vec4(&mut geometry,"aBezierParameter", &*self.bezier_helper_coords)?;
         self.shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;

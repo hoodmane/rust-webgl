@@ -52,7 +52,7 @@ impl LineShader {
             "#
         )?;
         shader.add_attribute_vec4f(&"aColor", true)?;
-        let mut geometry = shader.create_geometry()?;
+        let mut geometry = shader.create_geometry();
         geometry.num_vertices = 4;
         Ok(Self {
             shader,
