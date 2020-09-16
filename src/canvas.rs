@@ -17,7 +17,6 @@ use crate::arrow::normal_arrow;
 
 use crate::rect::{Rect, BufferDimensions};
 
-use crate::poly_line::{LineStyle, LineJoinStyle, LineCapStyle, Path};
 use crate::arrow::Arrow;
 use crate::convex_hull;
 
@@ -339,19 +338,19 @@ impl Canvas {
         self.draw_line_to_glyph(start, end, glyph, glyph_scale)
     }
 
-    fn draw_line_to_glyph(&mut self, start : Vec2, end : Vec2, glyph : &Glyph, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
-        let start = self.transform_point(start);
-        let end = self.transform_point(end);
-        let angle = (start - end).angle();
-        let boundary_point = self.find_glyph_boundary_point(glyph, -angle)? * glyph_scale * 1.02;
-        let mut poly_line = Path::new(start);
-        poly_line.line_to(end + boundary_point);
-        let mut triangles = Vec::new();
-        poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, 5.0, 10.0, 0.5));
-        self.default_shader.draw(self.transform, &triangles, WebGl2RenderingContext::TRIANGLE_STRIP)?;
-        self.glyph_shader.draw(glyph.path(), self.transform, end, glyph_scale, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.2, 0.5, 0.8, 1.0))?;
-        Ok(JsBuffer::new(triangles))
-    }
+    // fn draw_line_to_glyph(&mut self, start : Vec2, end : Vec2, glyph : &Glyph, glyph_scale : f32) -> Result<JsBuffer, JsValue> {
+    //     let start = self.transform_point(start);
+    //     let end = self.transform_point(end);
+    //     let angle = (start - end).angle();
+    //     let boundary_point = self.find_glyph_boundary_point(glyph, -angle)? * glyph_scale * 1.02;
+    //     let mut poly_line = Path::new(start);
+    //     poly_line.line_to(end + boundary_point);
+    //     let mut triangles = Vec::new();
+    //     poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, 5.0, 10.0, 0.5));
+    //     self.default_shader.draw(self.transform, &triangles, WebGl2RenderingContext::TRIANGLE_STRIP)?;
+    //     self.glyph_shader.draw(glyph.path(), self.transform, end, glyph_scale, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.2, 0.5, 0.8, 1.0))?;
+    //     Ok(JsBuffer::new(triangles))
+    // }
 
     // pub fn draw_arrow(&mut self, start : Vec2, end : Vec2, line_width : f32) {
     //     let mut poly_line = PolyLine::new(start);
@@ -461,34 +460,34 @@ impl Canvas {
     }
 
 
-    pub fn draw_arrow(&mut self, line_width : f32, x_offset : f32, draw_triangles : bool) -> Result<(), JsValue> {
-        let arrow = normal_arrow(line_width);
-        let poly_line = &arrow.path;
-        let xpos = -1.0;
-        let mut triangles = Vec::new();
-        poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, line_width, 10.0, 0.5));
-        log!("triangles : {:?}", triangles);
-        let mut transform = self.transform;
-        transform.translate(self.transform_x(xpos) + x_offset, self.transform_y(2.0));
-        self.default_shader.draw(transform, &triangles, 
-            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+    // pub fn draw_arrow(&mut self, line_width : f32, x_offset : f32, draw_triangles : bool) -> Result<(), JsValue> {
+    //     let arrow = normal_arrow(line_width);
+    //     let poly_line = &arrow.path;
+    //     let xpos = -1.0;
+    //     let mut triangles = Vec::new();
+    //     poly_line.get_triangles(&mut triangles, LineStyle::new(LineJoinStyle::Miter, LineCapStyle::Butt, line_width, 10.0, 0.5));
+    //     log!("triangles : {:?}", triangles);
+    //     let mut transform = self.transform;
+    //     transform.translate(self.transform_x(xpos) + x_offset, self.transform_y(2.0));
+    //     self.default_shader.draw(transform, &triangles, 
+    //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
         
-        let mut triangles2 = Vec::new();
-        poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, LineCapStyle::Rect, line_width, 10.0, 0.5));
-        let mut transform2 = self.transform;
-        transform2.translate(self.transform_x(xpos) + x_offset, self.transform_y(-1.0));
-        self.default_shader.draw(transform2, &triangles2, 
-            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+    //     let mut triangles2 = Vec::new();
+    //     poly_line.get_triangles(&mut triangles2, LineStyle::new(LineJoinStyle::Bevel, LineCapStyle::Rect, line_width, 10.0, 0.5));
+    //     let mut transform2 = self.transform;
+    //     transform2.translate(self.transform_x(xpos) + x_offset, self.transform_y(-1.0));
+    //     self.default_shader.draw(transform2, &triangles2, 
+    //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
 
 
-        let mut triangles3 = Vec::new();
-        poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
-        let mut transform3 = self.transform;
-        transform3.translate(self.transform_x(xpos) + x_offset, self.transform_y(-4.0));
-        self.default_shader.draw(transform3, &triangles3, 
-            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
-        Ok(())
-    }
+    //     let mut triangles3 = Vec::new();
+    //     poly_line.get_triangles(&mut triangles3, LineStyle::new(LineJoinStyle::Round, LineCapStyle::Round, line_width, 10.0, 0.5));
+    //     let mut transform3 = self.transform;
+    //     transform3.translate(self.transform_x(xpos) + x_offset, self.transform_y(-4.0));
+    //     self.default_shader.draw(transform3, &triangles3, 
+    //         if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+    //     Ok(())
+    // }
 
     pub fn draw_grid(&mut self) -> Result<(), JsValue> {
         self.axes_shader.clear();
@@ -541,15 +540,148 @@ impl Canvas {
         Ok(())
     }
 
+       
+    pub fn test_lyon(&mut self, draw_triangles : bool) -> Result<(), JsValue> {
+        use lyon::geom::math::{point, Point};
+        use lyon::path::builder::{PathBuilder, Build};
+        use lyon::path::PathEvent;
+        use lyon::tessellation::{VertexBuffers, StrokeTessellator, StrokeBuilder,  geometry_builder,geometry_builder::GeometryBuilder, StrokeOptions};
+
+        let mut path_builder = lyon::path::Path::builder();
+        path_builder.move_to(point(0.0, 0.0));
+        // path_builder.line_to(point(100.0, 200.0));
+        // path_builder.line_to(point(200.0, 0.0));
+        // path_builder.line_to(point(100.0, 100.0));
+        // path_builder.close();
+
+        path_builder.line_to(point(100.0, 100.0));
+        path_builder.line_to(point(200.0, 0.0));
+        path_builder.cubic_bezier_to(point(250.0, 100.0), point(550.0, 200.0), point(300.0, 200.0));
+        path_builder.move_to(point(0.0, 100.0));
+        path_builder.line_to(point(200.0, 100.0));
+        path_builder.line_to(point(200.0, 200.0));
+        let path = path_builder.build();
+
+        let test : Vec<_> = path.iter().collect();
+        log!("test : {:?}", test);
         
-    pub fn test_lyon2(&mut self, draw_triangles : bool) -> Result<(), JsValue> {
-        let mut path = crate::lyon_path::Path::new((0.0, 0.0));
-        path.arc_to((100.0, 100.0), PI/180.0 * 15.0);
-        path.line_to((200.0, 0.0));
-        path.cubic_curve_to((250.0, 100.0), (550.0, 200.0), (300.0, 200.0));
-        let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
-        self.default_shader_indexed.draw(self.transform, &buffers.vertices, &buffers.indices, 
-            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
+        // Create the destination vertex and index buffers.
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+        
+        {
+            // Create the destination vertex and index buffers.
+            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+        
+            // vertex_builder.begin_geometry();
+            // {
+            //     let mut attrib_buffer: Vec<f32> = Vec::new();
+            //     let mut stroker = StrokeBuilder::new(&StrokeOptions::default(), &(), &mut attrib_buffer, &mut vertex_builder);
+    
+            //     for &evt in &[
+            //         PathEvent::Begin { at: point(0.0, 0.0) }, 
+            //         PathEvent::Line { from: point(0.0, 0.0), to: point(100.0, 100.0) }, 
+            //         PathEvent::Line { from: point(100.0, 100.0), to: point(100.0, 50.0) }
+            //     ] {
+            //         stroker.path_event(evt);
+            //     }
+    
+            //     stroker.build().unwrap();
+            // }
+            // vertex_builder.end_geometry();
+
+            // Create the tessellator.
+            let mut tessellator = StrokeTessellator::new();
+        
+            // Compute the tessellation.
+            tessellator.tessellate(
+                &path,
+                &StrokeOptions::default(),
+                &mut vertex_builder
+            ).unwrap();
+        }
+        log!("buffers : {:?}", buffers);
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+        // let mut path_builder = Path::builder();
+        // path_builder.move_to(point(0.0, 0.0));
+        // path_builder.line_to(point(1.0, 2.0));
+        // path_builder.line_to(point(2.0, 0.0));
+        // path_builder.line_to(point(1.0, 1.0));
+        // path_builder.close();
+        // lyon_tesselate::tesselate_path(&path)?;
         Ok(())
     }
+
+
+    pub fn test_lyon2(&mut self, draw_triangles : bool) -> Result<(), JsValue> {
+        use lyon::tessellation::StrokeOptions;
+        let mut path = crate::lyon_path::Path::new((-10.0, 10.0));
+        // path.arc_to((100.0, 100.0), PI/180.0 * 15.0);
+        path.line_to((100.0, 10.0));
+        path.shorten_start(StrokeOptions::DEFAULT_TOLERANCE, 20.0);
+        path.shorten_end(StrokeOptions::DEFAULT_TOLERANCE, 20.0);
+        // path.line_to((200.0, 0.0));
+        // path.cubic_curve_to((250.0, 100.0), (550.0, 200.0), (300.0, 200.0));
+        let test : Vec<_> = path.event_iterator().collect();
+        log!("test : {:?}", test);
+
+        let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
+        Ok(())
+    }
+
+    pub fn test_lyon3(&mut self, shorten : f32, rotate_degrees : f32, draw_triangles : bool) -> Result<(), JsValue> {
+        use euclid::default::Rotation2D;
+        use lyon::geom::math::{point, Point};
+        use lyon::path::iterator::PathIterator;
+        use lyon::path::builder::{PathBuilder, Build};
+        use lyon::tessellation::{VertexBuffers, StrokeTessellator, StrokeBuilder,  geometry_builder, StrokeOptions};
+
+
+        let mut path = crate::lyon_path::Path::new((0.0, 0.0));
+        path.cubic_curve_to((50.0, 100.0), (350.0, 200.0), (100.0, 200.0));
+        path.shorten_start(StrokeOptions::DEFAULT_TOLERANCE, shorten);
+        path.shorten_end(StrokeOptions::DEFAULT_TOLERANCE, shorten);
+
+        // let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
+        // let mut transform = self.transform;
+        // transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        // self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
+        //     if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
+
+        crate::arrow::
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+
+        {
+            // Create the destination vertex and index buffers.
+            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+    
+            // Create the tessellator.
+            let mut tessellator = StrokeTessellator::new();
+    
+            // Compute the tessellation.
+            tessellator.tessellate(
+                path.event_iterator().transformed(&Rotation2D::radians(PI/180.0 * rotate_degrees)),
+                &StrokeOptions::default(),
+                &mut vertex_builder
+            ).map_err(convert_error)?;
+        }
+
+        let mut transform = self.transform;
+        transform.translate(self.transform_x(0.0), self.transform_y(0.0));
+        self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
+            if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
+        Ok(())
+    }    
+}
+
+use lyon::tessellation::TessellationError;
+fn convert_error(err : TessellationError) -> JsValue {
+    JsValue::from_str(&format!("{:?}", err))
 }
