@@ -26,7 +26,7 @@ function getTime(){
     return new Date().getTime();
 }
 
-const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true , "preserveDrawingBuffer" : true, antialias : false };
+const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true , "preserveDrawingBuffer" : true, antialias : true };
 
 export class App {
     constructor(pkg, canvasSelector, font){

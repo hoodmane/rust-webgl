@@ -254,7 +254,7 @@ impl Canvas {
         a.move_to(Point::new(0.0, 0.0));       
         a.close();
         let glyph = a.end();
-        self.glyph_shader.draw(&glyph, self.transform, Point::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
+        self.glyph_shader.draw(&glyph, self.transform, Point::new(x, y), 1.0, HorizontalAlignment::Left, VerticalAlignment::Top, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
         Ok(())
     }
 
@@ -618,14 +618,14 @@ impl Canvas {
         // path_builder.line_to(point(2.0, 0.0));
         // path_builder.line_to(point(1.0, 1.0));
         // path_builder.close();
-        // lyon_tesselate::tesselate_path(&path)?;
+        // tesselate::tesselate_path(&path)?;
         Ok(())
     }
 
 
     pub fn test_lyon2(&mut self, draw_triangles : bool) -> Result<(), JsValue> {
         use lyon::tessellation::StrokeOptions;
-        let mut path = crate::lyon_path::Path::new((-10.0, 10.0));
+        let mut path = crate::path::Path::new((-10.0, 10.0));
         // path.arc_to((100.0, 100.0), PI/180.0 * 15.0);
         path.line_to((100.0, 10.0));
         path.shorten_start(StrokeOptions::DEFAULT_TOLERANCE, 20.0);
@@ -635,14 +635,14 @@ impl Canvas {
         let test : Vec<_> = path.event_iterator().collect();
         log!("test : {:?}", test);
 
-        let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
+        let buffers = crate::tesselate::tesselate_path(&path)?;
         let transform = self.transform.pre_translate(vector(self.transform_x(0.0), self.transform_y(0.0)));
         self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())
     }
 
-    pub fn test_lyon3(&mut self, shorten : f32, rotate_degrees : f32, draw_triangles : bool) -> Result<(), JsValue> {
+    pub fn test_lyon3(&mut self, translate : JsPoint, shorten : f32, rotate_degrees : f32, draw_triangles : bool) -> Result<(), JsValue> {
         use euclid::default::Rotation2D;
         use lyon::geom::math::{point, Point};
         use lyon::path::iterator::PathIterator;
@@ -650,12 +650,13 @@ impl Canvas {
         use lyon::tessellation::{VertexBuffers, StrokeTessellator, StrokeBuilder,  geometry_builder, StrokeOptions};
 
 
-        let mut path = crate::lyon_path::Path::new((0.0, 0.0));
+        let mut path = crate::path::Path::new((0.0, 0.0));
         path.cubic_curve_to((50.0, 100.0), (350.0, 200.0), (100.0, 200.0));
-        path.shorten_start(StrokeOptions::DEFAULT_TOLERANCE, shorten);
+        // path.shorten_start(StrokeOptions::DEFAULT_TOLERANCE, shorten);
         path.shorten_end(StrokeOptions::DEFAULT_TOLERANCE, shorten);
+        path.add_end_arrow(StrokeOptions::DEFAULT_TOLERANCE, crate::arrow::test_arrow());
 
-        // let buffers = crate::lyon_tesselate::tesselate_path(&path)?;
+        // let buffers = crate::tesselate::tesselate_path(&path)?;
         // let mut transform = self.transform;
         // transform.pre_translate(self.transform_x(0.0), self.transform_y(0.0));
         // self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
@@ -663,7 +664,9 @@ impl Canvas {
 
         // crate::arrow::
         let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-
+        let events : Vec<_> = path.event_iterator().collect();
+        log!("events : {:?}", events);
+            
         {
             // Create the destination vertex and index buffers.
             let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
@@ -679,7 +682,7 @@ impl Canvas {
             ).map_err(convert_error)?;
         }
 
-        let transform = self.transform.pre_translate(vector(self.transform_x(0.0), self.transform_y(0.0)));
+        let transform = self.transform.pre_translate(translate.into());
         self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, 
             if draw_triangles { WebGl2RenderingContext::TRIANGLES } else { WebGl2RenderingContext::LINE_STRIP })?;
         Ok(())

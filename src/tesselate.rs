@@ -1,5 +1,5 @@
 use crate::log;
-use crate::lyon_path::Path;
+use crate::path::Path;
 
 use lyon::geom::math::Point;
 use lyon::tessellation::{TessellationError, StrokeTessellator, VertexBuffers, StrokeOptions, geometry_builder::simple_builder};

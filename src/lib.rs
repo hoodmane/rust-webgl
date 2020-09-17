@@ -16,9 +16,9 @@ mod canvas;
 mod convex_hull;
 mod shader;
 
-mod lyon_path;
-mod flattened_curve;
-mod lyon_tesselate;
+mod path_segment;
+mod path;
+mod tesselate;
 
 pub use font::read_font;
 
@@ -83,10 +83,10 @@ pub fn get_rust_canvas(context : &WebGl2RenderingContext) -> Result<Canvas, JsVa
 use std::f32::consts::PI;
 #[wasm_bindgen]
 pub fn test_lyon2() -> Result<(), JsValue> {
-    let mut path = lyon_path::Path::new((0.0, 0.0));
+    let mut path = crate::path::Path::new((0.0, 0.0));
     path.arc_to((100.0, 100.0), PI/180.0 * 15.0);
     path.line_to((200.0, 0.0));
     path.cubic_curve_to((250.0, 100.0), (550.0, 200.0), (300.0, 200.0));
-    lyon_tesselate::tesselate_path(&path)?;
+    crate::tesselate::tesselate_path(&path)?;
     Ok(())
 }

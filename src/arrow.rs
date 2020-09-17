@@ -25,6 +25,8 @@ use lyon::path::{Path, builder::{PathBuilder, Build}};
 pub struct Arrow {
     pub(crate) tip_end : f32,
     pub(crate) back_end : f32,
+    pub(crate) visual_tip_end : f32,
+    pub(crate) visual_back_end : f32,
     pub(crate) line_end : f32,
     pub(crate) path : Path
 }
@@ -51,8 +53,35 @@ pub fn normal_arrow(line_width : f32) -> Arrow {
     let back_end = 20.0;
     let line_end = 10.0;
     Arrow {
+        tip_end : 0.0,
+        back_end : 20.0,
+        visual_tip_end : 0.0,
+        visual_back_end : 15.0,
+        line_end : 10.0,
+        path
+    }
+}
+
+pub fn test_arrow() -> Arrow {
+    let length = 30.0;
+    let width = 2.096774 * length;
+    let mut path_builder = Path::builder();
+    path_builder.move_to(point(-length, width/2.0));
+    path_builder.line_to(point(0.0, 0.0));
+    path_builder.line_to(point(-length, -width/2.0));
+    path_builder.line_to(point(-length/2.0, 0.0));
+    path_builder.close();
+    let path = path_builder.build();
+    let tip_end = 0.0;
+    let visual_tip_end = 0.0;
+    let back_end = -length;
+    let visual_back_end = - length / 2.0;
+    let line_end = -length/3.0;
+    Arrow {
         tip_end,
         back_end,
+        visual_tip_end,
+        visual_back_end,
         line_end,
         path
     }
