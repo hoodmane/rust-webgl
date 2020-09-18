@@ -181,7 +181,7 @@ impl GlyphShader {
         self.antialias_shader.set_attribute_vec4(&mut geometry, "aVertexPosition", vertices.as_slice())?;
         for (&offset, &color) in JITTER_PATTERN.iter().zip(JITTER_COLORS.iter()) {
             let cur_transform = transform.pre_translate(offset * (1.0 / WebGlWrapper::pixel_density() as f32))
-                .then_scale(scale, scale);
+                .pre_scale(scale, scale);
             self.antialias_shader.set_uniform_vec4("uColor", color);
             self.antialias_shader.set_uniform_transform("uTransformationMatrix", cur_transform);        
             self.antialias_shader.draw(&geometry, WebGl2RenderingContext::TRIANGLES)?;
@@ -294,7 +294,7 @@ impl GlyphShader {
         
         self.webgl.render_to(render_target)?;
 
-        let transform = transform.then_scale(scale, scale);
+        let transform = transform.pre_scale(scale, scale);
         self.webgl.enable(WebGl2RenderingContext::BLEND);
         self.webgl.blend_func(WebGl2RenderingContext::ZERO, WebGl2RenderingContext::SRC_COLOR);
         
