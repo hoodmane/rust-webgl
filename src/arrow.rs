@@ -28,7 +28,8 @@ pub struct Arrow {
     pub(crate) visual_tip_end : f32,
     pub(crate) visual_back_end : f32,
     pub(crate) line_end : f32,
-    pub(crate) path : Path
+    pub(crate) stroke_path : Option<Path>,
+    pub(crate) fill_path : Option<Path>,
 }
 
 
@@ -49,16 +50,17 @@ pub fn normal_arrow(line_width : f32) -> Arrow {
         point(-length, -width/2.0)
     );
     let path = path_builder.build();
-    let tip_end = 0.0;
-    let back_end = 20.0;
-    let line_end = 10.0;
+    let _tip_end = 0.0;
+    let _back_end = 20.0;
+    let _line_end = 10.0;
     Arrow {
         tip_end : 0.0,
         back_end : 20.0,
         visual_tip_end : 0.0,
         visual_back_end : 15.0,
         line_end : 10.0,
-        path
+        fill_path : None,
+        stroke_path : Some(path)
     }
 }
 
@@ -75,7 +77,7 @@ pub fn test_arrow() -> Arrow {
     let tip_end = 0.0;
     let visual_tip_end = 0.0;
     let back_end = -length;
-    let visual_back_end = - length / 2.0;
+    let visual_back_end = - length/2.0;
     let line_end = -length/3.0;
     Arrow {
         tip_end,
@@ -83,6 +85,7 @@ pub fn test_arrow() -> Arrow {
         visual_tip_end,
         visual_back_end,
         line_end,
-        path
+        fill_path : Some(path),
+        stroke_path : None
     }
 }

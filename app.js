@@ -254,18 +254,19 @@ export class App {
             this._canvas.transform_x(1), this._canvas.transform_y(1), 
             10, 10
         );
+        // this._canvas.test_stix_math();
 
         // this._canvas.draw_box(
         //     app._canvas.transform_x(0), app._canvas.transform_y(0), 
         //     10, 10
         // );  
-    //     this._canvas.draw_letter(this.font, "g".codePointAt(0), 
-    //         new Vec2(app._canvas.transform_x(0), app._canvas.transform_y(0)), 
-    //         50,
-    //         this.pkg.HorizontalAlignment.Center,
-    //         this.pkg.VerticalAlignment.Center,
-    //         new Vec4(0, 0, 0, 0)
-    //     );
+        // this._canvas.draw_letter(this.font, "+".codePointAt(0), 
+        //     new Vec2(app._canvas.transform_x(0), app._canvas.transform_y(0)), 
+        //     50,
+        //     this.pkg.HorizontalAlignment.Center,
+        //     this.pkg.VerticalAlignment.Center,
+        //     new Vec4(0, 0, 0, 0)
+        // );
 
     //     this._canvas.draw_letter(this.font, "e".codePointAt(0), 
     //     new Vec2(app._canvas.transform_x(-1), app._canvas.transform_y(1)), 

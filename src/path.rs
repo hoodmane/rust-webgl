@@ -3,6 +3,14 @@ use std::convert::Into;
 use lyon::geom::math::{Point, point, vector, Vector, Angle, Transform};
 use lyon::geom::{Arc, CubicBezierSegment, QuadraticBezierSegment, LineSegment};
 use lyon::path::{PathEvent, iterator::PathIterator};
+use lyon::tessellation::{
+    geometry_builder::SimpleBuffersBuilder, TessellationError,
+    StrokeTessellator, StrokeOptions,
+    FillTessellator, FillOptions,
+};
+
+use wasm_bindgen::JsValue;
+
 
 use crate::path_segment::{PathSegment, PathSegmentIterator};
 use crate::arrow::Arrow;
@@ -142,12 +150,12 @@ impl Path {
         ).chain(
             std::iter::once(PathEvent::End { first : self.start, last : self.last_point(), close : false })
         ).chain(
-            self.end_arrow_event_iterator().into_iter().flatten()
+            self.end_arrow_event_iterator()
         )
     }
 
     pub fn add_end_arrow(&mut self, tolerance : f32, arrow : Arrow) {
-        let line_setback = arrow.visual_tip_end - arrow.line_end;
+        let _line_setback = arrow.visual_tip_end - arrow.line_end;
         let visual_end_setback = arrow.visual_tip_end - arrow.visual_back_end;
         let visual_end_time = self.find_time_for_distance_from_end(tolerance, visual_end_setback).unwrap();
         let visual_end_point = self.sample_end(visual_end_time);
@@ -157,9 +165,28 @@ impl Path {
         self.end_arrow = Some((arrow, transform));
     }
 
-    fn end_arrow_event_iterator(&self)  -> Option<impl Iterator<Item = PathEvent> + '_>  {
-        self.end_arrow.as_ref().map(|(arrow, transform)|
-            arrow.path.iter().transformed(transform)
+    fn end_arrow_event_iterator(&self)  -> impl Iterator<Item = PathEvent> + '_  {
+        self.end_arrow.iter().flat_map(|(arrow, transform)|
+            arrow.stroke_path.iter().flat_map(move |path| path.iter().transformed(transform))
         )
     }
+
+    pub fn draw(&self,
+        vertex_builder : &mut SimpleBuffersBuilder, 
+        stroke : &mut StrokeTessellator, stroke_options : &StrokeOptions,
+        fill : &mut FillTessellator, fill_options : &FillOptions, 
+    ) -> Result<(), JsValue> {
+        if let Some((arrow, transform)) = &self.end_arrow {
+            if let Some(path) = &arrow.fill_path {
+                fill.tessellate(path.iter().transformed(transform), fill_options, vertex_builder).map_err(convert_error)?;
+            }
+        }
+        stroke.tessellate(self.event_iterator(), stroke_options, vertex_builder).map_err(convert_error)?;
+        Ok(())
+    }
+
+}
+
+fn convert_error(err : TessellationError) -> JsValue {
+    JsValue::from_str(&format!("{:?}", err))
 }

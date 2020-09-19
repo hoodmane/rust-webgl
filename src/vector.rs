@@ -15,6 +15,13 @@ pub struct JsPoint {
     pub y : f32
 }
 
+impl From<(f32, f32)> for JsPoint {
+    fn from((px, py) : (f32, f32)) -> Self {
+        Self::new(px, py)
+    }
+}
+
+
 impl From<JsPoint> for Point {
     fn from(p : JsPoint) -> Self {
         Self::new(p.x, p.y)
@@ -199,7 +206,7 @@ pub trait MutPtrF32 {
 
 impl MutPtrF32 for &[Point] {
     unsafe fn mut_ptr_f32(&self) -> *mut f32 {
-        std::mem::transmute::<_,*mut f32>(self.as_ptr())
+        self.as_ptr() as *mut f32
     }
     
     fn length(&self) -> usize {
@@ -209,7 +216,7 @@ impl MutPtrF32 for &[Point] {
 
 impl MutPtrF32 for &[Vector] {
     unsafe fn mut_ptr_f32(&self) -> *mut f32 {
-        std::mem::transmute::<_,*mut f32>(self.as_ptr())
+        self.as_ptr() as *mut f32
     }
     
     fn length(&self) -> usize {
@@ -287,7 +294,7 @@ impl SliceVec2T for &Vec<Vector> {
 
 impl MutPtrF32 for &[Vec3] {
     unsafe fn mut_ptr_f32(&self) -> *mut f32 {
-        std::mem::transmute::<_,*mut f32>(self.as_ptr())
+        self.as_ptr() as *mut f32
     }
     
     fn length(&self) -> usize {
@@ -297,7 +304,7 @@ impl MutPtrF32 for &[Vec3] {
 
 impl MutPtrF32 for &[Vec4] {
     unsafe fn mut_ptr_f32(&self) -> *mut f32 {
-        std::mem::transmute::<_,*mut f32>(self.as_ptr())
+        self.as_ptr() as *mut f32
     }
 
     fn length(&self) -> usize {

@@ -258,7 +258,6 @@ impl ShaderIndexed {
 
     pub fn set_uniform_transform(&self, name : &str, transform : Transform) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
-        // self.webgl.uniform_matrix3x2fv_with_f32_array(loc.as_ref(), false, &transform.to_array_transposed());
         self.webgl.uniform_matrix3x2fv_with_f32_array(loc.as_ref(), false, &transform.to_array());
     }
 }

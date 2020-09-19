@@ -1,4 +1,5 @@
 use crate::rect::{Rect, RectBuilder};
+use crate::convex_hull::ConvexHull;
 
 use std::rc::Rc;
 use std::collections::HashMap;
@@ -156,7 +157,7 @@ impl Font {
     }    
 
 
-    pub fn glyph(&self, code_point : u16) -> Result<&Glyph, JsValue> {
+    pub fn glyph(&self, code_point : u16) -> Result<&Rc<Glyph>, JsValue> {
         let glyph = self.glyphs.get(&code_point).ok_or("unknown glyph")?;
         glyph.path.get_or_try_init::<_, JsValue>(|| {
             let end = glyph.byte_offset + glyph.byte_length;
@@ -164,7 +165,7 @@ impl Font {
             data_reader.seek_to(glyph.byte_offset);
             let mut glyph_compiler = GlyphCompiler::new();
             while data_reader.offset < end {
-                match data_reader.read_u8().try_into().or(Err(JsValue::from_str(&"Invalid path command in font data")))? {
+                match data_reader.read_u8().try_into().or_else(|_| Err(JsValue::from_str(&"Invalid path command in font data")))? {
                     PathCommand::MoveTo => glyph_compiler.move_to(self.read_point(&mut data_reader)),
                     PathCommand::LineTo => glyph_compiler.line_to(self.read_point(&mut data_reader)),
                     PathCommand::CurveTo => glyph_compiler.curve_to(self.read_point(&mut data_reader), self.read_point(&mut data_reader)),
@@ -184,7 +185,7 @@ pub struct Glyph {
     byte_offset : usize,
     byte_length : usize,
     path : OnceCell<GlyphPath>,
-    pub convex_hull : OnceCell<Vec<Vector>>
+    pub convex_hull : OnceCell<ConvexHull>
 }
 
 impl Glyph {
@@ -202,6 +203,7 @@ impl Glyph {
 }
 
 
+#[derive(Debug)]
 pub struct GlyphPath {
     pub vertices : Vec<Vec4>,
     pub bounding_box : Rect

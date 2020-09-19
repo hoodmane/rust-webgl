@@ -45,7 +45,7 @@ impl DefaultShaderIndexed {
         })
     }
 
-    pub fn draw(&mut self, transform : Transform, vertices : &Vec<Point>, indices : &Vec<u16>,  primitive : u32) -> Result<(), JsValue> {
+    pub fn draw(&mut self, transform : Transform, vertices : &[Point], indices : &[u16],  primitive : u32) -> Result<(), JsValue> {
         self.shader.use_program();
         self.shader.set_attribute_point(&mut self.geometry, "aVertexPosition", vertices)?;
         self.shader.set_indices(&mut self.geometry, indices)?;

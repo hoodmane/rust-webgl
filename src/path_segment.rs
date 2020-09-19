@@ -303,7 +303,7 @@ fn arc_flattening_step<S : Scalar>(arc : &Arc<S>, tolerance: S) -> S {
 
 fn flatten_arc_with_t<S : Scalar>(arc : &Arc<S>, tolerance: S) -> FlattenedArcT<S> {
     let end = arc.to();
-    let iter = arc.clone();
+    let iter = *arc;
     let t0 = S::ZERO;
     FlattenedArcT {
         tolerance,
@@ -358,7 +358,7 @@ impl<S : Scalar> ArcQuadraticBezierIterator<S> {
         let n_steps = S::ceil(sweep_angle / S::FRAC_PI_4());
         let step = Angle::radians(sweep_angle / n_steps * sign);
         Self {
-            arc : arc.clone(),
+            arc : *arc,
             sign,
             sweep_angle,
             n_steps : cast::<S, i32>(n_steps).unwrap(),

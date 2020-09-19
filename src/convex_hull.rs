@@ -1,16 +1,34 @@
 // Stolen from: https://github.com/jobtalle/ConvexHull/tree/master/src/convexHull
+use crate::log;
+
 use std::f32::consts::PI;
 use std::cmp::Ordering;
+use std::borrow::Borrow;
 
-use lyon::geom::math::{Point, Vector, Angle};
+use euclid::default::Box2D;
+
+use lyon::geom::math::{Point, point, Vector, Angle};
+
+use footile::{PathBuilder, PathOp, Plotter, FillRule, Transform};
+use pix::{Raster, el::Pixel, chan::Channel, matte::Matte8};
 
 
+fn raster_midpoint<P: Pixel>(raster : &Raster<P>) -> Point {
+	Point::new((raster.width()/2) as f32, (raster.height()/2) as f32)
+}
+
+fn raster_dimensions<P: Pixel>(raster : &Raster<P>) -> Point {
+	Point::new(raster.width() as f32, raster.height() as f32)
+}
+
+fn raster_contains_point<P: Pixel>(raster : &Raster<P>, point : Point) -> bool {
+	raster.pixel(point.x as i32, point.y as i32).alpha() != P::Chan::MIN 
+}
 
 
-pub fn convex_hull(raster : &[u8], width : usize, height : usize, pivot : Point, spacing : usize, precision : f32) -> Vec<Vector> {
-	let point_count = ray_count(width, height, spacing);
-	let channel = 2; // blue
-	let mut convex_hull = sample_raster_outline(raster, width, height, channel, pivot, point_count);
+fn raster_to_convex_hull_polygon<P: Pixel>(raster : &Raster<P>, precision : f32) -> Vec<Vector> {
+	let point_count = ray_count(raster.width(), raster.height(), 0);
+	let mut convex_hull = sample_raster_outline(raster, Point::origin(), point_count);
 	average_nearby_points(&mut convex_hull, precision);
 	graham_scan(&mut convex_hull);
 	// convex_hull.shrink_to_fit();
@@ -18,19 +36,17 @@ pub fn convex_hull(raster : &[u8], width : usize, height : usize, pivot : Point,
 }
 
 
-fn ray_count(_width : usize, _height : usize, _spacing : usize) -> usize {
+fn ray_count(_width : u32, _height : u32, _spacing : usize) -> usize {
 	180 // (width + height) / (spacing >> 1)
 }
 
 
-fn scan_ray_for_nontransparent_pixel(raster : &[u8], width : usize, channel : usize,  start_position : Point, direction : Vector, radius : i32) -> Point {
+fn scan_ray_for_nontransparent_pixel<P: Pixel>(raster : &Raster<P>, start_position : Point, direction : Vector, radius : i32) -> Point {
 	// Scan for pixel with nonzero value on color channel "channel"
 	for i in 0 .. radius {
 		let current_position = start_position - direction * i as f32;
-		let x = current_position.x as usize;
-		let y = current_position.y as usize;
 		// Check channel
-		if raster[(x + y * width) * 4 + channel ] != 0 {
+		if raster_contains_point(raster, current_position) {
 			return current_position;
 		}
 	}
@@ -38,9 +54,9 @@ fn scan_ray_for_nontransparent_pixel(raster : &[u8], width : usize, channel : us
 }
 
 
-pub fn sample_raster_outline(raster : &[u8], width : usize, height : usize, channel : usize, pivot : Point, point_count : usize) -> Vec<Vector> {
+fn sample_raster_outline<P: Pixel>(raster : &Raster<P>, pivot : Point, point_count : usize) -> Vec<Vector> {
 	let angle_step = Angle::two_pi() / (point_count as f32);
-	let half_dim = Point::new((width/2) as f32, (height/2) as f32);
+	let half_dim = raster_midpoint(raster);
 
 	let mut result = Vec::with_capacity(point_count);
 	for i in 0 .. point_count {
@@ -52,7 +68,7 @@ pub fn sample_raster_outline(raster : &[u8], width : usize, height : usize, chan
 		let abssin = direction.y.abs();
 
 		let radius = f32::min(half_dim.x / abscos, half_dim.y / abssin) - 1.0;
-		let position = scan_ray_for_nontransparent_pixel(raster, width, channel, half_dim + direction * radius, direction, f32::ceil(radius) as i32);
+		let position = scan_ray_for_nontransparent_pixel(raster, half_dim + direction * radius, direction, f32::ceil(radius) as i32);
 
 		result.push(position - pivot);
 	}
@@ -138,3 +154,93 @@ fn graham_scan(points : &mut Vec<Vector>) {
 	// Shrink list to new length (panic if somehow output_idx > points.len())
 	points.resize_with(stack_length, || unreachable!());
 }
+
+fn rasterize_polygon(polygon : &Vec<Vector>, width : u32, height : u32) -> Raster<Matte8> {
+	let mut path_builder = PathBuilder::default();
+	path_builder = path_builder.absolute().move_to(polygon[0].x, polygon[0].y);
+	for v in &polygon[1..] {
+		path_builder = path_builder.line_to(v.x, v.y);
+	}
+	let path = path_builder.close().build();
+	let mut p = Plotter::new(Raster::<Matte8>::with_clear(width, height));
+    p.fill(FillRule::NonZero, path.iter(), Matte8::new(255));
+    p.raster()
+}
+
+
+
+pub struct ConvexHull {
+	raster : Raster<Matte8>,
+	pub outline : Vec<Vector>,
+	raster_scale : f32,
+	angle_resolution : usize,
+	bounding_box : Box2D<f32>
+}
+
+impl ConvexHull {
+
+	pub fn from_path<T>(path : T, bounding_box : Box2D<f32>) -> Self
+	where T: IntoIterator, T::Item: Borrow<PathOp>, 
+	{
+		let width_and_height = bounding_box.max - bounding_box.min;
+		let raster_scale = 100.0 / f32::min(width_and_height.x, width_and_height.y);
+		let width_and_height = (width_and_height * raster_scale).ceil();
+		let width = width_and_height.x as u32;
+		let height = width_and_height.y as u32;
+		let angle_resolution = 180;
+
+		let transform = Transform::with_translate(-bounding_box.min.x, - bounding_box.min.y).scale(raster_scale, raster_scale);
+
+		let mut p = Plotter::new(Raster::<Matte8>::with_clear(width, height));
+		p.set_transform(transform).fill(FillRule::NonZero, path, Matte8::new(255));
+		let raster = p.raster();
+		let polygon = raster_to_convex_hull_polygon(&raster, 0.1);
+		let convex_raster = rasterize_polygon(&polygon, width, height);
+		let mut outline = sample_raster_outline(
+			&convex_raster, raster_midpoint(&convex_raster), angle_resolution
+		);
+		for v in &mut outline {
+			*v /= raster_scale;
+		}
+		Self {
+			raster,
+			outline,
+			raster_scale,
+			angle_resolution,
+			bounding_box
+		}
+	}
+
+	fn into_raster_coords(&self, mut point : Vector) -> Point {
+		point.y *= -1.0;
+		point *= self.raster_scale;
+		raster_midpoint(&self.raster) + point
+	}
+
+	// This is pre-applied to self.outline.
+	#[allow(dead_code)]
+	fn from_raster_coords(&self, p : Point) -> Vector {
+		let mut v = p - raster_midpoint(&self.raster);
+		v.y *= -1.0;
+		v /= self.raster_scale;
+		v
+	}
+
+	pub fn find_boundary_point(&self, angle : Angle) -> Vector {
+		let index = ((self.angle_resolution as f32) * (angle.positive()/Angle::two_pi())) as usize;
+		self.outline[index]
+	}
+
+	pub fn contains_point(&self, point : Vector) -> bool {
+		let raster_coord = self.into_raster_coords(point);
+		if !Box2D::new(Point::zero(), raster_dimensions(&self.raster)).contains(raster_coord) {
+			return false;
+		}
+		raster_contains_point(&self.raster, raster_coord)
+	}
+
+	pub fn center(&self) -> Point {
+		((self.bounding_box.max.to_vector() + self.bounding_box.min.to_vector()) * 0.5).to_point()
+	}
+}
+
