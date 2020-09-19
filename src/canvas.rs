@@ -401,7 +401,7 @@ impl Canvas {
     
             path.draw(&mut vertex_builder,
                 &mut stroke_tessellator, &StrokeOptions::default(),
-                &mut fill_tessellator, &FillOptions::default(),
+                &mut fill_tessellator,
             )?;
         }
 
@@ -443,7 +443,7 @@ impl Canvas {
 
         let mut path = crate::path::Path::new(start);
         path.line_to(end);
-        path.add_end_arrow(StrokeOptions::DEFAULT_TOLERANCE, crate::arrow::test_arrow());
+        path.add_end_arrow(StrokeOptions::DEFAULT_TOLERANCE, crate::arrow::normal_arrow(1.0));
 
 
 
@@ -456,7 +456,7 @@ impl Canvas {
                
             path.draw(&mut vertex_builder,
                 &mut stroke_tessellator, &StrokeOptions::default(),
-                &mut fill_tessellator, &FillOptions::default(),
+                &mut fill_tessellator,
             )?;
             instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
         }
@@ -648,7 +648,7 @@ impl Canvas {
     
             path.draw(&mut vertex_builder,
                 &mut stroke_tessellator, &StrokeOptions::default(),
-                &mut fill_tessellator, &FillOptions::default(),
+                &mut fill_tessellator,
             )?;
         }
 

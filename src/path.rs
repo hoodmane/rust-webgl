@@ -149,8 +149,6 @@ impl Path {
             self.path.iter().flat_map(path_segment_iter as fn(seg : &PathSegment<f32>) -> PathSegmentIterator)
         ).chain(
             std::iter::once(PathEvent::End { first : self.start, last : self.last_point(), close : false })
-        ).chain(
-            self.end_arrow_event_iterator()
         )
     }
 
@@ -165,20 +163,17 @@ impl Path {
         self.end_arrow = Some((arrow, transform));
     }
 
-    fn end_arrow_event_iterator(&self)  -> impl Iterator<Item = PathEvent> + '_  {
-        self.end_arrow.iter().flat_map(|(arrow, transform)|
-            arrow.stroke_path.iter().flat_map(move |path| path.iter().transformed(transform))
-        )
-    }
-
     pub fn draw(&self,
         vertex_builder : &mut SimpleBuffersBuilder, 
         stroke : &mut StrokeTessellator, stroke_options : &StrokeOptions,
-        fill : &mut FillTessellator, fill_options : &FillOptions, 
+        fill : &mut FillTessellator,
     ) -> Result<(), JsValue> {
         if let Some((arrow, transform)) = &self.end_arrow {
-            if let Some(path) = &arrow.fill_path {
-                fill.tessellate(path.iter().transformed(transform), fill_options, vertex_builder).map_err(convert_error)?;
+            if let Some(fill_options) = &arrow.fill {
+                fill.tessellate(arrow.path.iter().transformed(transform), fill_options, vertex_builder).map_err(convert_error)?;
+            }
+            if let Some(stroke_options) = &arrow.stroke {
+                stroke.tessellate(arrow.path.iter().transformed(transform), stroke_options, vertex_builder).map_err(convert_error)?;
             }
         }
         stroke.tessellate(self.event_iterator(), stroke_options, vertex_builder).map_err(convert_error)?;
