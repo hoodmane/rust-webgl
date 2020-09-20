@@ -4,7 +4,7 @@ use web_sys::{WebGl2RenderingContext};
 
 
 use crate::log;
-use crate::shader::{StencilShader, LineShader, DefaultShader, DefaultShaderIndexed};
+use crate::shader::{LineShader, DefaultShader, DefaultShaderIndexed};
 
 
 use crate::webgl_wrapper::{WebGlWrapper};
@@ -39,7 +39,6 @@ pub struct Canvas {
     origin : Point,
     xscale : f32,
     yscale : f32,
-    stencil_shader : StencilShader,
     grid_shader : LineShader,
     axes_shader : LineShader,
     default_shader : DefaultShader,
@@ -67,8 +66,6 @@ impl Canvas {
     #[wasm_bindgen(constructor)]
     pub fn new(webgl_context : &WebGl2RenderingContext) -> Result<Canvas, JsValue> {
         let webgl = WebGlWrapper::new(webgl_context.clone());
-        // TODO: stencil_shader ==> scissor
-        let stencil_shader = StencilShader::new(webgl.clone())?;
         let grid_shader = LineShader::new(webgl.clone())?;
         let axes_shader = LineShader::new(webgl.clone())?;
         let default_shader = DefaultShader::new(webgl.clone())?;
@@ -82,7 +79,6 @@ impl Canvas {
             xscale : 100.0,
             yscale : 100.0,
             transform : Transform::identity(),
-            stencil_shader,
             grid_shader,
             axes_shader,
             default_shader,
@@ -100,7 +96,6 @@ impl Canvas {
 
     pub fn restore_context(&mut self, webgl_context : &WebGl2RenderingContext) -> Result<(), JsValue> {
         self.webgl = WebGlWrapper::new(webgl_context.clone());
-        self.stencil_shader = StencilShader::new(self.webgl.clone())?;
         self.grid_shader = LineShader::new(self.webgl.clone())?;
         self.axes_shader = LineShader::new(self.webgl.clone())?;
         Ok(())
@@ -117,9 +112,19 @@ impl Canvas {
         self.right_margin = right_margin;
         self.bottom_margin = bottom_margin;
         self.top_margin = top_margin;
-        self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
+        self.update_scissor();
         Ok(())
     }
+
+    fn update_scissor(&self){
+        let chart_region = self.chart_region();
+        let left = (self.left_margin as f64 * self.buffer_dimensions.density()) as i32;
+        let bottom = (self.bottom_margin as f64 * self.buffer_dimensions.density()) as i32;
+        let width = ((self.buffer_dimensions.width() - self.left_margin - self.right_margin) as f64  * self.buffer_dimensions.density()) as i32;
+        let height = ((self.buffer_dimensions.height() - self.top_margin - self.bottom_margin) as f64  * self.buffer_dimensions.density()) as i32;
+        self.webgl.scissor(left, bottom, width, height);
+    }
+
 
     fn chart_region(&self) -> Rect {
         Rect::new(
@@ -130,11 +135,11 @@ impl Canvas {
     }
 
     fn enable_clip(&self){
-        self.webgl.enable(WebGl2RenderingContext::STENCIL_TEST);
+        self.webgl.enable(WebGl2RenderingContext::SCISSOR_TEST);
     }
 
     fn disable_clip(&self){
-        self.webgl.disable(WebGl2RenderingContext::STENCIL_TEST);
+        self.webgl.disable(WebGl2RenderingContext::SCISSOR_TEST);
     }
 
     fn reset_transform(&mut self){
@@ -161,7 +166,7 @@ impl Canvas {
         self.reset_transform();
         
         self.webgl.viewport(self.buffer_dimensions);
-        self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
+        self.update_scissor();
         Ok(())
     }
 
