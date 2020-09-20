@@ -203,7 +203,7 @@ impl ConvexHull {
 			*v /= raster_scale;
 		}
 		Self {
-			raster,
+			raster : convex_raster,
 			outline,
 			raster_scale,
 			angle_resolution,
@@ -212,7 +212,7 @@ impl ConvexHull {
 	}
 
 	fn into_raster_coords(&self, mut point : Vector) -> Point {
-		point.y *= -1.0;
+		// point.y *= -1.0;
 		point *= self.raster_scale;
 		raster_midpoint(&self.raster) + point
 	}
@@ -221,7 +221,7 @@ impl ConvexHull {
 	#[allow(dead_code)]
 	fn from_raster_coords(&self, p : Point) -> Vector {
 		let mut v = p - raster_midpoint(&self.raster);
-		v.y *= -1.0;
+		// v.y *= -1.0;
 		v /= self.raster_scale;
 		v
 	}
@@ -233,9 +233,12 @@ impl ConvexHull {
 
 	pub fn contains_point(&self, point : Vector) -> bool {
 		let raster_coord = self.into_raster_coords(point);
+		// log!("chull contains point? point : {:?}, raster_coord : {:?}", point, raster_coord);
 		if !Box2D::new(Point::zero(), raster_dimensions(&self.raster)).contains(raster_coord) {
+			// log!(" ... outside box raster_dimensions : {:?}", raster_dimensions(&self.raster));
 			return false;
 		}
+		// log!("raster_contains_point?  {}", raster_contains_point(&self.raster, raster_coord));
 		raster_contains_point(&self.raster, raster_coord)
 	}
 

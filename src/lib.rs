@@ -4,10 +4,8 @@
 
 mod console_log;
 mod rect;
-mod font;
 
 mod convex_hull;
-mod node;
 
 mod vector;
 
@@ -21,15 +19,7 @@ mod canvas;
 
 
 mod glyph;
-
-
-
-pub use font::read_font;
-
-// #[wasm_bindgen]
-// pub fn fonterator_test() {
-//     crate::fonterator_test::test();
-// }
+mod edge;
 
 use crate::canvas::Canvas;
 

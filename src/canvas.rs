@@ -1,25 +1,21 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext};
-use std::f32::consts::PI;
+// use std::f32::consts::PI;
 
 
 use crate::log;
-use crate::shader::{LineShader, StencilShader, GlyphShader, HorizontalAlignment, VerticalAlignment, DefaultShader, DefaultShaderIndexed};
+use crate::shader::{StencilShader, LineShader, DefaultShader, DefaultShaderIndexed};
 
-use crate::font::{GlyphCompiler, Glyph, Font};
-use crate::node::Node;
 
-use crate::webgl_wrapper::{WebGlWrapper, Buffer};
+use crate::webgl_wrapper::{WebGlWrapper};
 use lyon::geom::math::{Point, point, Vector, vector, Angle, Transform};
 use crate::vector::{JsPoint, Vec4};
 
 
 use crate::arrow::normal_arrow;
-
+use crate::edge::Edge;
 use crate::rect::{Rect, BufferDimensions};
 
-use crate::arrow::Arrow;
-use crate::convex_hull::{self, ConvexHull};
 
 static BLACK : Vec4 = Vec4::new(0.0, 0.0, 0.0, 1.0);
 static GRID_LIGHT_COLOR : Vec4 = Vec4::new(0.0, 0.0, 0.0, 30.0 / 255.0);
@@ -46,8 +42,6 @@ pub struct Canvas {
     stencil_shader : StencilShader,
     grid_shader : LineShader,
     axes_shader : LineShader,
-    glyph_shader : GlyphShader,
-    glyph_hull_buffer : Buffer,
     default_shader : DefaultShader,
     default_shader_indexed : DefaultShaderIndexed,
     buffer_dimensions : BufferDimensions,
@@ -73,15 +67,14 @@ impl Canvas {
     #[wasm_bindgen(constructor)]
     pub fn new(webgl_context : &WebGl2RenderingContext) -> Result<Canvas, JsValue> {
         let webgl = WebGlWrapper::new(webgl_context.clone());
+        // TODO: stencil_shader ==> scissor
         let stencil_shader = StencilShader::new(webgl.clone())?;
         let grid_shader = LineShader::new(webgl.clone())?;
         let axes_shader = LineShader::new(webgl.clone())?;
         let default_shader = DefaultShader::new(webgl.clone())?;
         let default_shader_indexed = DefaultShaderIndexed::new(webgl.clone())?;
-        let glyph_shader = GlyphShader::new(webgl.clone())?;
         let buffer_dimensions = BufferDimensions::new(1, 1, 0.0);
 
-        let glyph_hull_buffer = webgl.new_buffer();
 
         let mut result = Self {
             webgl,
@@ -92,8 +85,6 @@ impl Canvas {
             stencil_shader,
             grid_shader,
             axes_shader,
-            glyph_shader,
-            glyph_hull_buffer,
             default_shader,
             default_shader_indexed,
             buffer_dimensions,
@@ -112,7 +103,6 @@ impl Canvas {
         self.stencil_shader = StencilShader::new(self.webgl.clone())?;
         self.grid_shader = LineShader::new(self.webgl.clone())?;
         self.axes_shader = LineShader::new(self.webgl.clone())?;
-        self.glyph_shader = GlyphShader::new(self.webgl.clone())?;
         Ok(())
     }
 
@@ -170,7 +160,6 @@ impl Canvas {
         canvas.set_height(self.buffer_dimensions.pixel_height() as u32);
         self.reset_transform();
         
-        self.glyph_shader.resize_buffer(self.buffer_dimensions)?;
         self.webgl.viewport(self.buffer_dimensions);
         self.stencil_shader.set_stencil_rect(self.transform, self.chart_region())?;
         Ok(())
@@ -229,7 +218,6 @@ impl Canvas {
         ).into()
     }
 
-
     pub fn inverse_transform_x(&self, x : f32) -> f32 {
         (x - self.origin.x)/self.xscale
     }
@@ -253,31 +241,6 @@ impl Canvas {
         
         self.webgl.copy_blend_mode();
         self.webgl.render_to_canvas(self.buffer_dimensions);
-        Ok(())
-    }
-
-    pub fn draw_box(&mut self, x : f32, y : f32, width : f32, height : f32) -> Result<(), JsValue> {
-        let mut a = GlyphCompiler::new();
-        a.move_to(Point::new(0.0, 0.0));
-        a.line_to(Point::new(width, 0.0));
-        a.line_to(Point::new(width, height));
-        a.line_to(Point::new(0.0, height));
-        a.move_to(Point::new(0.0, 0.0));       
-        a.close();
-        let glyph = a.end();
-        self.glyph_shader.draw(&glyph, self.transform, Point::new(x, y), 1.0, HorizontalAlignment::Center, VerticalAlignment::Center, Vec4::new(0.0, 0.0, 0.0, 0.0))?;
-        Ok(())
-    }
-
-    pub fn draw_letter(&mut self, 
-        font : &Font, codepoint : u16,  
-        pos : JsPoint, scale : f32,
-        horizontal_alignment : HorizontalAlignment, vertical_alignment : VerticalAlignment,
-        color : Vec4
-    ) -> Result<(), JsValue> {
-        let glyph = font.glyph(codepoint)?.path();
-        // log!("glyph : {:?}", glyph);
-        self.glyph_shader.draw(glyph, self.transform, pos.into(), scale, horizontal_alignment, vertical_alignment, color)?;
         Ok(())
     }
 
@@ -305,146 +268,67 @@ impl Canvas {
         Ok(())
     }
 
-    // fn glyph_convex_hull<'a>(&mut self, glyph : &'a Glyph) -> Result<&'a ConvexHull, JsValue>{
-    //     log!("get_or_try_init");
-    //     glyph.convex_hull.get_or_try_init(||{
-    //         log!("Computing convex hull");
-    //         let scale = CONVEX_HULL_GLYPH_SCALE;
-    //         let glyph_path = glyph.path();
-    
-    //         self.glyph_hull_buffer.resize(self.buffer_dimensions)?;
-    //         self.webgl.render_to(&mut self.glyph_hull_buffer)?;
-    
-    //         let (letter_raster, width, height) = self.glyph_shader.get_raster(glyph_path, self.transform, scale, &mut self.glyph_hull_buffer)?;
-    //         let mut letter_hull = convex_hull::raster_to_convex_hull_polygon(&letter_raster, width as usize, height as usize, Point::new((width/2) as f32, (height/2) as f32), 2, 0.1);
-    //         for v in &mut letter_hull {
-    //             v.y *= -1.0;
-    //             *v /= self.buffer_dimensions.density() as f32;
-    //         }
-    
-    //         let (letter_hull_raster, width, height) = self.default_shader.get_raster(self.transform, &letter_hull, WebGl2RenderingContext::TRIANGLE_FAN, &mut self.glyph_hull_buffer)?;
-    //         let channel = 3; // alpha channel
-    //         let scale = self.buffer_dimensions.density() as f32 * scale;
-    //         Ok(convex_hull::convex_raster_to_convex_hull(letter_hull_raster, width as usize, height as usize, scale, channel, CONVEX_HULL_ANGLE_RESOLUTION))
-    //     })
-    // }
 
-    // pub fn js_find_glyph_boundary_point(&mut self, font : &Font, codepoint : u16, angle : f32) -> Result<JsPoint, JsValue> {
-    //     let glyph = font.glyph(codepoint)?;
-    //     Ok(self.find_glyph_boundary_point(glyph, Angle::degrees(angle))?.into())
-    // }
-
-    // fn find_glyph_boundary_point(&mut self, glyph : &Glyph, angle : Angle) -> Result<Vector, JsValue> {
-    //     let convex_hull = self.glyph_convex_hull(glyph)?;
-    //     Ok(convex_hull.find_boundary_point(angle))
-    // }
-    
-    // pub fn js_glyph_hull(&mut self, font : &Font, codepoint : u16) -> Result<(), JsValue> {
-    //     self.glyph_convex_hull(font.glyph(codepoint)?)?;
-    //     Ok(())
-    // }
-
-    pub fn js_draw_line_to_glyph(&mut self, start : JsPoint, end : JsPoint, font : &Font, codepoint : u16, glyph_scale : f32) -> Result<() /*JsBuffer*/, JsValue> {
-        let glyph = font.glyph(codepoint)?;
-        let start = self.transform_point(start);
-        let end = self.transform_point(end);
-        let node = Node::new(glyph.clone(), end.into(), glyph_scale);
-        self.draw_line_to_glyph(start.into(), &node)
-    }
-
-    // fn draw_line_to_glyph(&mut self, start : Point, node : &Node) -> Result<(), JsValue> {
-
-    //     let mut path = crate::path::Path::new((self.transform_x(0.0), self.transform_y(0.0)));
-    //     path.line_to((self.transform_x(3.0), self.transform_y(1.0)));
-
-    //     let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-            
-    //     {
-    //         // Create the destination vertex and index buffers.
-    //         let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-    
-    //         // Create the tessellator.
-    //         let mut stroke_tessellator = StrokeTessellator::new();
-    //         let mut fill_tessellator = FillTessellator::new();
-    
-    //         path.draw(&mut vertex_builder,
-    //             &mut stroke_tessellator, &StrokeOptions::default(),
-    //             &mut fill_tessellator, &FillOptions::default(),
-    //         )?;
-    //     }
-
-    //     let transform = self.transform;
-    //     self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
-    //     Ok(())
-    // }    
-
-
-    fn draw_line_to_glyph(&mut self, start : Point, node : &Node) -> Result<() /*JsBuffer*/, JsValue> {
-        let mut path = crate::path::Path::new(start);
-        path.line_to(node.center);
-        // log!("node.find_boundary_distance_toward(start) : {}", node.find_boundary_distance_toward(start));
-        path.shorten_end(lyon::tessellation::StrokeOptions::DEFAULT_TOLERANCE, node.find_boundary_distance_toward(start));
-
-        // log!("p1 : {:?}", (self.transform_x(0.0), self.transform_y(0.0)));
-        // log!("p2 : {:?}", (self.transform_x(3.0), self.transform_y(1.0)));
-
-
-        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-            
-        {
-            // Create the destination vertex and index buffers.
-            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-    
-            // Create the tessellator.
-            let mut stroke_tessellator = StrokeTessellator::new();
-            let mut fill_tessellator = FillTessellator::new();
-    
-            path.draw(&mut vertex_builder,
-                &mut stroke_tessellator, &StrokeOptions::default(),
-                &mut fill_tessellator,
-            )?;
-        }
-
-        let transform = self.transform; //.pre_translate(translate.into());
-        self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
-        // node.draw(&mut self.glyph_shader, self.transform, Vec4::new(0.2, 0.5, 0.8, 1.0))?;
-
-        Ok(()) // Ok(JsBuffer::new(triangles))
-    }
-
-    // pub fn draw_text(&mut self) -> Result<(), JsValue> {
-    //     use lyon::path::iterator::PathIterator;
-    //     let path = crate::fonterator_test::test();
-        
-    //     let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-    //     {
-    //         let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-    //         let mut tessellator = FillTessellator::new();
-    //         tessellator.tessellate(
-    //             path.iter().map(|e| *e).transformed(&Transform::scale(30.0, 30.0)),
-    //             &FillOptions::default(),
-    //             &mut vertex_builder
-    //         ).unwrap();
-    //     }
-    //     let transform = self.transform.pre_translate(self.transform_point((0.0, 0.0).into()).into());
-    //     self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
-    //     Ok(())
-    // }
-
-
-    pub fn test_stix_math(&mut self, p : JsPoint, s : String) -> Result<(), JsValue> {
+    pub fn test_speed(&mut self, s : String, angle : f32) -> Result<(), JsValue> {
         use lyon::path::iterator::PathIterator;
         use crate::glyph::{Glyph, GlyphInstance};
         let glyph = Glyph::from_stix(&s);
-        let instance = GlyphInstance::new(glyph, self.transform_point((2.0, 1.0).into()).into(), 30.0);
+        let x_max = 20;
+        let y_max = 20;
+        let mut glyph_instances = Vec::with_capacity(x_max * y_max);
+        for x in 0..x_max {
+            for y in 0..y_max {
+                glyph_instances.push(GlyphInstance::new(glyph.clone(), self.transform_point((x as f32, y as f32).into()).into(), 15.0));
+            }
+        }
+        let mut edge_instances = Vec::with_capacity(x_max * y_max);
+        for x in 1..x_max {
+            for y in 0..y_max {
+                let source = {
+                    let y = 0;
+                    &glyph_instances[x * y_max + y]
+                };
+                let target = {
+                    let x = x - 1;
+                    &glyph_instances[x * y_max + y]
+                };
+                edge_instances.push(Edge::new(source.clone(), target.clone(), Angle::degrees(angle)));
+            }
+        }
+        // let start_instance = GlyphInstance::new(glyph.clone(), self.transform_point(p).into(), 30.0);
+        // let end_instance = GlyphInstance::new(glyph, self.transform_point(q).into(), 30.0);
+        // let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
 
-        let start = self.transform_point(p.into()).into();
-        let end = instance.find_boundary_toward(start);
 
-        let mut path = crate::path::Path::new(start);
-        path.line_to(end);
-        path.add_end_arrow(StrokeOptions::DEFAULT_TOLERANCE, crate::arrow::normal_arrow(1.0));
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+        {
+            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+            // Create the tessellator.
+            let mut stroke_tessellator = StrokeTessellator::new();
+            let mut fill_tessellator = FillTessellator::new();
+            for edge in &edge_instances {
+                edge.tessellate(&mut vertex_builder,
+                    &mut stroke_tessellator, &StrokeOptions::default(),
+                    &mut fill_tessellator,
+                )?;
+            }   
+            for instance in &glyph_instances {
+                instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+            }
+        }
+        let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
+        self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
+        Ok(())
+    }
 
+
+    pub fn test_stix_math(&mut self, p : JsPoint, q : JsPoint, angle : f32, s : String) -> Result<(), JsValue> {
+        use lyon::path::iterator::PathIterator;
+        use crate::glyph::{Glyph, GlyphInstance};
+        let glyph = Glyph::from_stix(&s);
+        let start_instance = GlyphInstance::new(glyph.clone(), self.transform_point(p).into(), 30.0);
+        let end_instance = GlyphInstance::new(glyph, self.transform_point(q).into(), 30.0);
+        let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
 
 
         let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
@@ -454,41 +338,17 @@ impl Canvas {
             let mut stroke_tessellator = StrokeTessellator::new();
             let mut fill_tessellator = FillTessellator::new();
                
-            path.draw(&mut vertex_builder,
+            edge.tessellate(&mut vertex_builder,
                 &mut stroke_tessellator, &StrokeOptions::default(),
                 &mut fill_tessellator,
             )?;
-            instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+            start_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+            end_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
         }
         let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
         self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
         Ok(())
     }
-
-    // pub fn draw_arrow(&mut self, start : Point, end : Point, line_width : f32) {
-    //     let mut poly_line = PolyLine::new(start);
-    //     poly_line.line_to(end);
-
-    // }
-
-    // pub fn get_letter_convex_hull(&mut self, 
-    //     font : &Font, codepoint : u16,
-    //     scale : f32,
-    // ) -> Result<JsBuffer, JsValue> {
-
-    //     let glyph = font.glyph(codepoint)?.path();
-    //     self.glyph_hull_buffer.resize(self.buffer_dimensions)?;
-    //     self.webgl.render_to(&mut self.glyph_hull_buffer)?;
-    //     let (letter, width, height) = self.glyph_shader.get_raster(glyph, self.transform, scale, &mut self.glyph_hull_buffer)?;
-    //     self.webgl.render_to_canvas(self.buffer_dimensions);
-    //     let mut image = convex_hull::convex_hull(&letter, width as usize, height as usize, Point::new((width/2) as f32, (height/2) as f32), 2, 0.1);
-    //     for v in &mut image {
-    //         v.y *= -1.0;
-    //         *v /= self.buffer_dimensions.density() as f32;
-    //     }
-    //     Ok(JsBuffer::new(image))
-    // }
-
 
     pub fn get_test_buffer(&self) -> JsBuffer {
         let mut test_buffer = Vec::new();
@@ -553,7 +413,7 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn draw_line(&mut self, p1 : JsPoint, p2 : JsPoint, p3 : JsPoint) -> Result<(), JsValue> {
+    pub fn draw_triangle(&mut self, p1 : JsPoint, p2 : JsPoint, p3 : JsPoint) -> Result<(), JsValue> {
         let mut triangles : Vec<Point> = Vec::new();
         triangles.push(p1.into());
         triangles.push(p2.into());

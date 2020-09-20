@@ -133,6 +133,7 @@ impl Glyph {
 }
 
 
+#[derive(Clone)]
 pub struct GlyphInstance {
     glyph : Rc<Glyph>,
     center : Point,
@@ -147,6 +148,10 @@ impl GlyphInstance {
             center,
             scale
         }
+    }
+
+    pub fn center(&self) -> Point {
+        self.center
     }
 
     pub fn draw(&self,
@@ -180,7 +185,7 @@ impl GlyphInstance {
 
 
     pub fn contains_point(&self, point : Point) -> bool {
-        self.glyph.convex_hull.contains_point((point - self.center) / self.scale)
+        self.glyph.convex_hull.contains_point(self.into_local_coords(point))
     }
 
     // pub fn point_toward(&self, point : Point) -> Point {

@@ -12,9 +12,9 @@ async function main(){
 
     // window.canvasElement = document.querySelector("canvas");
     // window.context = pkg.get_rust_context(canvasElement.getContext("webgl2"));
-    window.font = await pkg.read_font();
+    // window.font = await pkg.read_font();
     window.App = App;
-    window.app = new App(pkg, "canvas", font);
+    window.app = new App(pkg, "canvas");
 
     // // window.arc_shader = pkg.get_arc_shader();
     // window.line_shader = pkg.get_line_shader();

@@ -11,9 +11,11 @@ use lyon::tessellation::{
 
 use wasm_bindgen::JsValue;
 
-
+use crate::log;
 use crate::path_segment::{PathSegment, PathSegmentIterator};
+use crate::glyph::GlyphInstance;
 use crate::arrow::Arrow;
+
 
 pub struct Path {
     start : Point,
@@ -150,6 +152,45 @@ impl Path {
         ).chain(
             std::iter::once(PathEvent::End { first : self.start, last : self.last_point(), close : false })
         )
+    }
+
+    pub fn shorten_start_to_boundary(&mut self, start : &GlyphInstance, tolerance : f32) {
+        if let PathSegment::Linear(mut seg) = &mut self.path[0] {
+            let from = start.find_boundary_toward(seg.to);
+            seg.from = from;
+            self.start = from;
+        } else {
+            let tolerance = tolerance / 20.0;
+            let seg = self.path[0];
+            for t in seg.flatten_with_t(tolerance){
+                let cur_point = seg.sample(t);
+                log!("cur_point : {:?}, t : {}", cur_point, t);
+                if !start.contains_point(cur_point) {
+                    log!("... done");
+                    self.path[0] = seg.after_split(t);
+                    self.start = cur_point;
+                    return;
+                }
+            }
+        }
+    }
+
+    pub fn shorten_end_to_boundary(&mut self, end : &GlyphInstance, tolerance : f32){
+        let last_segment = self.path.last_mut().unwrap();
+        if let PathSegment::Linear(seg) = last_segment {
+            let to = end.find_boundary_toward(seg.from);
+            seg.to = to;
+        } else {
+            let tolerance = tolerance / 20.0;
+            let seg = last_segment.flip();
+            for t in seg.flatten_with_t(tolerance){
+                let cur_point = seg.sample(t);
+                if !end.contains_point(cur_point) {
+                    *last_segment = seg.after_split(t).flip();
+                    return;
+                }
+            }
+        }
     }
 
     pub fn add_end_arrow(&mut self, tolerance : f32, arrow : Arrow) {

@@ -19,7 +19,9 @@ use lyon::geom::{
 };
 use lyon::path::PathEvent;
 
+use crate::log;
 
+#[derive(Clone, Copy, Debug)]
 pub enum PathSegment<S : Scalar> {
     Linear(LineSegment<S>),
     Quadratic(QuadraticBezierSegment<S>),
@@ -291,14 +293,11 @@ fn arc_flattening_step<S : Scalar>(arc : &Arc<S>, tolerance: S) -> S {
     // Here we make the approximation that for small tolerance values we consider
     // the radius to be constant over each approximated segment.
     let r = (arc.from() - arc.center).length();
-    let a = S::TWO * S::acos((r - tolerance) / r);
-    let result = S::min(a / arc.sweep_angle.radians, S::ONE);
-
-    if result < S::EPSILON {
-        return S::ONE;
-    }
-
-    result
+    // let a = S::TWO * S::acos((r - tolerance) / r);
+    // log!("a / arc.sweep_angle.radians.abs() : {}", a / arc.sweep_angle.radians.abs());
+    // S::min(a / arc.sweep_angle.radians.abs(), S::ONE).max(S::EPSILON)
+    let dtheta = S::TWO * S::asin(tolerance/ (S::TWO * r));
+    S::min(dtheta / arc.sweep_angle.radians.abs(), S::ONE).max(S::EPSILON)
 }
 
 fn flatten_arc_with_t<S : Scalar>(arc : &Arc<S>, tolerance: S) -> FlattenedArcT<S> {
@@ -330,7 +329,7 @@ impl<S : Scalar> Iterator for FlattenedArcT<S> {
         if self.finished {
             return None;
         }
-        let step = arc_flattening_step(&self.iter, self.tolerance);
+        let step = arc_flattening_step(&self.iter, self.tolerance * S::value(100.0));
         if step >= S::ONE {
             self.finished = true;
             return Some(S::ONE);

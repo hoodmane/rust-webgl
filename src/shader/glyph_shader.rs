@@ -1,4 +1,3 @@
-use crate::font::{GlyphPath};
 use crate::shader::{Shader, Geometry};
 use crate::rect::BufferDimensions;
 use crate::vector::{Vec4};
