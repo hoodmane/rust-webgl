@@ -34,7 +34,7 @@ struct Attribute {
 
 pub struct Shader {
     pub webgl : WebGlWrapper,
-    program : WebGlProgram,
+    pub program : WebGlProgram,
     attributes : BTreeMap<u32, Attribute>,
     uuid : Uuid
 }
@@ -117,7 +117,7 @@ impl Shader {
         Ok(())
     }
 
-    fn attrib_location(&self, name : &str) -> Result<u32, JsValue> {
+    pub fn attrib_location(&self, name : &str) -> Result<u32, JsValue> {
         let loc = self.webgl.get_attrib_location(&self.program, &name);
         if loc < 0 {
             Err(JsValue::from_str(&format!("Unknown attribute \"{}\"", name)))

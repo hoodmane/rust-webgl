@@ -4,7 +4,7 @@ use web_sys::{WebGl2RenderingContext};
 
 
 use crate::log;
-use crate::shader::{LineShader, DefaultShader, DefaultShaderIndexed};
+use crate::shader::{new_glyph_shader::GlyphShader, LineShader, DefaultShader, DefaultShaderIndexed};
 
 
 use crate::webgl_wrapper::{WebGlWrapper};
@@ -43,6 +43,7 @@ pub struct Canvas {
     axes_shader : LineShader,
     default_shader : DefaultShader,
     default_shader_indexed : DefaultShaderIndexed,
+    glyph_shader : GlyphShader,
     buffer_dimensions : BufferDimensions,
     left_margin : i32,
     right_margin : i32,
@@ -70,6 +71,7 @@ impl Canvas {
         let axes_shader = LineShader::new(webgl.clone())?;
         let default_shader = DefaultShader::new(webgl.clone())?;
         let default_shader_indexed = DefaultShaderIndexed::new(webgl.clone())?;
+        let glyph_shader = GlyphShader::new(webgl.clone())?;
         let buffer_dimensions = BufferDimensions::new(1, 1, 0.0);
 
 
@@ -83,6 +85,7 @@ impl Canvas {
             axes_shader,
             default_shader,
             default_shader_indexed,
+            glyph_shader,
             buffer_dimensions,
             left_margin : 10,
             right_margin : 50,
@@ -117,7 +120,6 @@ impl Canvas {
     }
 
     fn update_scissor(&self){
-        let chart_region = self.chart_region();
         let left = (self.left_margin as f64 * self.buffer_dimensions.density()) as i32;
         let bottom = (self.bottom_margin as f64 * self.buffer_dimensions.density()) as i32;
         let width = ((self.buffer_dimensions.width() - self.left_margin - self.right_margin) as f64  * self.buffer_dimensions.density()) as i32;
@@ -274,32 +276,33 @@ impl Canvas {
     }
 
 
-    pub fn test_speed(&mut self, s : String, angle : f32) -> Result<(), JsValue> {
+    pub fn test_speed_setup(&mut self, s : String, angle : f32) -> Result<(), JsValue> {
         use lyon::path::iterator::PathIterator;
         use crate::glyph::{Glyph, GlyphInstance};
         let glyph = Glyph::from_stix(&s);
-        let x_max = 20;
-        let y_max = 20;
-        let mut glyph_instances = Vec::with_capacity(x_max * y_max);
-        for x in 0..x_max {
-            for y in 0..y_max {
-                glyph_instances.push(GlyphInstance::new(glyph.clone(), self.transform_point((x as f32, y as f32).into()).into(), 15.0));
-            }
-        }
-        let mut edge_instances = Vec::with_capacity(x_max * y_max);
-        for x in 1..x_max {
-            for y in 0..y_max {
-                let source = {
-                    let y = 0;
-                    &glyph_instances[x * y_max + y]
-                };
-                let target = {
-                    let x = x - 1;
-                    &glyph_instances[x * y_max + y]
-                };
-                edge_instances.push(Edge::new(source.clone(), target.clone(), Angle::degrees(angle)));
-            }
-        }
+        let x_max = 100;
+        let y_max = 70;
+        // let mut glyph_instances = Vec::with_capacity(x_max * y_max);
+        // for x in 0..x_max {
+        //     for y in 0..y_max {
+        //         glyph_instances.push(GlyphInstance::new(glyph.clone(), self.transform_point((x as f32, y as f32).into()).into(), 15.0));
+        //     }
+        // }
+        let centered_instance = GlyphInstance::new(glyph.clone(), point(0.0, 0.0), 30.0);
+        // let mut edge_instances = Vec::with_capacity(x_max * y_max);
+        // for x in 1..x_max {
+        //     for y in 0..y_max {
+        //         let source = {
+        //             let y = 0;
+        //             &glyph_instances[x * y_max + y]
+        //         };
+        //         let target = {
+        //             let x = x - 1;
+        //             &glyph_instances[x * y_max + y]
+        //         };
+        //         edge_instances.push(Edge::new(source.clone(), target.clone(), Angle::degrees(angle)));
+        //     }
+        // }
         // let start_instance = GlyphInstance::new(glyph.clone(), self.transform_point(p).into(), 30.0);
         // let end_instance = GlyphInstance::new(glyph, self.transform_point(q).into(), 30.0);
         // let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
@@ -309,21 +312,35 @@ impl Canvas {
         {
             let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
             // Create the tessellator.
-            let mut stroke_tessellator = StrokeTessellator::new();
+            // let mut stroke_tessellator = StrokeTessellator::new();
             let mut fill_tessellator = FillTessellator::new();
-            for edge in &edge_instances {
-                edge.tessellate(&mut vertex_builder,
-                    &mut stroke_tessellator, &StrokeOptions::default(),
-                    &mut fill_tessellator,
-                )?;
-            }   
-            for instance in &glyph_instances {
-                instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+            // for edge in &edge_instances {
+            //     edge.tessellate(&mut vertex_builder,
+            //         &mut stroke_tessellator, &StrokeOptions::default(),
+            //         &mut fill_tessellator,
+            //     )?;
+            // }   
+            centered_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+        }
+        self.glyph_shader.clear_glyphs();
+        self.glyph_shader.glyph_data("a".to_string(), &buffers.vertices, &buffers.indices, 0);
+
+        for x in 0..x_max {
+            for y in 0..y_max {
+                self.glyph_shader.add_glyph("a", point(x as f32, y as f32), Vec4::new(0.0, 0.0, 0.0, 1.0));
             }
         }
-        let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
-        self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
         Ok(())
+    }
+
+    pub fn test_speed(&mut self)  -> Result<(), JsValue> {
+        // let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
+        self.glyph_shader.draw(self.transform, self.origin, point(self.xscale, -self.yscale))?;
+        Ok(())
+
+        // // let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
+        // self.glyph_shader.draw(self.transform)?;
+        // Ok(())
     }
 
 

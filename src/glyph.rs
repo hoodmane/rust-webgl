@@ -136,7 +136,7 @@ impl Glyph {
 #[derive(Clone)]
 pub struct GlyphInstance {
     glyph : Rc<Glyph>,
-    center : Point,
+    pub center : Point,
     scale : f32
 }
 

@@ -82,7 +82,7 @@ export class App {
         event.preventDefault();
         this._stopAnimation();
         let direction = Math.sign(event.deltaY);
-        this._canvas.scale_around(Math.pow(0.95, direction), new Vec2(event.clientX, event.clientY));
+        this._canvas.scale_around(Math.pow(0.9, direction), new Vec2(event.clientX, event.clientY));
         this._requestRedraw();
     }
     
@@ -250,7 +250,8 @@ export class App {
         this._canvas.start_frame();
         this._canvas.draw_grid();
         this._canvas.render();
-        this._canvas.test_speed("\u220e", 0.0);
+        // this._canvas.test_speed("\u220e", 0.0);
+        this._canvas.test_speed(); //"a", 0.0);
         // this._canvas.draw_box(
         //     this._canvas.transform_x(1), this._canvas.transform_y(1), 
         //     10, 10
