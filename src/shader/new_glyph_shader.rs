@@ -66,14 +66,8 @@ pub struct GlyphShader {
     texture_rows : usize, // This reminds us how big the texture currently is so we know whether we need to resize it.
 }
 
-// #[derive(Debug)]
-// #[repr(C)]
-// struct Test {
-//     pt : Point,
-//     integer : i16,
-// }
-
 #[derive(Debug)]
+#[repr(C)]
 struct GlyphInstance {
     position : Point,
     color : Vec4,
@@ -111,10 +105,15 @@ impl GlyphShader {
                 }                
                 
                 void main() {
-                    // int aGlyphDataIndex = 0;
-                    int vertexIdx = 0 + gl_VertexID;
-                    vec2 vertexPosition = getValueByIndexFromTexture(uGlyphDataTexture, vertexIdx).xy;
-                    
+                    vec2 vertexPosition;
+                    if(gl_VertexID < aGlyphNumVertices) {
+                        int vertexIdx = aGlyphDataIndex + gl_VertexID;
+                        vertexPosition = getValueByIndexFromTexture(uGlyphDataTexture, vertexIdx).xy;
+                    } else {
+                        vertexPosition = vec2(0.0, 0.0); // degenerate vertex
+                    }
+
+
                     vec2 transformedPosition = uOrigin +  uScale * aPosition;
                     gl_Position = vec4(uTransformationMatrix * vec3(transformedPosition + vertexPosition, 1.0), 0.0, 1.0);
 
@@ -128,7 +127,7 @@ impl GlyphShader {
                     blue_channel = float(aGlyphNumVertices);
                     
                     fColor = aColor;
-                    fColor = vec4(aPosition/1000.0, blue_channel/255.0, 1.0);
+                    fColor = vec4((gl_Position.xy + 1.0)/2.0, 0.0, 0.4).rbga;
 
                 }
             "#,
@@ -150,21 +149,6 @@ impl GlyphShader {
         // IMPORTANT: Must bind_buffer here!!!!
         // vertex_attrib_pointer uses the current bound buffer implicitly.
         webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, attributes_buffer.as_ref());
-
-
-        // let position_loc : u32 = webgl.get_attrib_location(&shader.program, "aPosition").try_into().unwrap();
-        // let stride = std::mem::size_of::<Test>() as i32;
-        // log!("stride=10? {}", stride);
-        // webgl.vertex_attrib_pointer_with_i32(position_loc, 2, WebGl2RenderingContext::FLOAT, false, stride, 0);
-        // webgl.enable_vertex_attrib_array(position_loc);
-        // webgl.vertex_attrib_divisor(position_loc, 1);
-
-
-        // let test_loc : u32 = webgl.get_attrib_location(&shader.program, "aTest").try_into().unwrap();
-        // webgl.vertex_attrib_i_pointer_with_i32(test_loc, 1, WebGl2RenderingContext::SHORT, stride, 8);
-        // webgl.enable_vertex_attrib_array(test_loc);
-        // webgl.vertex_attrib_divisor(test_loc, 1);
-        // webgl.bind_vertex_array(None);
 
 
         let position_loc : u32 = webgl.get_attrib_location(&shader.program, "aPosition").try_into().map_err(|_| "aPosition")?;
@@ -312,17 +296,26 @@ impl GlyphShader {
         Ok(())
     }
 
-    pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) -> Result<(), JsValue> {
-        self.shader.use_program();
-        self.shader.set_uniform_transform("uTransformationMatrix", transform);
+    pub fn prepare(&mut self) -> Result<(), JsValue> {
         self.shader.set_uniform_int("uGlyphDataTexture", 0);
-        self.shader.set_uniform_point("uOrigin", origin);
-        self.shader.set_uniform_point("uScale", scale);
-        self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
+        self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.set_buffer_data();
         self.ensure_texture_size();
         self.set_texture_data()?;
+        self.webgl.bind_vertex_array(None);
+        Ok(())
+    }
+
+    pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) -> Result<(), JsValue> {
+        self.shader.use_program();
+        self.webgl.bind_vertex_array(self.attribute_state.as_ref());
+        self.shader.set_uniform_transform("uTransformationMatrix", transform);
+        self.shader.set_uniform_point("uOrigin", origin);
+        self.shader.set_uniform_point("uScale", scale);
+        self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.data_texture.as_ref());
+
         let num_instances = self.glyph_instances.len() as i32;
         let num_vertices = self.max_glyph_num_vertices as i32;
         self.webgl.draw_arrays_instanced(

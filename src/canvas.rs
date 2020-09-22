@@ -276,19 +276,13 @@ impl Canvas {
     }
 
 
-    pub fn test_speed_setup(&mut self, s : String, angle : f32) -> Result<(), JsValue> {
+    pub fn test_speed_setup(&mut self, s1 : String, s2 : String, xy_max : usize,  scale : f32) -> Result<(), JsValue> {
         use lyon::path::iterator::PathIterator;
         use crate::glyph::{Glyph, GlyphInstance};
-        let glyph = Glyph::from_stix(&s);
-        let x_max = 100;
-        let y_max = 70;
-        // let mut glyph_instances = Vec::with_capacity(x_max * y_max);
-        // for x in 0..x_max {
-        //     for y in 0..y_max {
-        //         glyph_instances.push(GlyphInstance::new(glyph.clone(), self.transform_point((x as f32, y as f32).into()).into(), 15.0));
-        //     }
-        // }
-        let centered_instance = GlyphInstance::new(glyph.clone(), point(0.0, 0.0), 30.0);
+        let glyph1 = Glyph::from_stix(&s1);
+        let centered_instance1 = GlyphInstance::new(glyph1.clone(), point(0.0, 0.0), scale);
+        let glyph2 = Glyph::from_stix(&s2);
+        let centered_instance2 = GlyphInstance::new(glyph2.clone(), point(0.0, 0.0), scale);
         // let mut edge_instances = Vec::with_capacity(x_max * y_max);
         // for x in 1..x_max {
         //     for y in 0..y_max {
@@ -320,16 +314,29 @@ impl Canvas {
             //         &mut fill_tessellator,
             //     )?;
             // }   
-            centered_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+            centered_instance1.draw(&mut vertex_builder, &mut fill_tessellator)?;
         }
         self.glyph_shader.clear_glyphs();
         self.glyph_shader.glyph_data("a".to_string(), &buffers.vertices, &buffers.indices, 0);
 
-        for x in 0..x_max {
-            for y in 0..y_max {
-                self.glyph_shader.add_glyph("a", point(x as f32, y as f32), Vec4::new(0.0, 0.0, 0.0, 1.0));
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+        {
+            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+            let mut fill_tessellator = FillTessellator::new();
+            centered_instance2.draw(&mut vertex_builder, &mut fill_tessellator)?;
+        }
+
+        self.glyph_shader.glyph_data("b".to_string(), &buffers.vertices, &buffers.indices, 0);
+
+        for x in 0..xy_max {
+            for y in 0..xy_max {
+                let s = if (x + y) % 2 == 1 { "b" } else { "a" };
+                self.glyph_shader.add_glyph(s, point(x as f32, y as f32), Vec4::new(0.0, 0.0, 0.0, 1.0));
             }
         }
+
+
+        self.glyph_shader.prepare()?;
         Ok(())
     }
 

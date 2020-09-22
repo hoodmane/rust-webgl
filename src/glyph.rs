@@ -159,7 +159,7 @@ impl GlyphInstance {
     ) -> Result<(), JsValue> {
         let transform = Transform::identity().then_translate(- self.glyph.convex_hull.center().to_vector()).then_scale(self.scale, self.scale).then_translate(self.center.to_vector());
         let path = self.glyph.path.iter().map(|e| *e).transformed(&transform);
-        fill.tessellate(path, &FillOptions::default(), vertex_builder).map_err(convert_error)?;
+        fill.tessellate(path, &FillOptions::default().with_tolerance(0.2), vertex_builder).map_err(convert_error)?;
         Ok(())
     }
 

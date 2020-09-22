@@ -82,7 +82,7 @@ export class App {
         event.preventDefault();
         this._stopAnimation();
         let direction = Math.sign(event.deltaY);
-        this._canvas.scale_around(Math.pow(0.9, direction), new Vec2(event.clientX, event.clientY));
+        this._canvas.scale_around(Math.pow(0.6, direction), new Vec2(event.clientX, event.clientY));
         this._requestRedraw();
     }
     
