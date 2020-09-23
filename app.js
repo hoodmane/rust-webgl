@@ -37,8 +37,8 @@ export class App {
         let canvasContext = canvasElement.getContext("webgl2", WEBGL_OPTIONS);
         this.pkg = pkg;
         this._canvas = new pkg.Canvas(canvasContext);
-        this._canvas.set_xrange(-10, 10);
-        this._canvas.set_yrange(-10, 10);
+        this._canvas.set_current_xrange(-10, 10);
+        this._canvas.set_current_yrange(-10, 10);
         canvasElement.addEventListener("mousedown", this.handleMouseDown.bind(this));
         canvasElement.addEventListener("mouseup", this.handleMouseUp.bind(this));
         canvasElement.addEventListener("mousemove", this.handleMouseMove.bind(this));

@@ -66,7 +66,7 @@ pub struct GlyphShader {
     texture_rows : usize, // This reminds us how big the texture currently is so we know whether we need to resize it.
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 struct GlyphInstance {
     position : Point,
@@ -90,7 +90,7 @@ impl GlyphShader {
                 in int aGlyphDataIndex;
                 in int aGlyphNumVertices;
 
-                out vec4 fColor;
+                flat out vec4 fColor;
 
                 vec2 testPositions[6] = vec2[](
                     vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5),
@@ -112,28 +112,14 @@ impl GlyphShader {
                     } else {
                         vertexPosition = vec2(0.0, 0.0); // degenerate vertex
                     }
-
-
                     vec2 transformedPosition = uOrigin +  uScale * aPosition;
                     gl_Position = vec4(uTransformationMatrix * vec3(transformedPosition + vertexPosition, 1.0), 0.0, 1.0);
-
-                    float blue_channel;
-                    if(aGlyphDataIndex == 0){
-                        blue_channel = 0.0;
-                    } else {
-                        blue_channel = 1.0;
-                    }
-
-                    blue_channel = float(aGlyphNumVertices);
-                    
                     fColor = aColor;
-                    fColor = vec4((gl_Position.xy + 1.0)/2.0, 0.0, 0.4).rbga;
-
                 }
             "#,
             r#"#version 300 es
                 precision highp float;
-                /*flat*/ in vec4 fColor;
+                flat in vec4 fColor;
                 out vec4 outColor;
                 void main() {
                     outColor = fColor;

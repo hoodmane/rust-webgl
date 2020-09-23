@@ -9,6 +9,7 @@ use std::convert::From;
 
 
 #[wasm_bindgen(inspectable)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct JsPoint {
     pub x : f32,
