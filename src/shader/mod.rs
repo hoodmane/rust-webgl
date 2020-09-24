@@ -6,7 +6,9 @@ mod line_shader;
 mod shader_indexed;
 mod default_shader_indexed;
 
+
 pub mod new_glyph_shader;
+pub mod edge_shader;
 
 pub use shader::{Shader, Geometry};
 pub use default_shader::DefaultShader;
