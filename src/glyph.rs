@@ -130,6 +130,10 @@ impl Glyph {
             convex_hull : ConvexHull::from_path(path, bounding_box)
         })
     }
+    
+    pub fn boundary(&self) -> &Vec<Vector> {
+        &self.convex_hull.outline
+    }
 }
 
 

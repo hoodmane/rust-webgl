@@ -19,6 +19,7 @@ use crate::shader::Shader;
 use crate::vector::Vec4;
 
 
+
 const DATA_ROW_SIZE : usize = 2048;
 
 
@@ -191,13 +192,13 @@ impl GlyphShader {
     pub fn glyph_data(&mut self, glyph_name : String, vertices : &[Point], indices : &[u16], index_offset : u16){
         let glyph_index = self.num_vertices;
         let glyph_num_vertices = indices.len();
-        if self.num_vertices + glyph_num_vertices > self.vertices.len() {
+        while self.num_vertices + indices.len() >= self.vertices.len() {
             self.vertices.extend_from_slice(&[Point::new(0.0, 0.0); DATA_ROW_SIZE]);
         }
-        for &i in indices {
-            self.vertices[self.num_vertices] = vertices[(i - index_offset) as usize];
-            self.num_vertices += 1;
-        }
+        self.vertices.splice(self.num_vertices .. self.num_vertices + glyph_num_vertices, 
+            indices.iter().map(|&i| vertices[(i - index_offset) as usize])
+        ).for_each(drop);
+        self.num_vertices += glyph_num_vertices;
         log!("glyph data : vertices: {:?}", &self.vertices[0..self.num_vertices]);
         self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(glyph_num_vertices);
         self.glyph_map.insert(glyph_name, (glyph_index.try_into().unwrap(), glyph_num_vertices.try_into().unwrap()));
@@ -283,7 +284,6 @@ impl GlyphShader {
     }
 
     pub fn prepare(&mut self) -> Result<(), JsValue> {
-        self.shader.set_uniform_int("uGlyphDataTexture", 0);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.set_buffer_data();
@@ -295,6 +295,7 @@ impl GlyphShader {
 
     pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) -> Result<(), JsValue> {
         self.shader.use_program();
+        self.shader.set_uniform_int("uGlyphDataTexture", 0);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
         self.shader.set_uniform_point("uOrigin", origin);

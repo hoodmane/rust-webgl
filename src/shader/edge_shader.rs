@@ -17,20 +17,20 @@ struct EdgeInstance {
     color : Vec4,
     dash_pattern : u8, // Dash pattern a texture?
 
-    num_edge_vertices : u8, // Possibly pack is-it-a-circle in here too?
-    edge_index : u16,
-    start_arrow_index : u16,
-    num_vertices_start_arrow : u16,
-    end_arrow_index : u16,
-    num_vertices_end_arrow : u16,
+    // num_edge_vertices : u8, // Possibly pack is-it-a-circle in here too?
+    // edge_index : u16,
+    // start_arrow_index : u16,
+    // num_vertices_start_arrow : u16,
+    // end_arrow_index : u16,
+    // num_vertices_end_arrow : u16,
 
     start_tangent_angle : f32,
-    start_tip_setback : f32,
+    // start_tip_setback : f32,
     start_line_setback : f32,
 
     end_tangent_angle : f32,
-    end_tip_setback : f32,
-    end_line_setback : f32,
+    // end_tip_setback : f32,
+    // end_line_setback : f32,
 }
 
 pub struct EdgeShader {
@@ -153,7 +153,6 @@ impl EdgeShader {
                     float bound = min(inner_bound, outer_bound);
                     float alpha = aaStep(0.0, bound);
                     outColor.a *= alpha;
-
                     if(alpha == 0.0) {
                         discard;
                     }

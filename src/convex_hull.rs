@@ -13,6 +13,8 @@ use footile::{PathBuilder, PathOp, Plotter, FillRule, Transform};
 use pix::{Raster, el::Pixel, chan::Channel, matte::Matte8};
 
 
+pub const ANGLE_RESOLUTION : usize = 180;
+
 fn raster_midpoint<P: Pixel>(raster : &Raster<P>) -> Point {
 	Point::new((raster.width()/2) as f32, (raster.height()/2) as f32)
 }
@@ -27,17 +29,11 @@ fn raster_contains_point<P: Pixel>(raster : &Raster<P>, point : Point) -> bool {
 
 
 fn raster_to_convex_hull_polygon<P: Pixel>(raster : &Raster<P>, precision : f32) -> Vec<Vector> {
-	let point_count = ray_count(raster.width(), raster.height(), 0);
-	let mut convex_hull = sample_raster_outline(raster, Point::origin(), point_count);
+	let mut convex_hull = sample_raster_outline(raster, Point::origin(), ANGLE_RESOLUTION);
 	average_nearby_points(&mut convex_hull, precision);
 	graham_scan(&mut convex_hull);
 	// convex_hull.shrink_to_fit();
 	convex_hull
-}
-
-
-fn ray_count(_width : u32, _height : u32, _spacing : usize) -> usize {
-	180 // (width + height) / (spacing >> 1)
 }
 
 
@@ -173,7 +169,6 @@ pub struct ConvexHull {
 	raster : Raster<Matte8>,
 	pub outline : Vec<Vector>,
 	raster_scale : f32,
-	angle_resolution : usize,
 	bounding_box : Box2D<f32>
 }
 
@@ -187,7 +182,7 @@ impl ConvexHull {
 		let width_and_height = (width_and_height * raster_scale).ceil();
 		let width = width_and_height.x as u32;
 		let height = width_and_height.y as u32;
-		let angle_resolution = 180;
+
 
 		let transform = Transform::with_translate(-bounding_box.min.x, - bounding_box.min.y).scale(raster_scale, raster_scale);
 
@@ -197,7 +192,7 @@ impl ConvexHull {
 		let polygon = raster_to_convex_hull_polygon(&raster, 0.1);
 		let convex_raster = rasterize_polygon(&polygon, width, height);
 		let mut outline = sample_raster_outline(
-			&convex_raster, raster_midpoint(&convex_raster), angle_resolution
+			&convex_raster, raster_midpoint(&convex_raster), ANGLE_RESOLUTION
 		);
 		for v in &mut outline {
 			*v /= raster_scale;
@@ -206,7 +201,6 @@ impl ConvexHull {
 			raster : convex_raster,
 			outline,
 			raster_scale,
-			angle_resolution,
 			bounding_box
 		}
 	}
@@ -227,7 +221,7 @@ impl ConvexHull {
 	}
 
 	pub fn find_boundary_point(&self, angle : Angle) -> Vector {
-		let index = ((self.angle_resolution as f32) * (angle.positive()/Angle::two_pi())) as usize;
+		let index = ((ANGLE_RESOLUTION as f32) * (angle.positive()/Angle::two_pi())) as usize;
 		self.outline[index]
 	}
 

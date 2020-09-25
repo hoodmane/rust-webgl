@@ -571,6 +571,54 @@ impl Canvas {
         edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
         Ok(())
     }
+
+    pub fn test_edge_shader(&mut self, start : JsPoint, end : JsPoint, s1 : String, s2 : String, scale : f32 ) -> Result<(), JsValue> {
+
+        use lyon::path::iterator::PathIterator;
+        use crate::glyph::{Glyph, GlyphInstance};
+        let glyph1 = Glyph::from_stix(&s1);
+        let centered_instance1 = GlyphInstance::new(glyph1.clone(), point(0.0, 0.0), scale);
+        let glyph2 = Glyph::from_stix(&s2);
+        let centered_instance2 = GlyphInstance::new(glyph2.clone(), point(0.0, 0.0), scale);
+        self.glyph_shader.clear_glyphs();
+
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+        {
+            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+            let mut fill_tessellator = FillTessellator::new();
+            centered_instance1.draw(&mut vertex_builder, &mut fill_tessellator)?;
+        }
+        self.glyph_shader.glyph_data("a".to_string(), &buffers.vertices, &buffers.indices, 0);
+
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+        {
+            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+            let mut fill_tessellator = FillTessellator::new();
+            centered_instance2.draw(&mut vertex_builder, &mut fill_tessellator)?;
+        }
+
+        self.glyph_shader.glyph_data("b".to_string(), &buffers.vertices, &buffers.indices, 0);
+
+        let start : Point = start.into();
+        let end : Point = end.into();
+        self.glyph_shader.add_glyph("a", start, Vec4::new(0.0, 0.0, 1.0, 1.0));
+        self.glyph_shader.add_glyph("b", end, Vec4::new(0.0, 0.0, 1.0, 1.0));
+        let glyph1 = Glyph::from_stix(&s1);
+        let glyph2 = Glyph::from_stix(&s2);
+
+        self.glyph_shader.prepare()?;
+        self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y))?;
+
+        let mut edge_shader = crate::shader::edge_shader_test::TestEdgeShader::new(self.webgl.clone())?;
+
+        edge_shader.glyph_boundary_data("a".to_string(), glyph1.boundary());
+        edge_shader.glyph_boundary_data("b".to_string(), glyph2.boundary());
+        edge_shader.add_edge(start, end, "a", "b", scale, scale);
+        edge_shader.prepare()?;
+ 
+        edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
+        Ok(())
+    }
 }
 
 use lyon::tessellation::TessellationError;
