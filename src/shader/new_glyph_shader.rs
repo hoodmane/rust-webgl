@@ -51,17 +51,18 @@ pub struct GlyphShader {
     pub shader : Shader,
     glyph_map : BTreeMap<String, (u16, u16)>,
 
-    // Vertices has its length padded to a multiple of DATA_ROW_SIZE so that it will fit correctly into the data_texture
-    // so we need to separately store the number of actually used entries separately.
-    vertices : Vec<Point>,
-    num_vertices : usize,
-
-    max_glyph_num_vertices : usize,
     glyph_instances : Vec<GlyphInstance>,
 
     
     attribute_state : Option<WebGlVertexArrayObject>,
     attributes_buffer : Option<WebGlBuffer>,
+
+    // Vertices has its length padded to a multiple of DATA_ROW_SIZE so that it will fit correctly into the data_texture
+    // so we need to separately store the number of actually used entries separately.
+    vertices : Vec<Point>,
+    num_vertices : usize,
+    max_glyph_num_vertices : usize,
+
 
     data_texture : Option<WebGlTexture>,
     texture_rows : usize, // This reminds us how big the texture currently is so we know whether we need to resize it.
@@ -103,7 +104,7 @@ impl GlyphShader {
                     int col = index % texWidth;
                     int row = index / texWidth;
                     return texelFetch(tex, ivec2(col, row), 0);
-                }                
+                }
                 
                 void main() {
                     vec2 vertexPosition;

@@ -582,22 +582,21 @@ impl Canvas {
         let centered_instance2 = GlyphInstance::new(glyph2.clone(), point(0.0, 0.0), scale);
         self.glyph_shader.clear_glyphs();
 
-        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
         {
+            let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
             let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
             let mut fill_tessellator = FillTessellator::new();
             centered_instance1.draw(&mut vertex_builder, &mut fill_tessellator)?;
+            self.glyph_shader.glyph_data("a".to_string(), &buffers.vertices, &buffers.indices, 0);
         }
-        self.glyph_shader.glyph_data("a".to_string(), &buffers.vertices, &buffers.indices, 0);
 
-        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-        {
+        {       
+            let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
             let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
             let mut fill_tessellator = FillTessellator::new();
             centered_instance2.draw(&mut vertex_builder, &mut fill_tessellator)?;
+            self.glyph_shader.glyph_data("b".to_string(), &buffers.vertices, &buffers.indices, 0);
         }
-
-        self.glyph_shader.glyph_data("b".to_string(), &buffers.vertices, &buffers.indices, 0);
 
         let start : Point = start.into();
         let end : Point = end.into();
@@ -609,14 +608,36 @@ impl Canvas {
         self.glyph_shader.prepare()?;
         self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y))?;
 
-        let mut edge_shader = crate::shader::edge_shader_test::TestEdgeShader::new(self.webgl.clone())?;
+        // let mut edge_shader = crate::shader::edge_shader_test::TestEdgeShader::new(self.webgl.clone())?;
+        let mut edge_shader2 = crate::shader::edge_shader_test2::TestEdgeShader::new(self.webgl.clone())?;
 
-        edge_shader.glyph_boundary_data("a".to_string(), glyph1.boundary());
-        edge_shader.glyph_boundary_data("b".to_string(), glyph2.boundary());
-        edge_shader.add_edge(start, end, "a", "b", scale, scale);
-        edge_shader.prepare()?;
+
+        {       
+            let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+            let mut fill = FillTessellator::new();
+            let mut stroke = StrokeTessellator::new();
+
+            let arrow = crate::arrow::normal_arrow(2.0);
+
+            if let Some(fill_options) = &arrow.fill {
+                fill.tessellate(arrow.path.iter(), fill_options, &mut vertex_builder).map_err(convert_error)?;
+            }
+            if let Some(stroke_options) = &arrow.stroke {
+                stroke.tessellate(arrow.path.iter(), stroke_options, &mut vertex_builder).map_err(convert_error)?;
+            }
+            edge_shader2.arrow_tip_data(">".to_string(), &buffers.vertices, &buffers.indices, 0);
+        }
+
+        
+
+        edge_shader2.glyph_boundary_data("a".to_string(), glyph1.boundary());
+        edge_shader2.glyph_boundary_data("b".to_string(), glyph2.boundary());
+        edge_shader2.add_edge(start, end, "a", "b", scale, scale, Some(">"), Some(">"));
+        edge_shader2.prepare()?;
  
-        edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
+        // edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
+        edge_shader2.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
         Ok(())
     }
 }

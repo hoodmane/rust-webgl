@@ -11,6 +11,7 @@ pub mod new_glyph_shader;
 pub mod edge_shader;
 
 pub mod edge_shader_test;
+pub mod edge_shader_test2;
 
 pub use shader::{Shader, Geometry};
 pub use default_shader::DefaultShader;

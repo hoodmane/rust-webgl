@@ -36,26 +36,26 @@ fn webgl_enum_of_type(ty : Type) -> u32 {
     }
 }
 
-const ATTRIBUTES : [(&str, i32, Type); 7] = [
-    ("aColor", 4, Type::Float), // color
+const ATTRIBUTES : [(&str, i32, Type); 4] = [
+    // ("aColor", 4, Type::Float), // color
     ("aStartPosition", 2, Type::Float), // start_position
-    ("aEndPosition", 2, Type::Float), // end_position
+    // ("aEndPosition", 2, Type::Float), // end_position
     ("aStartGlyph", 1, Type::Short), // start_glyph
     ("aEndGlyph", 1, Type::Short), // end_glyph
     ("aStartGlyphScale", 1, Type::Float), // start_glyph_scale
-    ("aEndGlyphScale", 1, Type::Float), // end_glyph_scale
+    // ("aEndGlyphScale", 1, Type::Float), // end_glyph_scale
 ];
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 struct EdgeInstance {
-    color : Vec4,
+    // color : Vec4,
     start_position : Point,
-    end_position : Point,
+    // end_position : Point,
     start_glyph : u16,
     end_glyph : u16,
     start_glyph_scale : f32,
-    end_glyph_scale : f32,
+    // end_glyph_scale : f32,
 }
 
 
@@ -149,54 +149,71 @@ impl TestEdgeShader {
                     vec2(0.8, 1.34641), vec2(2.2, 1.34641), vec2(1.5, 0.133975)
                 );
 
+                // Note: this variant counts each pixel as 4 distinct floats.
                 float getValueByIndexFromTexture(sampler2D tex, int index) {
                     int texWidth = textureSize(tex, 0).x;
                     int channel = index % 4;
-                    int texOffset = index / 4
+                    int texOffset = index / 4;
                     int col = texOffset % texWidth;
                     int row = texOffset / texWidth;
                     return texelFetch(tex, ivec2(col, row), 0)[channel];
                 }
 
                 float getGlyphBoundaryPoint(sampler2D tex, int glyph, float angle){
-                    int index = (int(angle / (2.0 * M_PI) * float(ANGLE_RES)) + ANGLE_RES) % ANGLE_RES;
-                    int texOffset = ANGLE_RES * glyph + pixelOffset;
-                    vec4 pixel = getValueByIndexFromTexture(tex, texOffset);
-                    return pixel[pixelChannel];
+                    int glyph_index = (int(angle / (2.0 * M_PI) * float(ANGLE_RES)) + ANGLE_RES) % ANGLE_RES;
+                    int total_index = ANGLE_RES * glyph + glyph_index;
+                    return getValueByIndexFromTexture(tex, total_index);
                 }
                 
                 void main() {
                     vec2 transformedStart = uOrigin +  uScale * aStartPosition;
-                    vec2 transformedEnd = uOrigin +  uScale * aEndPosition;
 
-                    vec2 displacement = normalize(transformedStart - transformedEnd);
-                    float angle = atan(displacement.y, displacement.x);
-                    float startOffset = aStartGlyphScale * getGlyphBoundaryPoint(uGlyphDataTexture, aStartGlyph, angle);
-                    float endOffset = aEndGlyphScale * getGlyphBoundaryPoint(uGlyphDataTexture, aEndGlyph, angle + M_PI);
-
-                    vec2 startVec = transformedStart - startOffset * displacement;
-                    vec2 endVec = transformedEnd + startOffset * displacement;
-
-                    vec2 normal = vec2(-displacement.y, displacement.x);
-
-                    ivec2 vertexIndex = vertexIndexes[gl_VertexID];
-
-                    if(vertexIndex.x == 1){
-                        normal = - normal;
+                    float step = (2.0 * M_PI) / float(ANGLE_RES);
+                    if(gl_VertexID == 0) {
+                        gl_Position = vec4(uTransformationMatrix * vec3(transformedStart, 1.0), 0.0, 1.0);
+                        fColor = vec4(0.0, 0.0, 0.0, 1.0);
+                        return;
                     }
-
-                    vec2 position;
-                    if(vertexIndex.y == 0){
-                        position = startVec + normal;
-                    } else {
-                        position = endVec + normal;
-                    }
-
+                    float angle = step * float(gl_VertexID - 1);
+                    float distance = aStartGlyphScale * getGlyphBoundaryPoint(uGlyphDataTexture, aStartGlyph, angle);
+                    vec2 offset = distance * vec2(cos(angle), sin(angle));
+                    vec2 position = transformedStart + offset;
                     gl_Position = vec4(uTransformationMatrix * vec3(position, 1.0), 0.0, 1.0);
-                    fColor = aColor;
-                    if(aEndGlyph == 1){
-                        fColor.r = 1.0;
-                    }
+
+                    fColor = vec4(float(aEndGlyph) - 1.0, angle / (2.0 * M_PI), 0.0, 1.0);
+
+
+                    // vec2 transformedStart = uOrigin +  uScale * aStartPosition;
+                    // vec2 transformedEnd = uOrigin +  uScale * aEndPosition;
+
+                    // vec2 displacement = normalize(transformedStart - transformedEnd);
+                    // float angle = atan(displacement.y, displacement.x);
+                    // float startOffset = aStartGlyphScale * getGlyphBoundaryPoint(uGlyphDataTexture, aStartGlyph, angle);
+                    // float endOffset = aEndGlyphScale * getGlyphBoundaryPoint(uGlyphDataTexture, aEndGlyph, angle + M_PI);
+
+                    // vec2 startVec = transformedStart - startOffset * displacement;
+                    // vec2 endVec = transformedEnd + startOffset * displacement;
+
+                    // vec2 normal = vec2(-displacement.y, displacement.x);
+
+                    // ivec2 vertexIndex = vertexIndexes[gl_VertexID];
+
+                    // if(vertexIndex.x == 1){
+                    //     normal = - normal;
+                    // }
+
+                    // vec2 position;
+                    // if(vertexIndex.y == 0){
+                    //     position = startVec + normal;
+                    // } else {
+                    //     position = endVec + normal;
+                    // }
+
+                    // gl_Position = vec4(uTransformationMatrix * vec3(position, 1.0), 0.0, 1.0);
+                    // fColor = aColor;
+                    // if(aEndGlyph == 1){
+                    //     fColor.r = 1.0;
+                    // }
                 }
             "#,
             r#"#version 300 es
@@ -248,14 +265,24 @@ impl TestEdgeShader {
 
     pub fn add_edge(&mut self, start : Point, end : Point, start_glyph : &str, end_glyph : &str, start_glyph_scale : f32, end_glyph_scale : f32){
         self.edge_instances.push(EdgeInstance {
-            color : Vec4::new(0.0, 0.0, 0.0, 1.0),
+            // color : Vec4::new(0.0, 0.0, 0.0, 1.0),
             start_position : start,
-            end_position : end,
+            // end_position : end,
             start_glyph : self.glyph_map[start_glyph],
             end_glyph : self.glyph_map[end_glyph],
             start_glyph_scale,
-            end_glyph_scale,
-        })
+            // end_glyph_scale,
+        });
+
+        self.edge_instances.push(EdgeInstance {
+            // color : Vec4::new(0.0, 0.0, 0.0, 1.0),
+            start_position : end,
+            // end_position : end,
+            start_glyph : self.glyph_map[end_glyph],
+            end_glyph : self.glyph_map[end_glyph],
+            start_glyph_scale : end_glyph_scale,
+            // end_glyph_scale,
+        });
     }
 
     
@@ -339,10 +366,10 @@ impl TestEdgeShader {
         self.shader.set_uniform_point("uOrigin", origin);
         self.shader.set_uniform_point("uScale", scale);
         self.webgl.draw_arrays_instanced(
-            WebGl2RenderingContext::TRIANGLES,
+            WebGl2RenderingContext::TRIANGLE_FAN,
             0,
-            (6 * self.edge_instances.len()) as i32,
-            1
+            ANGLE_RESOLUTION as i32 + 1,
+            2
         );
     }
 }
