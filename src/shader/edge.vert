@@ -56,6 +56,7 @@ uniform mat3x2 uTransformationMatrix;
 uniform vec2 uOrigin;
 uniform vec2 uScale;
 uniform sampler2D uGlyphDataTexture;
+uniform sampler2D uArrowHeaderTexture;
 uniform sampler2D uArrowPathTexture;
 // uniform sampler2D uArrowTipPathTexture;
 

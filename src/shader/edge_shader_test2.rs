@@ -6,6 +6,8 @@ use crate::vector::{Vec4};
 use crate::shader::{Shader};
 use crate::webgl_wrapper::WebGlWrapper;
 
+use crate::shader::attributes::{Type, *};
+
 use lyon::geom::math::{Point, Vector, Transform};
 
 use wasm_bindgen::JsValue;
@@ -16,53 +18,27 @@ use crate::convex_hull::ANGLE_RESOLUTION;
 
 const DATA_ROW_SIZE : usize = 2048;
 
-struct DataTexture<T> {
-    row_size : usize,
-    num_components : u8,
-    data : Vec<T>,
-    used_data : usize,
-    texture : Option<WebGlTexture>,
-    texture_rows : usize,
-}
 
 
-#[derive(Copy, Clone, Debug)]
-enum Type {
-    Float,
-    Short
-}
+const ATTRIBUTES : Attributes = Attributes::new(&[
+    Attribute::new("aColor", 4, Type::Float), // color
+    Attribute::new("aStartPosition", 2, Type::Float), // start_position
+    Attribute::new("aEndPosition", 2, Type::Float), // end_position
+    Attribute::new("aStartGlyph", 1, Type::Short), // start_glyph
+    Attribute::new("aEndGlyph", 1, Type::Short), // end_glyph
+    Attribute::new("aStartGlyphScale", 1, Type::Float), // start_glyph_scale
+    Attribute::new("aEndGlyphScale", 1, Type::Float), // end_glyph_scale
 
-fn size_of_type(ty : Type) -> i32 {
-    match ty {
-        Type::Float => std::mem::size_of::<f32>() as i32,
-        Type::Short => std::mem::size_of::<u16>() as i32
-    }
-}
+    Attribute::new("aStartArrowNumVertices", 1, Type::Short), 
+    // Attribute::new("aStartArrowHeaderIndex", 1, Type::Short), 
+    Attribute::new("aStartArrowVerticesIndex", 1, Type::Short),
 
-fn webgl_enum_of_type(ty : Type) -> u32 {
-    match ty {
-        Type::Float => WebGl2RenderingContext::FLOAT,
-        Type::Short => WebGl2RenderingContext::SHORT
-    }
-}
+    Attribute::new("aEndArrowNumVertices", 1, Type::Short), 
+    // Attribute::new("aEndArrowHeaderIndex", 1, Type::Short), 
+    Attribute::new("aEndArrowVerticesIndex", 1, Type::Short), 
+]);
 
-const ATTRIBUTES : [(&str, i32, Type); 11] = [
-    ("aColor", 4, Type::Float), // color
-    ("aStartPosition", 2, Type::Float), // start_position
-    ("aEndPosition", 2, Type::Float), // end_position
-    ("aStartGlyph", 1, Type::Short), // start_glyph
-    ("aEndGlyph", 1, Type::Short), // end_glyph
-    ("aStartGlyphScale", 1, Type::Float), // start_glyph_scale
-    ("aEndGlyphScale", 1, Type::Float), // end_glyph_scale
 
-    ("aStartArrowNumVertices", 1, Type::Short), 
-    // ("aStartArrowHeaderIndex", 1, Type::Short), 
-    ("aStartArrowVerticesIndex", 1, Type::Short),
-
-    ("aEndArrowNumVertices", 1, Type::Short), 
-    // ("aEndArrowHeaderIndex", 1, Type::Short), 
-    ("aEndArrowVerticesIndex", 1, Type::Short), 
-];
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C, align(4))]
@@ -96,44 +72,6 @@ struct ArrowIndices {
     // header_index : u16,
     vertices_index : u16
 }
-
-
-fn attribute_offset(idx : usize) -> i32 {
-    ATTRIBUTES[..idx].iter().map(|&(_, size, ty)|
-        size_of_type(ty) * size
-    ).sum()
-}
-
-fn attribute_stride() -> i32 {
-    attribute_offset(ATTRIBUTES.len())
-}
-
-fn set_up_attributes(attribute_state : Option<&WebGlVertexArrayObject>, attributes_buffer : Option<&WebGlBuffer>, webgl : &WebGlWrapper, shader : &Shader) -> Result<(), JsValue> {
-    webgl.bind_vertex_array(attribute_state);
-    // IMPORTANT: Must bind_buffer here!!!!
-    // vertex_attrib_pointer uses the current bound buffer implicitly.
-    webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, attributes_buffer);
-
-    let stride = attribute_stride();
-    for (idx, (name, size, ty)) in ATTRIBUTES.iter().enumerate() {
-        let size = *size;
-        let ty = *ty;
-        let loc = webgl.get_attrib_location(&shader.program, name).try_into().map_err(|_| name.to_string())?;
-        let offset = attribute_offset(idx);
-        webgl.enable_vertex_attrib_array(loc);
-        match ty {
-            Type::Float => {webgl.vertex_attrib_pointer_with_i32(loc, size, webgl_enum_of_type(ty), false, stride, offset)},
-            Type::Short => {webgl.vertex_attrib_i_pointer_with_i32(loc, size, webgl_enum_of_type(ty), stride, offset)}
-        };
-        webgl.vertex_attrib_divisor(loc, 1);
-    }
-    webgl.bind_vertex_array(None);
-    Ok(())
-}
-
-
-
-
 
 pub struct TestEdgeShader {
     webgl : WebGlWrapper,
@@ -184,7 +122,7 @@ impl TestEdgeShader {
         )?;
         let attribute_state = webgl.create_vertex_array();
         let attributes_buffer = webgl.create_buffer();
-        set_up_attributes(attribute_state.as_ref(), attributes_buffer.as_ref(), &webgl, &shader)?;
+        ATTRIBUTES.set_up_vertex_array(&webgl, &shader, attribute_state.as_ref(), attributes_buffer.as_ref())?;
 
         let glyph_boundary_texture = webgl.inner.create_texture();
         let arrow_tip_path_texture = webgl.inner.create_texture();
