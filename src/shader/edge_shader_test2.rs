@@ -6,7 +6,7 @@ use crate::vector::{Vec4};
 use crate::shader::{Shader};
 use crate::webgl_wrapper::WebGlWrapper;
 
-use crate::shader::attributes::{Type, *};
+use crate::shader::attributes::{Type, Attribute, Attributes};
 
 use lyon::geom::math::{Point, Vector, Transform};
 

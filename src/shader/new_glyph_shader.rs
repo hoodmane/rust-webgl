@@ -18,32 +18,20 @@ use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::Shader;
 use crate::vector::Vec4;
 
+use crate::shader::attributes::{Type, Attribute, Attributes};
+
+
+const ATTRIBUTES : Attributes = Attributes::new(&[
+    Attribute::new("aPosition", 2, Type::Float),
+    Attribute::new("aColor", 4, Type::Float),
+    Attribute::new("aGlyphNumVertices", 1, Type::Short), 
+    Attribute::new("aGlyphDataIndex", 1, Type::Short),
+]);
+
 
 
 const DATA_ROW_SIZE : usize = 2048;
 
-
-const POSITION_SIZE : i32 = 2;
-const COLOR_SIZE : i32  = 4;
-const NUM_VERTICES_SIZE : i32  = 1;
-const DATA_INDEX_SIZE : i32  = 1;
-
-
-const POSITION_TYPE : u32 = WebGl2RenderingContext::FLOAT;
-const COLOR_TYPE : u32 = WebGl2RenderingContext::FLOAT;
-const NUM_VERTICES_TYPE : u32 = WebGl2RenderingContext::SHORT;
-const DATA_INDEX_TYPE : u32 = WebGl2RenderingContext::SHORT;
-
-const POSITION_BYTES : i32 = POSITION_SIZE * std::mem::size_of::<f32>() as i32;
-const COLOR_BYTES : i32 = COLOR_SIZE * std::mem::size_of::<f32>() as i32;
-const NUM_VERTICES_BYTES : i32 = NUM_VERTICES_SIZE * std::mem::size_of::<u16>() as i32;
-const DATA_INDEX_BYTES : i32 = DATA_INDEX_SIZE * std::mem::size_of::<u16>() as i32;
-
-const POSITION_OFFSET : i32 = 0;
-const COLOR_OFFSET : i32 = POSITION_OFFSET + POSITION_BYTES;
-const NUM_VERTICES_OFFSET : i32 = COLOR_OFFSET + COLOR_BYTES;
-const DATA_INDEX_OFFSET : i32 = NUM_VERTICES_OFFSET + NUM_VERTICES_BYTES;
-const STRIDE : i32 = DATA_INDEX_OFFSET + DATA_INDEX_BYTES;
 
 
 pub struct GlyphShader {
@@ -130,35 +118,9 @@ impl GlyphShader {
         )?;
 
         let attribute_state = webgl.create_vertex_array();
-        webgl.bind_vertex_array(attribute_state.as_ref());
-
         let attributes_buffer = webgl.create_buffer();
 
-        // IMPORTANT: Must bind_buffer here!!!!
-        // vertex_attrib_pointer uses the current bound buffer implicitly.
-        webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, attributes_buffer.as_ref());
-
-
-        let position_loc : u32 = webgl.get_attrib_location(&shader.program, "aPosition").try_into().map_err(|_| "aPosition")?;
-        let color_loc : u32  = webgl.get_attrib_location(&shader.program, "aColor").try_into().map_err(|_| "aColor")?;
-        let num_vertices_loc : u32  = webgl.get_attrib_location(&shader.program, "aGlyphNumVertices").try_into().map_err(|_| "aGlyphNumVertices")?;
-        let data_index_loc : u32  = webgl.get_attrib_location(&shader.program, "aGlyphDataIndex").try_into().map_err(|_| "aGlyphDataIndex")?;
-
-        webgl.enable_vertex_attrib_array(position_loc);
-        webgl.enable_vertex_attrib_array(color_loc);
-        webgl.enable_vertex_attrib_array(num_vertices_loc);
-        webgl.enable_vertex_attrib_array(data_index_loc);
-
-        webgl.vertex_attrib_pointer_with_i32(position_loc, POSITION_SIZE, POSITION_TYPE, false, 0, 0);
-        webgl.vertex_attrib_pointer_with_i32(position_loc, POSITION_SIZE, POSITION_TYPE, false, STRIDE, POSITION_OFFSET);
-        webgl.vertex_attrib_pointer_with_i32(color_loc, COLOR_SIZE, COLOR_TYPE, false, STRIDE, COLOR_OFFSET);
-        webgl.vertex_attrib_i_pointer_with_i32(num_vertices_loc, NUM_VERTICES_SIZE, NUM_VERTICES_TYPE, STRIDE, NUM_VERTICES_OFFSET);
-        webgl.vertex_attrib_i_pointer_with_i32(data_index_loc, DATA_INDEX_SIZE, DATA_INDEX_TYPE, STRIDE, DATA_INDEX_OFFSET);
-        
-        webgl.vertex_attrib_divisor(position_loc, 1);
-        webgl.vertex_attrib_divisor(color_loc, 1);
-        webgl.vertex_attrib_divisor(num_vertices_loc, 1);
-        webgl.vertex_attrib_divisor(data_index_loc, 1);
+        ATTRIBUTES.set_up_vertex_array(&webgl, &shader, attribute_state.as_ref(), attributes_buffer.as_ref())?;
 
 
         let data_texture = webgl.inner.create_texture();
@@ -207,7 +169,6 @@ impl GlyphShader {
 
     pub fn add_glyph(&mut self, glyph_name : &str, position : Point, color : Vec4) {
         let (index, num_vertices) = self.glyph_map[glyph_name];
-        // log!("add_glyph::: index : {}, num_vertices : {}", index, num_vertices);
         self.glyph_instances.push(GlyphInstance {
             position,
             color, 
@@ -219,20 +180,9 @@ impl GlyphShader {
     fn set_buffer_data(&self){
         self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, self.attributes_buffer.as_ref());
         let u8_len = self.glyph_instances.len() * std::mem::size_of::<GlyphInstance>();
-        // let u8_len = std::mem::size_of::<GlyphInstance>();
-        // let mut temp : [GlyphInstance; 1] = 
-        // [GlyphInstance { 
-        //     position : Point::new(400.0, 200.0),
-        //     color : Vec4::new(0.0, 0.0, 0.0, 1.0),
-        //     index : 10,
-        //     num_vertices : 180,
-        // }];
-        log!("self.glyph_instances : {:?}", self.glyph_instances);
-
         let u8_ptr = self.glyph_instances.as_ptr() as *mut u8;
         unsafe {
             let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);
-            // let vert_array = js_sys::Float32Array::view(&temp);
             crate::console_log::log_1(&vert_array);
             self.webgl.buffer_data_with_array_buffer_view(
                 WebGl2RenderingContext::ARRAY_BUFFER,
