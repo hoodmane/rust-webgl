@@ -58,7 +58,6 @@ uniform vec2 uScale;
 uniform sampler2D uGlyphDataTexture;
 uniform sampler2D uArrowHeaderTexture;
 uniform sampler2D uArrowPathTexture;
-// uniform sampler2D uArrowTipPathTexture;
 
 in vec4 aColor;
 in vec2 aStartPosition;
@@ -101,6 +100,12 @@ void main() {
     vec2 startVec = transformedStart + startOffset * displacement;
     vec2 endVec = transformedEnd - endOffset * displacement;
 
+    ArrowHeader startArrow = readArrowHeader(uArrowHeaderTexture, aStartArrowHeaderIndex);
+    ArrowHeader endArrow = readArrowHeader(uArrowHeaderTexture, aEndArrowHeaderIndex);
+    
+    vec2 adjustedStartVec = startVec - startArrow.line_end * displacement;
+    vec2 adjustedEndVec = endVec + endArrow.line_end * displacement;
+
     vec2 normal = vec2(-displacement.y, displacement.x);
 
     vec2 position;
@@ -113,9 +118,9 @@ void main() {
         }
 
         if(vertexIndex.y == 0){
-            position = startVec + normal;
+            position = adjustedStartVec + normal;
         } else {
-            position = endVec + normal;
+            position = adjustedEndVec + normal;
         }
     } else if(gl_VertexID < 6 + aStartArrowNumVertices) {
         // Start arrow

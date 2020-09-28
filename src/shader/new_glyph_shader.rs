@@ -65,44 +65,8 @@ impl GlyphShader {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
         let shader = Shader::new(
             webgl.clone(), 
-            r#"#version 300 es
-                uniform mat3x2 uTransformationMatrix;
-                uniform vec2 uOrigin;
-                uniform vec2 uScale;
-                uniform sampler2D uGlyphDataTexture;
-
-                in vec2 aPosition;
-                in vec4 aColor;
-                in int aGlyphDataIndex;
-                in int aGlyphNumVertices;
-
-                flat out vec4 fColor;
-
-                vec2 testPositions[6] = vec2[](
-                    vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5),
-                    vec2(-0.5, -0.5), vec2(-0.5, 0.5), vec2(0.5, 0.5)
-                );
-
-                vec4 getValueByIndexFromTexture(sampler2D tex, int index) {
-                    int texWidth = textureSize(tex, 0).x;
-                    int col = index % texWidth;
-                    int row = index / texWidth;
-                    return texelFetch(tex, ivec2(col, row), 0);
-                }
-                
-                void main() {
-                    vec2 vertexPosition;
-                    if(gl_VertexID < aGlyphNumVertices) {
-                        int vertexIdx = aGlyphDataIndex + gl_VertexID;
-                        vertexPosition = getValueByIndexFromTexture(uGlyphDataTexture, vertexIdx).xy;
-                    } else {
-                        vertexPosition = vec2(0.0, 0.0); // degenerate vertex
-                    }
-                    vec2 transformedPosition = uOrigin +  uScale * aPosition;
-                    gl_Position = vec4(uTransformationMatrix * vec3(transformedPosition + vertexPosition, 1.0), 0.0, 1.0);
-                    fColor = aColor;
-                }
-            "#,
+            include_str!("glyph.vert"),
+            // include_str!("glyph.frag"),
             r#"#version 300 es
                 precision highp float;
                 flat in vec4 fColor;
@@ -144,7 +108,7 @@ impl GlyphShader {
     pub fn glyph_data(&mut self, glyph_name : String, vertices : &[Point], indices : &[u16], index_offset : u16){
         let glyph_index = self.vertices_data.len();
         let glyph_num_vertices = indices.len();
-        self.vertices_data.insert(indices.iter().map(|&i| vertices[(i - index_offset) as usize]));
+        self.vertices_data.append(indices.iter().map(|&i| vertices[(i - index_offset) as usize]));
         self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(glyph_num_vertices);
         self.glyph_map.insert(glyph_name, (glyph_index.try_into().unwrap(), glyph_num_vertices.try_into().unwrap()));
     }

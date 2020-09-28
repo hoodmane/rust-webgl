@@ -358,7 +358,9 @@ pub fn test_arrow() -> Arrow {
         visual_back_end,
         line_end,
         path,
-        fill : Some(FillOptions::DEFAULT),
-        stroke : None
+        // fill : Some(FillOptions::DEFAULT),
+        fill : None,
+        stroke : Some(StrokeOptions::DEFAULT),
+        // stroke : None,
     }
 }

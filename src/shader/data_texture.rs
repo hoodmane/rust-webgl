@@ -6,11 +6,50 @@ use js_sys::Object;
 use crate::webgl_wrapper::WebGlWrapper;
 
 
+use std::ops::{Index, IndexMut, Deref, DerefMut};
+use core::slice::{self, SliceIndex};
+
+// struct AlignedByteVec {
+//     data : Vec<u32>
+// }
+
+// impl std::ops::Deref for AlignedByteVec {
+//     type Target = &[u8];
+
+//     fn deref(&self) -> Self::Target {
+//         unsafe { slice::from_raw_parts(self.as_ptr() as *const u8, 4 * self.len()) }
+//     }
+// }
+
+// impl std::ops::DerefMut for AlignedByteVec {
+
+//     fn deref_mut(&mut self) -> &mut [T] {
+//         unsafe { slice::from_raw_parts_mut(self.as_mut_ptr() as *mut u8, 4 * self.len()) }
+//     }
+// }
+
+// impl<T, I: SliceIndex<[T]>> Index<I> for Vec<T> {
+//     type Output = I::Output;
+
+//     #[inline]
+//     fn index(&self, index: I) -> &Self::Output {
+//         Index::index(&**self, index)
+//     }
+// }
+
+// impl<T, I: SliceIndex<[T]>> IndexMut<I> for Vec<T> {
+//     #[inline]
+//     fn index_mut(&mut self, index: I) -> &mut Self::Output {
+//         IndexMut::index_mut(&mut **self, index)
+//     }
+// }
+
+
 pub struct DataTexture<T> {
     webgl : WebGlWrapper,
     width : usize,
     format : Format,
-    data : Vec<u8>,
+    data : Vec<u32>,
     used_data : usize,
     texture : Option<WebGlTexture>,
     texture_rows : usize,
@@ -71,29 +110,34 @@ impl<T> DataTexture<T> {
     unsafe fn data_view(&self, num_rows : usize) -> Object {
         let data = &self.data[..num_rows * self.row_bytes()];
         match self.format.0 {
-            Type::F32 => js_sys::Float32Array::view_mut_raw(data.as_ptr() as *mut f32, data.len()/4).into(),
-            Type::I16 => js_sys::Uint8Array::view(data).into()
+            Type::F32 => js_sys::Float32Array::view_mut_raw(data.as_ptr() as *mut f32, data.len()).into(),
+            Type::I16 => js_sys::Uint8Array::view_mut_raw(data.as_ptr() as *mut u8, data.len() * 4).into(),
         }
     }
 
     pub fn len(&self) -> usize {
-        self.used_data / self.entry_bytes()
+        self.used_data / (self.entry_bytes() / 4)
     }
 
     pub fn clear(&mut self){
         self.used_data = 0;
     }
 
-    pub fn insert<It : ExactSizeIterator<Item = T>>(&mut self, data : It) {
+    pub fn append<It : ExactSizeIterator<Item = T>>(&mut self, data : It) {
         let data_len = data.len();
         let total_rows_needed = self.num_rows_to_fit_extra_data(data_len);
         if total_rows_needed > self.num_rows() {
             self.data.resize_with(total_rows_needed * self.row_bytes(), ||0);
         }
-        self.data.splice(self.used_data .. self.used_data + data_len * self.entry_bytes(), 
-            data.flat_map(|e| unsafe {  std::slice::from_raw_parts(&e as *const T as *const u8, std::mem::size_of::<T>()) }.iter().cloned())
+        self.data.splice(self.used_data .. self.used_data + data_len * (self.entry_bytes() / 4), 
+            data.flat_map(|e| unsafe {  
+                std::slice::from_raw_parts(
+                    &e as *const T as *const u32, 
+                    std::mem::size_of::<T>()/std::mem::size_of::<u32>()
+                ) 
+            }.iter().cloned())
         ).for_each(drop);
-        self.used_data += data_len * self.entry_bytes();
+        self.used_data += data_len * (self.entry_bytes()/4);
     }
 
     pub fn upload(&mut self) -> Result<(), JsValue> {

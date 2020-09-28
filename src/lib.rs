@@ -31,6 +31,7 @@ use web_sys::{WebGl2RenderingContext};
 
 #[wasm_bindgen]
 pub fn get_rust_canvas(context : &WebGl2RenderingContext) -> Result<Canvas, JsValue> {
+    console_error_panic_hook::set_once();
     Ok(Canvas::new(context)?)
 }
 

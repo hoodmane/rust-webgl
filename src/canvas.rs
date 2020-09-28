@@ -170,8 +170,6 @@ impl Canvas {
     fn reset_transform(&mut self){
         self.transform = Transform::scale(2.0/ (self.buffer_dimensions.width() as f32), -2.0/(self.buffer_dimensions.height() as f32))
             .then_translate(vector(-1.0, 1.0));
-        log!("buffer_dimensions : {:?}", self.buffer_dimensions);
-        log!("transform : {:?}", self.transform);
     }
 
     pub fn apply_transform(&self, p : JsPoint) -> JsPoint {
@@ -618,7 +616,8 @@ impl Canvas {
             let mut fill = FillTessellator::new();
             let mut stroke = StrokeTessellator::new();
 
-            let arrow = crate::arrow::normal_arrow(2.0);
+            // let arrow = crate::arrow::normal_arrow(2.0);
+            let arrow = crate::arrow::test_arrow();
 
             if let Some(fill_options) = &arrow.fill {
                 fill.tessellate(arrow.path.iter(), fill_options, &mut vertex_builder).map_err(convert_error)?;
@@ -626,11 +625,10 @@ impl Canvas {
             if let Some(stroke_options) = &arrow.stroke {
                 stroke.tessellate(arrow.path.iter(), stroke_options, &mut vertex_builder).map_err(convert_error)?;
             }
-            edge_shader2.arrow_tip_data(">".to_string(), &buffers.vertices, &buffers.indices, 0);
+            edge_shader2.arrow_tip_data(">".to_string(), &arrow, &buffers.vertices, &buffers.indices, 0);
         }
 
         
-
         edge_shader2.glyph_boundary_data("a".to_string(), glyph1.boundary());
         edge_shader2.glyph_boundary_data("b".to_string(), glyph2.boundary());
         edge_shader2.add_edge(start, end, "a", "b", scale, scale, Some(">"), Some(">"));
