@@ -29,7 +29,10 @@ float getGlyphBoundaryPoint(sampler2D tex, int glyph, float angle){
     return getValueByIndexFrom4ChannelTexture(tex, total_index);
 }
 
-struct ArrowHeader {
+struct Arrow {
+    int numVertices; 
+    int headerIndex;
+    int verticesIndex;    
     float tip_end;
     float back_end;
     float visual_tip_end;
@@ -37,17 +40,20 @@ struct ArrowHeader {
     float line_end;
 };
 
-ArrowHeader readArrowHeader(sampler2D arrowHeaderTexture, int arrowHeaderIndex){
-    float tip_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, arrowHeaderIndex);
-    float back_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, arrowHeaderIndex + 1);
-    float visual_tip_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, arrowHeaderIndex + 2);
-    float visual_back_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, arrowHeaderIndex + 3);
-    float line_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, arrowHeaderIndex + 4);
-    return ArrowHeader(tip_end, back_end, visual_tip_end, visual_back_end, line_end);
+Arrow makeArrow(sampler2D arrowHeaderTexture, ivec3 arrow){
+    int numVertices = arrow[0];
+    int headerIndex = arrow[1];
+    int verticesIndex = arrow[2];
+    float tip_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, headerIndex);
+    float back_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, headerIndex + 1);
+    float visual_tip_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, headerIndex + 2);
+    float visual_back_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, headerIndex + 3);
+    float line_end = getValueByIndexFrom4ChannelTexture(arrowHeaderTexture, headerIndex + 4);
+    return Arrow(numVertices, headerIndex, verticesIndex, tip_end, back_end, visual_tip_end, visual_back_end, line_end);
 }
 
-vec2 getArrowVertex(sampler2D arrowVerticesTexture, int arrow_index, int vertex_index) {
-    return getValueByIndexFromTexture(arrowVerticesTexture, arrow_index + vertex_index).xy;
+vec2 getArrowVertex(sampler2D arrowVerticesTexture, Arrow arrow, int vertex_index) {
+    return getValueByIndexFromTexture(arrowVerticesTexture, arrow.verticesIndex + vertex_index).xy;
 }
 
 
@@ -59,21 +65,12 @@ uniform sampler2D uGlyphDataTexture;
 uniform sampler2D uArrowHeaderTexture;
 uniform sampler2D uArrowPathTexture;
 
+
 in vec4 aColor;
-in vec2 aStartPosition;
-in vec2 aEndPosition;
-in int aStartGlyph;
-in int aEndGlyph;
-in float aStartGlyphScale;
-in float aEndGlyphScale;
-
-in int aStartArrowNumVertices;
-in int aStartArrowHeaderIndex;
-in int aStartArrowVerticesIndex;
-
-in int aEndArrowNumVertices;
-in int aEndArrowHeaderIndex;
-in int aEndArrowVerticesIndex;
+in vec4 aPositions; // (start_position, end_position)
+in vec2 aGlyphScales; // (start_glyph_scale, end_glyph_scale)
+in ivec4 aStart; // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) ) 
+in ivec4 aEnd; // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
 
 flat out vec4 fColor;
 
@@ -89,20 +86,28 @@ vec2 testPositions[3] = vec2[](
 
 
 void main() {
-    vec2 transformedStart = uOrigin +  uScale * aStartPosition;
-    vec2 transformedEnd = uOrigin +  uScale * aEndPosition;
+    vec2 startPosition = aPositions.xy;
+    vec2 endPosition = aPositions.zw;
+    vec2 transformedStart = uOrigin +  uScale * startPosition;
+    vec2 transformedEnd = uOrigin + uScale * endPosition;
+
+    int startGlyph = aStart.x;
+    int endGlyph = aEnd.x;
+
+    ivec3 startArrowData = aStart.yzw;
+    ivec3 endArrowData = aEnd.yzw;
 
     vec2 displacement = normalize(transformedEnd - transformedStart);
     float angle = atan(displacement.y, displacement.x);
-    float startOffset = aStartGlyphScale * getGlyphBoundaryPoint(uGlyphDataTexture, aStartGlyph, angle);
-    float endOffset = aEndGlyphScale * getGlyphBoundaryPoint(uGlyphDataTexture, aEndGlyph, angle + M_PI);
+    float startOffset = aGlyphScales.x * getGlyphBoundaryPoint(uGlyphDataTexture, startGlyph, angle);
+    float endOffset = aGlyphScales.y * getGlyphBoundaryPoint(uGlyphDataTexture, endGlyph, angle + M_PI);
 
     vec2 startVec = transformedStart + startOffset * displacement;
     vec2 endVec = transformedEnd - endOffset * displacement;
 
-    ArrowHeader startArrow = readArrowHeader(uArrowHeaderTexture, aStartArrowHeaderIndex);
-    ArrowHeader endArrow = readArrowHeader(uArrowHeaderTexture, aEndArrowHeaderIndex);
-    
+    Arrow startArrow = makeArrow(uArrowHeaderTexture, startArrowData);
+    Arrow endArrow = makeArrow(uArrowHeaderTexture, endArrowData);
+
     vec2 adjustedStartVec = startVec - startArrow.line_end * displacement;
     vec2 adjustedEndVec = endVec + endArrow.line_end * displacement;
 
@@ -122,16 +127,16 @@ void main() {
         } else {
             position = adjustedEndVec + normal;
         }
-    } else if(gl_VertexID < 6 + aStartArrowNumVertices) {
+    } else if(gl_VertexID < 6 + startArrow.numVertices) {
         // Start arrow
         int vertex_index = gl_VertexID - 6;
         mat2 rotationMatrix = mat2(displacement, normal);
-        position = startVec - rotationMatrix * getArrowVertex(uArrowPathTexture, aStartArrowVerticesIndex, vertex_index).xy;
-    } else if(gl_VertexID < 6 + aStartArrowNumVertices + aEndArrowNumVertices) {
+        position = startVec - rotationMatrix * getArrowVertex(uArrowPathTexture, startArrow, vertex_index).xy;
+    } else if(gl_VertexID < 6 + startArrow.numVertices + endArrow.numVertices) {
         // End arrow
-        int vertex_index = gl_VertexID - 6 - aStartArrowNumVertices;
+        int vertex_index = gl_VertexID - 6 - startArrow.numVertices;
         mat2 rotationMatrix = mat2(displacement, normal);
-        position = endVec + rotationMatrix * getArrowVertex(uArrowPathTexture, aEndArrowVerticesIndex, vertex_index).xy;
+        position = endVec + rotationMatrix * getArrowVertex(uArrowPathTexture, endArrow, vertex_index).xy;
     } else {
         // Extra throw-away vertices
         position = vec2(0.0, 0.0);
@@ -139,7 +144,4 @@ void main() {
 
     gl_Position = vec4(uTransformationMatrix * vec3(position, 1.0), 0.0, 1.0);
     fColor = aColor;
-    if(aStartArrowNumVertices == 0){
-        fColor.g = 1.0;
-    }
 }

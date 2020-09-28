@@ -147,7 +147,7 @@ impl GlyphShader {
         Ok(())
     }
 
-    pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) -> Result<(), JsValue> {
+    pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) {
         self.shader.use_program();
         self.shader.set_uniform_int("uGlyphDataTexture", 0);
         self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0);
@@ -165,6 +165,5 @@ impl GlyphShader {
             num_instances
         );
         self.webgl.bind_vertex_array(None);
-        Ok(())
     }
 }

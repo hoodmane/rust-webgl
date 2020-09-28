@@ -25,20 +25,11 @@ const DATA_ROW_SIZE : usize = 2048;
 
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aColor", 4, Type::F32), // color
-    Attribute::new("aStartPosition", 2, Type::F32), // start_position
-    Attribute::new("aEndPosition", 2, Type::F32), // end_position
-    Attribute::new("aStartGlyph", 1, Type::I16), // start_glyph
-    Attribute::new("aEndGlyph", 1, Type::I16), // end_glyph
-    Attribute::new("aStartGlyphScale", 1, Type::F32), // start_glyph_scale
-    Attribute::new("aEndGlyphScale", 1, Type::F32), // end_glyph_scale
+    Attribute::new("aPositions", 4, Type::F32), // (start_position, end_position)
+    Attribute::new("aGlyphScales", 2, Type::F32), // (start_glyph_scale, end_glyph_scale)
 
-    Attribute::new("aStartArrowNumVertices", 1, Type::I16), 
-    Attribute::new("aStartArrowHeaderIndex", 1, Type::I16), 
-    Attribute::new("aStartArrowVerticesIndex", 1, Type::I16),
-
-    Attribute::new("aEndArrowNumVertices", 1, Type::I16), 
-    Attribute::new("aEndArrowHeaderIndex", 1, Type::I16), 
-    Attribute::new("aEndArrowVerticesIndex", 1, Type::I16), 
+    Attribute::new("aStart", 4, Type::I16), // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) )
+    Attribute::new("aEnd", 4, Type::I16), // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
 ]);
 
 
@@ -49,12 +40,12 @@ struct EdgeInstance {
     color : Vec4,
     start_position : Point,
     end_position : Point,
-    start_glyph : u16,
-    end_glyph : u16,
     start_glyph_scale : f32,
     end_glyph_scale : f32,
-
+    
+    start_glyph : u16,
     start_arrow : ArrowIndices,
+    end_glyph : u16,
     end_arrow : ArrowIndices
 }
 
@@ -230,7 +221,7 @@ impl TestEdgeShader {
             WebGl2RenderingContext::TRIANGLES,
             0,
             (6 + 2 * self.max_arrow_tip_num_vertices) as i32,
-            1
+            self.edge_instances.len() as i32
         );
     }
 }

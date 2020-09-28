@@ -63,6 +63,7 @@ pub struct Canvas {
     default_shader : DefaultShader,
     default_shader_indexed : DefaultShaderIndexed,
     glyph_shader : GlyphShader,
+    edge_shader : crate::shader::edge_shader_test2::TestEdgeShader
 }
 
 #[wasm_bindgen]
@@ -86,6 +87,7 @@ impl Canvas {
         let default_shader_indexed = DefaultShaderIndexed::new(webgl.clone())?;
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let buffer_dimensions = BufferDimensions::new(1, 1, 0.0);
+        let edge_shader = crate::shader::edge_shader_test2::TestEdgeShader::new(webgl.clone())?;
 
 
         let mut result = Self {
@@ -114,6 +116,7 @@ impl Canvas {
             default_shader,
             default_shader_indexed,
             glyph_shader,
+            edge_shader,
         };
         result.resize(result.webgl.dimensions()?)?;
         Ok(result)   
@@ -459,7 +462,8 @@ impl Canvas {
     }
 
     pub fn test_speed(&mut self)  -> Result<(), JsValue> {
-        self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y))?;
+        self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
+        self.edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
         Ok(())
     }
 
@@ -604,10 +608,8 @@ impl Canvas {
         let glyph2 = Glyph::from_stix(&s2);
 
         self.glyph_shader.prepare()?;
-        self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y))?;
+        self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
 
-        // let mut edge_shader = crate::shader::edge_shader_test::TestEdgeShader::new(self.webgl.clone())?;
-        let mut edge_shader2 = crate::shader::edge_shader_test2::TestEdgeShader::new(self.webgl.clone())?;
 
 
         {       
@@ -625,17 +627,17 @@ impl Canvas {
             if let Some(stroke_options) = &arrow.stroke {
                 stroke.tessellate(arrow.path.iter(), stroke_options, &mut vertex_builder).map_err(convert_error)?;
             }
-            edge_shader2.arrow_tip_data(">".to_string(), &arrow, &buffers.vertices, &buffers.indices, 0);
+            self.edge_shader.arrow_tip_data(">".to_string(), &arrow, &buffers.vertices, &buffers.indices, 0);
         }
 
         
-        edge_shader2.glyph_boundary_data("a".to_string(), glyph1.boundary());
-        edge_shader2.glyph_boundary_data("b".to_string(), glyph2.boundary());
-        edge_shader2.add_edge(start, end, "a", "b", scale, scale, Some(">"), Some(">"));
-        edge_shader2.prepare()?;
+        self.edge_shader.glyph_boundary_data("a".to_string(), glyph1.boundary());
+        self.edge_shader.glyph_boundary_data("b".to_string(), glyph2.boundary());
+        self.edge_shader.add_edge(start, end, "a", "b", scale, scale, Some(">"), Some(">"));
+        self.edge_shader.prepare()?;
  
         // edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
-        edge_shader2.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
+        self.edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
         Ok(())
     }
 }
