@@ -25,8 +25,9 @@ const DATA_ROW_SIZE : usize = 2048;
 
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aColor", 4, Type::F32), // color
-    Attribute::new("aPositions", 4, Type::F32), // (start_position, end_position)
-    Attribute::new("aGlyphScales", 2, Type::F32), // (start_glyph_scale, end_glyph_scale)
+    Attribute::new("aStartPosition", 4, Type::F32), // (start_position, start_tangent)
+    Attribute::new("aEndPosition", 4, Type::F32), // (end_position, end_tangent)
+    Attribute::new("aGlyphScales_and_2SinAngle", 3, Type::F32), // (start_glyph_scale, end_glyph_scale, 2sin(angle))
 
     Attribute::new("aStart", 4, Type::I16), // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) )
     Attribute::new("aEnd", 4, Type::I16), // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
@@ -39,9 +40,12 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
 struct EdgeInstance {
     color : Vec4,
     start_position : Point,
+    start_tangent : Vector,
     end_position : Point,
+    end_tangent : Vector,
     start_glyph_scale : f32,
     end_glyph_scale : f32,
+    double_sin_angle : f32,
     
     start_glyph : u16,
     start_arrow : ArrowIndices,
@@ -160,14 +164,18 @@ impl TestEdgeShader {
     ){
         let start_arrow = start_tip.map(|tip| self.tip_map[tip]).unwrap_or_default();
         let end_arrow = end_tip.map(|tip| self.tip_map[tip]).unwrap_or_default();
+        let tangent = (end - start).normalize();
         self.edge_instances.push(EdgeInstance {
             color : Vec4::new(0.0, 0.0, 0.0, 1.0),
             start_position : start,
+            start_tangent : tangent,
             end_position : end,
+            end_tangent : tangent,
             start_glyph : self.glyph_map[start_glyph],
             end_glyph : self.glyph_map[end_glyph],
             start_glyph_scale,
             end_glyph_scale,
+            double_sin_angle : 0.0,
 
             start_arrow,
             end_arrow
@@ -205,7 +213,7 @@ impl TestEdgeShader {
         self.shader.use_program();
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         
-        self.shader.set_uniform_int("uGlyphDataTexture", 0);
+        self.shader.set_uniform_int("uGlyphBoundaryTexture", 0);
         self.glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0);
         
         self.shader.set_uniform_int("uArrowHeaderTexture", 1);
