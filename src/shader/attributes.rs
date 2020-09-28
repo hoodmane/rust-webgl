@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::convert::{TryInto, TryFrom};
 use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
 use wasm_bindgen::JsValue;
 
@@ -7,22 +7,90 @@ use crate::webgl_wrapper::WebGlWrapper;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Type {
-    Float,
-    Short
+    F32,
+    I16
 }
+
+
+#[derive(Copy, Clone, Debug)]
+pub enum NumChannels {
+    One = 1,
+    Two = 2,
+    Three = 3,
+    Four = 4,
+}
+
+impl NumChannels {
+    pub fn base_format(self) -> u32 {
+        match self {
+            NumChannels::One => WebGl2RenderingContext::RED,
+            NumChannels::Two => WebGl2RenderingContext::RG,
+            NumChannels::Three => WebGl2RenderingContext::RGB,
+            NumChannels::Four => WebGl2RenderingContext::RGBA,
+        }
+    }
+}
+
+impl TryFrom<i32> for NumChannels {
+    type Error = ();
+
+    fn try_from(v: i32) -> Result<Self, Self::Error> {
+        match v {
+            x if x == Self::One as i32 => Ok(Self::One),
+            x if x == Self::Two as i32 => Ok(Self::Two),
+            x if x == Self::Three as i32 => Ok(Self::Three),
+            x if x == Self::Four as i32 => Ok(Self::Four),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Format(pub Type, pub NumChannels);
+
+impl Format {
+    pub fn internal_format(self) -> u32 {
+        match self {
+            Format(Type::F32, NumChannels::One) => WebGl2RenderingContext::R32F,
+            Format(Type::F32, NumChannels::Two) => WebGl2RenderingContext::RG32F,
+            Format(Type::F32, NumChannels::Three) => WebGl2RenderingContext::RGB32F,
+            Format(Type::F32, NumChannels::Four) => WebGl2RenderingContext::RGBA32F,
+
+            Format(Type::I16, NumChannels::One) => WebGl2RenderingContext::R16I,
+            Format(Type::I16, NumChannels::Two) => WebGl2RenderingContext::RG16I,
+            Format(Type::I16, NumChannels::Three) => WebGl2RenderingContext::RGB16I,
+            Format(Type::I16, NumChannels::Four) => WebGl2RenderingContext::RGBA16I,
+        }
+    }
+
+    pub fn size(self) -> i32 {
+        let Format(ty, size) = self;
+        ty.size() * (size as i32)
+    }
+
+    pub fn webgl_type(self) -> u32 {
+        self.0.webgl_type()
+    }
+
+    pub fn base_format(self) -> u32 {
+        self.1.base_format()
+    }
+}
+
+
 
 impl Type { 
     fn size(self) -> i32 {
         match self {
-            Type::Float => std::mem::size_of::<f32>() as i32,
-            Type::Short => std::mem::size_of::<u16>() as i32
+            Type::F32 => std::mem::size_of::<f32>() as i32,
+            Type::I16 => std::mem::size_of::<u16>() as i32
         }
     }
 
     fn webgl_type(self) -> u32 {
         match self {
-            Type::Float => WebGl2RenderingContext::FLOAT,
-            Type::Short => WebGl2RenderingContext::SHORT
+            Type::F32 => WebGl2RenderingContext::FLOAT,
+            Type::I16 => WebGl2RenderingContext::SHORT
         }
     }
 }
@@ -76,8 +144,8 @@ impl Attributes {
             let offset = self.offset(idx);
             webgl.enable_vertex_attrib_array(loc);
             match ty {
-                Type::Float => {webgl.vertex_attrib_pointer_with_i32(loc, size, ty.webgl_type(), false, stride, offset)},
-                Type::Short => {webgl.vertex_attrib_i_pointer_with_i32(loc, size, ty.webgl_type(), stride, offset)}
+                Type::F32 => {webgl.vertex_attrib_pointer_with_i32(loc, size, ty.webgl_type(), false, stride, offset)},
+                Type::I16 => {webgl.vertex_attrib_i_pointer_with_i32(loc, size, ty.webgl_type(), stride, offset)}
             };
             webgl.vertex_attrib_divisor(loc, 1);
         }

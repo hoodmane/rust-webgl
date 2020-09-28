@@ -18,14 +18,15 @@ use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::Shader;
 use crate::vector::Vec4;
 
-use crate::shader::attributes::{Type, Attribute, Attributes};
+use crate::shader::attributes::{Format, Type, NumChannels,  Attribute, Attributes};
+use crate::shader::data_texture::DataTexture;
 
 
 const ATTRIBUTES : Attributes = Attributes::new(&[
-    Attribute::new("aPosition", 2, Type::Float),
-    Attribute::new("aColor", 4, Type::Float),
-    Attribute::new("aGlyphNumVertices", 1, Type::Short), 
-    Attribute::new("aGlyphDataIndex", 1, Type::Short),
+    Attribute::new("aPosition", 2, Type::F32),
+    Attribute::new("aColor", 4, Type::F32),
+    Attribute::new("aGlyphNumVertices", 1, Type::I16), 
+    Attribute::new("aGlyphDataIndex", 1, Type::I16),
 ]);
 
 
@@ -47,13 +48,8 @@ pub struct GlyphShader {
 
     // Vertices has its length padded to a multiple of DATA_ROW_SIZE so that it will fit correctly into the data_texture
     // so we need to separately store the number of actually used entries separately.
-    vertices : Vec<Point>,
-    num_vertices : usize,
     max_glyph_num_vertices : usize,
-
-
-    data_texture : Option<WebGlTexture>,
-    texture_rows : usize, // This reminds us how big the texture currently is so we know whether we need to resize it.
+    vertices_data : DataTexture<Point>
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -122,47 +118,33 @@ impl GlyphShader {
 
         ATTRIBUTES.set_up_vertex_array(&webgl, &shader, attribute_state.as_ref(), attributes_buffer.as_ref())?;
 
-
-        let data_texture = webgl.inner.create_texture();
-
+        let vertices_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Two));
 
         Ok(Self {
             webgl,
             shader,
             glyph_map : BTreeMap::new(),
-            vertices : Vec::new(),
-            num_vertices : 0,
 
             glyph_instances : Vec::new(), 
             max_glyph_num_vertices : 0,
             
             attribute_state,
             attributes_buffer,
-
-            data_texture,
-            texture_rows : 0
+            vertices_data
         })
     }
 
     pub fn clear_glyphs(&mut self, ){
         self.max_glyph_num_vertices = 0;
-        self.num_vertices = 0;
-        self.vertices.clear();
+        self.vertices_data.clear();
         self.glyph_map.clear();
         self.glyph_instances.clear();
     }
 
     pub fn glyph_data(&mut self, glyph_name : String, vertices : &[Point], indices : &[u16], index_offset : u16){
-        let glyph_index = self.num_vertices;
+        let glyph_index = self.vertices_data.len();
         let glyph_num_vertices = indices.len();
-        while self.num_vertices + indices.len() >= self.vertices.len() {
-            self.vertices.extend_from_slice(&[Point::new(0.0, 0.0); DATA_ROW_SIZE]);
-        }
-        self.vertices.splice(self.num_vertices .. self.num_vertices + glyph_num_vertices, 
-            indices.iter().map(|&i| vertices[(i - index_offset) as usize])
-        ).for_each(drop);
-        self.num_vertices += glyph_num_vertices;
-        log!("glyph data : vertices: {:?}", &self.vertices[0..self.num_vertices]);
+        self.vertices_data.insert(indices.iter().map(|&i| vertices[(i - index_offset) as usize]));
         self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(glyph_num_vertices);
         self.glyph_map.insert(glyph_name, (glyph_index.try_into().unwrap(), glyph_num_vertices.try_into().unwrap()));
     }
@@ -192,54 +174,11 @@ impl GlyphShader {
         }
     }
 
-    fn ensure_texture_size(&mut self){
-        let num_rows = self.vertices.len() / DATA_ROW_SIZE;
-        if num_rows <= self.texture_rows {
-            return;
-        }
-        self.texture_rows = num_rows;
-        self.webgl.delete_texture(self.data_texture.as_ref());
-        self.data_texture = self.webgl.inner.create_texture();
-        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.data_texture.as_ref());
-        self.webgl.tex_storage_2d(
-            WebGl2RenderingContext::TEXTURE_2D,
-            1, // mip levels
-            WebGl2RenderingContext::RG32F, // internalformat:,
-            DATA_ROW_SIZE as i32, num_rows as i32
-        );
-        self.webgl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::NEAREST as i32);
-        self.webgl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::NEAREST as i32);
-        self.webgl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
-        self.webgl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
-    }
-
-    fn set_texture_data(&self) -> Result<(), JsValue> {
-        let num_rows = self.vertices.len() / DATA_ROW_SIZE;
-        let len = self.vertices.len() * std::mem::size_of::<Point>() / std::mem::size_of::<f32>();
-        // log!("set_texture_data::: vertices.len() : {}, num_rows : {}, len : {}", self.vertices.len(), num_rows, len);
-        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.data_texture.as_ref());
-        log!("len : {}, num_rows : {}, DATA_ROW_SIZE * num_rows : {}", len, num_rows, DATA_ROW_SIZE * num_rows);
-        unsafe {
-            let array_view = js_sys::Float32Array::view_mut_raw(self.vertices.as_ptr() as *mut f32, len);
-            self.webgl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_array_buffer_view(
-                WebGl2RenderingContext::TEXTURE_2D, 
-                0, // mip level
-                0, 0, // xoffset, yoffset: i32,
-                DATA_ROW_SIZE as i32, num_rows as i32, // width, height
-                WebGl2RenderingContext::RG, // format: u32,
-                WebGl2RenderingContext::FLOAT, // type_: u32,
-                Some(&array_view) // pixels: Option<&Object>
-            )?; 
-        }
-        Ok(())
-    }
 
     pub fn prepare(&mut self) -> Result<(), JsValue> {
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
-        self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.set_buffer_data();
-        self.ensure_texture_size();
-        self.set_texture_data()?;
+        self.vertices_data.upload()?;
         self.webgl.bind_vertex_array(None);
         Ok(())
     }
@@ -247,12 +186,11 @@ impl GlyphShader {
     pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) -> Result<(), JsValue> {
         self.shader.use_program();
         self.shader.set_uniform_int("uGlyphDataTexture", 0);
+        self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
         self.shader.set_uniform_point("uOrigin", origin);
         self.shader.set_uniform_point("uScale", scale);
-        self.webgl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.data_texture.as_ref());
 
         let num_instances = self.glyph_instances.len() as i32;
         let num_vertices = self.max_glyph_num_vertices as i32;
