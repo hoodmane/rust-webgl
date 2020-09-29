@@ -33,11 +33,11 @@ uniform sampler2D uArrowPathTexture;
 in vec4 aColor;
 in vec4 aStartPosition; // (start_position, start_tangent)
 in vec4 aEndPosition; // (end_position, end_tangent)
-in vec4 aGlyphScales_and_2SinAngle; // (start_glyph_scale, end_glyph_scale)
+in vec4 aGlyphScales_angle_thickness; // (start_glyph_scale, end_glyph_scale, angle, thickness)
 in ivec4 aStart; // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) ) 
 in ivec4 aEnd; // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
 
-flat out vec4 fColor;
+out vec4 fColor;
 
 flat out float fCurvature;
 flat out vec2 fP0;
@@ -65,9 +65,22 @@ vec2 transformTan(vec2 tangent){
     return normalize(uScale * tangent);
 }
 
-vec4 transformVec(vec4 pos_tan) {
+vec4 transformPosTan(vec4 pos_tan) {
     return vec4(transformPos(pos_tan.xy), transformTan(pos_tan.zw));
 }
+
+vec4 reverseTangent(vec4 pos_tan){
+    return pos_tan * vec4(1.0, 1.0, -1.0, -1.0);
+}
+
+vec2 normalVector(vec2 direction){
+    return direction.yx * vec2(-1.0, 1.0);
+}
+
+mat2 rotationMatrix(vec2 direction){
+    return mat2(direction, normalVector(direction));
+}
+
 
 
 float glyphBoundaryPoint(int glyph, float angle){
@@ -110,6 +123,14 @@ float arrowLineEnd(ivec3 arrow){
 }
 
 
+vec2 arrowVisualEnds(ivec3 arrow){
+    int headerIndex = arrow[1];
+    float visual_tip_end = getValueByIndexFrom4ChannelTexture(uArrowHeaderTexture, headerIndex + 2);
+    float visual_back_end = getValueByIndexFrom4ChannelTexture(uArrowHeaderTexture, headerIndex + 3);
+    return vec2(visual_tip_end, visual_back_end);
+}
+
+
 vec2 getArrowVertex(ivec3 arrow, int vertexIndex) {
     int verticesIndex = arrow[2];
     return getValueByIndexFromTexture(uArrowPathTexture, verticesIndex + vertexIndex).xy;
@@ -144,13 +165,16 @@ vec4 circleOffsetHelper(float curvature, float dist) {
     vec2 tangent_factor = (4.0 * om_cx_over_2_sq) * vec2(1.0, 1.0) - vec2(2.0, 0.0);
     // tangent_factor * position is the double angle formula applied to position. If the double
     vec2 tangent = normalize(tangent_factor * position);
+    if(dist < 0.0){
+        tangent *= -1.0;
+    }
     return vec4(position, tangent);
 }
 
 // There is a unique circle through pos with tangent vector tan at pos and given curvature that curves to the left.
 // start_pos_tan -- start position and tangent.
 // curvature -- 1/radius, with sign: if curvature > 0 it curves leftward, if curvature < 0 it curves rightward.
-// dist -- distance to move along circle.
+// dist -- secand length along circle.
 // Needs: epsilon < dist * abs(curvature) / 2 < 1 - epsilon (upper bound comes from dist < diameter).
 vec4 circleOffset(vec4 start_pos_tan, float curvature, float dist){
     vec2 start_pos = start_pos_tan.xy;
@@ -162,7 +186,7 @@ vec4 circleOffset(vec4 start_pos_tan, float curvature, float dist){
     vec4 helper_pos_tan = circleOffsetHelper(curvature, dist);
     vec2 helper_pos = helper_pos_tan.xy;
     vec2 helper_tan = helper_pos_tan.zw;
-    mat2 rotation = mat2(start_tan, start_tan.yx * vec2(-1.0, 1.0));
+    mat2 rotation = rotationMatrix(start_tan);
     vec2 result_pos = start_pos + rotation * helper_pos;
     vec2 result_tan = rotation * helper_tan;
     return vec4(result_pos, result_tan);
@@ -178,13 +202,13 @@ float glyphOffsetCurvedHelper(int glyph, float scale, vec2 tangent){
     return scale * glyphBoundaryPoint(glyph, angle);
 }
 
-vec4 glyphOffsetCurved(int glyph, float scale, vec2 position, vec2 tangent, float curvature){
-    float offset = glyphOffsetCurvedHelper(glyph, scale, tangent);
-    vec4 pos_tan = circleOffset(vec4(position, tangent), curvature, offset);
+vec4 glyphOffsetCurved(int glyph, float scale, float extra, vec4 pos_tan, float curvature){
+    float offset = glyphOffsetCurvedHelper(glyph, scale, pos_tan.zw) + extra;
+    // return circleOffset(pos_tan, curvature, offset);
+    vec2 secant = circleOffset(pos_tan, curvature, offset).zw;
     // Try again with more accurate angle.
-    vec2 secant = pos_tan.zw;
-    offset = glyphOffsetCurvedHelper(glyph, scale, secant);
-    return circleOffset(vec4(position, tangent), curvature, offset);
+    offset = glyphOffsetCurvedHelper(glyph, scale, secant) + extra;
+    return circleOffset(pos_tan, curvature, offset);
 }
 
 
@@ -192,39 +216,38 @@ vec2 vertexPositionLinear(){
     vec2 startPos = transformPos(aStartPosition.xy);
     vec2 endPos = transformPos(aEndPosition.xy);
     vec2 tangent = normalize(endPos - startPos);
-    vec2 normal = tangent.yx * vec2(-1.0, 1.0);
     float angle = atan(tangent.y, tangent.x);
+
     int startGlyph = aStart.x;
     int endGlyph = aEnd.x;
-    float startGlyphScale = aGlyphScales_and_2SinAngle.x;
-    float endGlyphScale = aGlyphScales_and_2SinAngle.y;
+    float startGlyphScale = aGlyphScales_angle_thickness.x;
+    float endGlyphScale = aGlyphScales_angle_thickness.y;
+    float thickness = aGlyphScales_angle_thickness.w;
     startPos += tangent * glyphOffsetLinear(startGlyph, startGlyphScale, angle);
     endPos -= tangent * glyphOffsetLinear(endGlyph, endGlyphScale, angle + M_PI);
 
     ivec3 startArrow = aStart.yzw;
     ivec3 endArrow = aEnd.yzw;
 
-    // Arrow startArrow = makeArrow(uArrowHeaderTexture, startArrowData);
-    // Arrow endArrow = makeArrow(uArrowHeaderTexture, endArrowData);
-
     int vertexID = gl_VertexID;
     if(vertexID < 6){
         startPos -= tangent * arrowLineEnd(startArrow);
         endPos += tangent * arrowLineEnd(endArrow);
 
-        ivec2 vertexIndex = vertexIndexes[gl_VertexID];
-        if(vertexIndex.x == 1){
+        int vertexIndex = (vertexID/3) + (vertexID % 3);
+        vec2 normal = normalVector(tangent);
+        if(vertexIndex % 2 == 1){
             normal = - normal;
         }
-        if(vertexIndex.y == 0){
-            return startPos + normal;
+        if(vertexIndex/2 == 0){
+            return startPos + thickness * normal;
         } else {
-            return endPos + normal;
+            return endPos + thickness * normal;
         }
     }
     vertexID -= 6;
     
-    mat2 rotationMatrix = mat2(tangent, normal);
+    mat2 rotationMatrix = rotationMatrix(tangent);
     // Start arrow
     if(vertexID < arrowNumVertices(startArrow)) {
         return startPos - rotationMatrix * getArrowVertex(startArrow, vertexID);
@@ -242,18 +265,122 @@ vec2 vertexPositionLinear(){
 }
 
 
+vec2 positionCurvedArrrow(ivec3 arrow, int glyph, float glyphScale, vec4 posTan, float curvature, int vertexID){
+    vec2 ends = arrowVisualEnds(arrow);
+    float tipEnd = ends[0];
+    float backEnd = ends[1];
+    vec4 tipEndPosTan = glyphOffsetCurved(glyph, glyphScale, tipEnd, posTan, curvature);
+    vec4 backEndPosTan = circleOffset(tipEndPosTan, curvature, -tipEnd + backEnd);
+    vec2 secant = normalize(tipEndPosTan.xy - backEndPosTan.xy);
+    mat2 rotationMatrix = rotationMatrix(secant);
+    return tipEndPosTan.xy - rotationMatrix * getArrowVertex(arrow, vertexID);
+}
+
 vec2 vertexPositionCurved(){
+    vec4 startPosTan = transformPosTan(aStartPosition);
+    vec4 endPosTan = transformPosTan(aEndPosition);
+    float angle = acos(dot(startPosTan.zw, endPosTan.zw))/2.0;
+    float thickness = aGlyphScales_angle_thickness.w;
+    float curvature = 2.0 * sin(angle) / length(endPosTan.xy - startPosTan.xy);
+    int startGlyph = aStart.x;
+    int endGlyph = aEnd.x;
+    float startGlyphScale = aGlyphScales_angle_thickness.x;
+    float endGlyphScale = aGlyphScales_angle_thickness.y;
+    ivec3 startArrow = aStart.yzw;
+    ivec3 endArrow = aEnd.yzw;
+
+    int vertexID = gl_VertexID;
+
+    if(vertexID < 12){
+        fCurvature = curvature;
+        fP0 = startPosTan.xy;
+        fN0 = normalVector(startPosTan.zw);
+        fHalfThickness = thickness/2.0;
+
+        vec4 origStartPosTan = startPosTan;
+        vec4 origEndPosTan = endPosTan;
+        startPosTan = glyphOffsetCurved(startGlyph, startGlyphScale, -arrowLineEnd(startArrow), startPosTan, curvature);
+        endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, -arrowLineEnd(endArrow), reverseTangent(endPosTan), curvature));
+        // startPosTan = glyphOffsetCurved(startGlyph, startGlyphScale, 0.0, startPosTan, curvature);
+        // endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, 0.0, reverseTangent(endPosTan), curvature));
+        int vidx = (vertexID/3) + (vertexID % 3);
+        switch(vertexID/3){
+            case 0:
+                fColor = vec4(0.0, 0.0, 0.0, 0.3);
+                break;
+            case 1:
+                fColor = vec4(1.0, 0.0, 0.0, 0.3);
+                break;
+            case 2:
+                fColor = vec4(0.0, 1.0, 0.0, 0.3);
+                break;
+            case 3:
+                fColor = vec4(0.0, 0.0, 1.0, 0.3);
+                break;
+        }
+        bool inside = (vidx + 1 - vertexID/6) % 2 == 0;
+        int angle_idx = vidx / 2;
+        vec2 displacement = (endPosTan.xy - startPosTan.xy);
+        float displacement_length = length(displacement);
+        vec2 midNormal = normalVector(normalize(displacement));
+        vec2 midPos = (origStartPosTan.xy + origEndPosTan.xy) / 2.0 + (displacement_length/2.0 * tan(angle/2.0)) * midNormal;
+        vec2 pos;
+        vec2 normal;
+        switch(angle_idx){
+            case 0:
+                pos = startPosTan.xy;
+                normal = normalVector(startPosTan.zw);
+                break;
+            case 1:
+                pos = midPos;
+                normal = midNormal;
+                break;
+            case 2:
+                pos = endPosTan.xy;
+                normal = normalVector(endPosTan.zw);
+                break;
+        }
+
+        float thickness_scale = 1.0;
+        if(inside){
+            pos -= thickness_scale * thickness * normal;
+        } else {
+            vec2 quarterNormal = normalize(normalVector(origStartPosTan.zw) + midNormal);
+            float magnitude = length(midPos - origStartPosTan.xy)/2.0 * tan(angle/4.0);
+            vec2 v = (magnitude + thickness) * quarterNormal;
+            float offsetMagnitude = dot(v, v)/dot(v, midNormal);
+            pos += offsetMagnitude * normal;
+            pos += thickness_scale * thickness * normal;
+        }
+        vPosition = pos;
+        return pos;
+    }
+    vertexID -= 12;
+
+    // Start arrow
+    if(vertexID < arrowNumVertices(startArrow)) {
+        return positionCurvedArrrow(startArrow, startGlyph, startGlyphScale, startPosTan, -curvature, vertexID);
+    } 
+    vertexID -= arrowNumVertices(startArrow);
+    
+    // End arrow
+    if(vertexID < arrowNumVertices(endArrow)) {
+        return positionCurvedArrrow(endArrow, endGlyph, endGlyphScale, reverseTangent(endPosTan), curvature, vertexID);
+    }
+    vertexID -= arrowNumVertices(endArrow);
+    
+    // Extra throw-away vertices
     return vec2(0.0, 0.0);
 }
 
 void main() {
-    float double_sin_angle = aGlyphScales_and_2SinAngle.z;
+    fColor = aColor;
+    float angle = aGlyphScales_angle_thickness.z;
     vec2 position;
-    if(double_sin_angle == 0.0){
+    if(angle == 0.0){
         position = vertexPositionLinear();
     } else {
         position = vertexPositionCurved();
     }
     gl_Position = vec4(uTransformationMatrix * vec3(position, 1.0), 0.0, 1.0);
-    fColor = aColor;
 }

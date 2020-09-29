@@ -11,7 +11,7 @@ use crate::arrow::Arrow;
 use crate::shader::attributes::{Format, Type, NumChannels, Attribute, Attributes};
 use crate::shader::data_texture::DataTexture;
 
-use lyon::geom::math::{Point, Vector, Transform};
+use lyon::geom::math::{Point, Vector, Angle, Transform};
 
 use wasm_bindgen::JsValue;
 use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
@@ -27,7 +27,7 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aColor", 4, Type::F32), // color
     Attribute::new("aStartPosition", 4, Type::F32), // (start_position, start_tangent)
     Attribute::new("aEndPosition", 4, Type::F32), // (end_position, end_tangent)
-    Attribute::new("aGlyphScales_and_2SinAngle", 3, Type::F32), // (start_glyph_scale, end_glyph_scale, 2sin(angle))
+    Attribute::new("aGlyphScales_angle_thickness", 4, Type::F32), // (start_glyph_scale, end_glyph_scale, angle, thickness)
 
     Attribute::new("aStart", 4, Type::I16), // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) )
     Attribute::new("aEnd", 4, Type::I16), // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
@@ -43,9 +43,11 @@ struct EdgeInstance {
     start_tangent : Vector,
     end_position : Point,
     end_tangent : Vector,
+
     start_glyph_scale : f32,
     end_glyph_scale : f32,
-    double_sin_angle : f32,
+    angle : f32,
+    thickness : f32,
     
     start_glyph : u16,
     start_arrow : ArrowIndices,
@@ -164,18 +166,22 @@ impl TestEdgeShader {
     ){
         let start_arrow = start_tip.map(|tip| self.tip_map[tip]).unwrap_or_default();
         let end_arrow = end_tip.map(|tip| self.tip_map[tip]).unwrap_or_default();
-        let tangent = (end - start).normalize();
+        let angle = Angle::degrees(90.0);
+        let segment_angle = (end - start).angle_from_x_axis();
+        let start_tangent = Vector::from_angle_and_length(segment_angle - angle, 1.0);
+        let end_tangent = Vector::from_angle_and_length(segment_angle + angle, 1.0);
         self.edge_instances.push(EdgeInstance {
             color : Vec4::new(0.0, 0.0, 0.0, 1.0),
             start_position : start,
-            start_tangent : tangent,
+            start_tangent,
             end_position : end,
-            end_tangent : tangent,
+            end_tangent,
             start_glyph : self.glyph_map[start_glyph],
             end_glyph : self.glyph_map[end_glyph],
             start_glyph_scale,
             end_glyph_scale,
-            double_sin_angle : 0.0,
+            angle : angle.radians,
+            thickness : 5.0,
 
             start_arrow,
             end_arrow
@@ -210,6 +216,7 @@ impl TestEdgeShader {
 
 
     pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point){
+        log!("origin : {:?}, scale : {:?}", origin, scale);
         self.shader.use_program();
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         
@@ -228,7 +235,7 @@ impl TestEdgeShader {
         self.webgl.draw_arrays_instanced(
             WebGl2RenderingContext::TRIANGLES,
             0,
-            (6 + 2 * self.max_arrow_tip_num_vertices) as i32,
+            (12 + 2 * self.max_arrow_tip_num_vertices) as i32,
             self.edge_instances.len() as i32
         );
     }

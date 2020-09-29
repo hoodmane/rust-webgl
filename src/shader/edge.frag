@@ -1,6 +1,6 @@
 #version 300 es
 precision highp float;
-flat in vec4 fColor;
+in vec4 fColor;
 flat in float fCurvature;
 flat in vec2 fP0;
 flat in vec2 fN0;
@@ -34,7 +34,7 @@ float circleConstraint(float ab_dot_ab, float ab_dot_n, float epsilon, float cur
 void main() {
     bool weHaveDashPattern = false;
     outColor = fColor;
-    return;
+    // return;
     if(fCurvature == 0.0){
         if(weHaveDashPattern){
             float arc_length = length(vPosition - fP0);
@@ -56,8 +56,7 @@ void main() {
     float outer_bound = - circleConstraint(ab_dot_ab, ab_dot_n,   fHalfThickness, fCurvature);
     float bound = min(inner_bound, outer_bound);
     float alpha = aaStep(0.0, bound);
-    outColor.a *= alpha;
-    if(alpha == 0.0) {
-        discard;
+    if(alpha != 0.0) {
+        outColor = vec4(0.6, 0.0, 1.0, alpha);
     }
 }
