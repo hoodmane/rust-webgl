@@ -6,7 +6,7 @@ use web_sys::{WebGl2RenderingContext};
 
 
 use crate::log;
-use crate::shader::{new_glyph_shader::GlyphShader, LineShader, DefaultShader, DefaultShaderIndexed};
+use crate::shader::{GlyphShader, EdgeShader, LineShader, DefaultShader, DefaultShaderIndexed};
 
 
 use crate::webgl_wrapper::{WebGlWrapper};
@@ -63,7 +63,7 @@ pub struct Canvas {
     default_shader : DefaultShader,
     default_shader_indexed : DefaultShaderIndexed,
     glyph_shader : GlyphShader,
-    edge_shader : crate::shader::edge_shader_test2::TestEdgeShader
+    edge_shader : EdgeShader,
 }
 
 #[wasm_bindgen]
@@ -87,7 +87,7 @@ impl Canvas {
         let default_shader_indexed = DefaultShaderIndexed::new(webgl.clone())?;
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let buffer_dimensions = BufferDimensions::new(1, 1, 0.0);
-        let edge_shader = crate::shader::edge_shader_test2::TestEdgeShader::new(webgl.clone())?;
+        let edge_shader = EdgeShader::new(webgl.clone())?;
 
 
         let mut result = Self {
@@ -565,12 +565,6 @@ impl Canvas {
         triangles.push(p2.into());
         triangles.push(p3.into());
         self.default_shader.draw(Transform::identity(), triangles.as_slice(), WebGl2RenderingContext::TRIANGLES)?;
-        Ok(())
-    }
-
-    pub fn test_draw_arc(&mut self) -> Result<(), JsValue> {
-        let mut edge_shader = crate::shader::edge_shader::EdgeShader::new(self.webgl.clone())?;
-        edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
         Ok(())
     }
 
