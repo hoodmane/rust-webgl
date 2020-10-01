@@ -1,5 +1,8 @@
 use std::convert::TryInto;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map};
+use uuid::Uuid;
+use std::rc::Rc;
+
 
 use wasm_bindgen::JsValue;
 use web_sys::{
@@ -13,10 +16,18 @@ use web_sys::{
 
 use lyon::geom::math::{Point, Transform};
 
+use lyon::tessellation::{
+    VertexBuffers, geometry_builder, 
+    StrokeTessellator, StrokeOptions,
+    FillTessellator, FillOptions
+};
+
 use crate::log;
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::Shader;
 use crate::vector::Vec4;
+
+use crate::glyph::{GlyphInstance, Glyph};
 
 use crate::shader::attributes::{Format, Type, NumChannels,  Attribute, Attributes};
 use crate::shader::data_texture::DataTexture;
@@ -24,6 +35,7 @@ use crate::shader::data_texture::DataTexture;
 
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aPosition", 2, Type::F32),
+    Attribute::new("aScale", 1, Type::F32),
     Attribute::new("aColor", 4, Type::F32),
     Attribute::new("aGlyphNumVertices", 1, Type::I16), 
     Attribute::new("aGlyphDataIndex", 1, Type::I16),
@@ -38,9 +50,9 @@ const DATA_ROW_SIZE : usize = 2048;
 pub struct GlyphShader {
     webgl : WebGlWrapper,
     pub shader : Shader,
-    glyph_map : BTreeMap<String, (u16, u16)>,
+    glyph_map : BTreeMap<Uuid, (u16, u16)>,
 
-    glyph_instances : Vec<GlyphInstance>,
+    glyph_instances : Vec<ShaderGlyphInstance>,
 
     
     attribute_state : Option<WebGlVertexArrayObject>,
@@ -54,8 +66,9 @@ pub struct GlyphShader {
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
-struct GlyphInstance {
+struct ShaderGlyphInstance {
     position : Point,
+    scale : f32,
     color : Vec4,
     num_vertices : u16,
     index : u16,
@@ -105,22 +118,38 @@ impl GlyphShader {
         self.glyph_instances.clear();
     }
 
-    pub fn glyph_data(&mut self, glyph_name : String, vertices : &[Point], indices : &[u16], index_offset : u16){
-        let glyph_index = self.vertices_data.len();
-        let glyph_num_vertices = indices.len();
-        self.vertices_data.append(indices.iter().map(|&i| vertices[(i - index_offset) as usize]));
-        self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(glyph_num_vertices);
-        self.glyph_map.insert(glyph_name, (glyph_index.try_into().unwrap(), glyph_num_vertices.try_into().unwrap()));
+    fn glyph_data(&mut self, glyph : &Rc<Glyph>) -> Result<(u16, u16), JsValue> {
+        let entry = self.glyph_map.entry(glyph.uuid);
+        // If btree_map::Entry had a method "or_try_insert(f : K -> Result<V, E>) -> Result<&V, E>" we could use that instead.
+        match entry {
+            btree_map::Entry::Occupied(oe) => Ok(*oe.get()),
+            btree_map::Entry::Vacant(ve) => {
+                let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+                {
+                    let scale = 100.0;
+                    glyph.tessellate_vertices(&mut buffers, scale)?;
+                }
+        
+                let glyph_index = self.vertices_data.len();
+                let glyph_num_vertices = buffers.indices.len();
+                self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
+                self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(glyph_num_vertices);
+
+                Ok(*ve.insert((glyph_index.try_into().unwrap(), glyph_num_vertices.try_into().unwrap())))
+            }
+        }
     }
 
-    pub fn add_glyph(&mut self, glyph_name : &str, position : Point, color : Vec4) {
-        let (index, num_vertices) = self.glyph_map[glyph_name];
-        self.glyph_instances.push(GlyphInstance {
-            position,
-            color, 
+    pub fn add_glyph(&mut self, glyph_instance : GlyphInstance) -> Result<(), JsValue> {
+        let (index, num_vertices) = self.glyph_data(&glyph_instance.glyph)?;
+        self.glyph_instances.push(ShaderGlyphInstance {
+            position : glyph_instance.center,
+            scale : glyph_instance.scale / 100.0,
+            color : glyph_instance.color,
             index,
             num_vertices
         });
+        Ok(())
     }
 
     fn set_buffer_data(&self){

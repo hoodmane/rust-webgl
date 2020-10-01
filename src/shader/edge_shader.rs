@@ -1,17 +1,27 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map};
 use std::convert::TryInto;
+use uuid::Uuid;
+use std::rc::Rc;
 
 use crate::log;
 use crate::vector::{Vec4};
 use crate::shader::{Shader};
 use crate::webgl_wrapper::WebGlWrapper;
 
+use crate::glyph::{GlyphInstance, Glyph};
 use crate::arrow::Arrow;
 
 use crate::shader::attributes::{Format, Type, NumChannels, Attribute, Attributes};
 use crate::shader::data_texture::DataTexture;
 
 use lyon::geom::math::{Point, Vector, Angle, Transform};
+
+
+use lyon::tessellation::{
+    VertexBuffers, geometry_builder, 
+    StrokeTessellator, StrokeOptions,
+    FillTessellator, FillOptions
+};
 
 use wasm_bindgen::JsValue;
 use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
@@ -83,10 +93,10 @@ pub struct EdgeShader {
     attribute_state : Option<WebGlVertexArrayObject>,
     attributes_buffer : Option<WebGlBuffer>,
     
-    glyph_map : BTreeMap<String, u16>,
+    glyph_map : BTreeMap<Uuid, u16>,
     glyph_boundary_data : DataTexture<f32>,
 
-    tip_map : BTreeMap<String, ArrowIndices>,
+    tip_map : BTreeMap<Uuid, ArrowIndices>,
     max_arrow_tip_num_vertices : usize,
     arrow_header_data : DataTexture<ArrowHeader>,
     arrow_vertices_data : DataTexture<Point>,
@@ -131,61 +141,83 @@ impl EdgeShader {
         })
     }
 
-    pub fn glyph_boundary_data(&mut self, glyph_name : String, boundary_data : &[Vector]){
-        debug_assert!(boundary_data.len() == ANGLE_RESOLUTION);
-        self.glyph_map.insert(glyph_name, self.glyph_map.len() as u16);
-        self.glyph_boundary_data.append(boundary_data.iter().map(|v| v.length()));
+    fn arrow_tip_data(&mut self, arrow : &Arrow) -> Result<ArrowIndices, JsValue> {
+        let next_header_index = self.tip_map.len();
+        let entry = self.tip_map.entry(arrow.uuid);
+        match entry {
+            btree_map::Entry::Occupied(oe) => Ok(*oe.get()),
+            btree_map::Entry::Vacant(ve) => {
+                let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+                arrow.tesselate_into_buffers(&mut buffers)?;
+
+                let vertices_index = self.arrow_vertices_data.len();
+                let num_vertices = buffers.indices.len();
+                self.arrow_vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
+                self.arrow_header_data.append([ArrowHeader {     
+                    tip_end : arrow.tip_end,
+                    back_end : arrow.back_end,
+                    visual_tip_end : arrow.visual_tip_end,
+                    visual_back_end : arrow.visual_back_end,
+                    line_end : arrow.line_end, 
+                }].iter().cloned());
+                self.max_arrow_tip_num_vertices = self.max_arrow_tip_num_vertices.max(num_vertices);
+
+                let arrow_indices = ArrowIndices {
+                    num_vertices : num_vertices as u16,
+                    header_index : next_header_index as u16,
+                    vertices_index : vertices_index as u16,
+                };
+                Ok(*ve.insert(arrow_indices))
+            }
+        }
     }
 
-    pub fn arrow_tip_data(&mut self, tip_name : String, arrow : &Arrow, vertices : &[Point], indices : &[u16], index_offset : u16) {
-        let vertices_index = self.arrow_vertices_data.len();
-        let num_vertices = indices.len();
-        self.arrow_vertices_data.append(indices.iter().map(|&i| vertices[(i - index_offset) as usize]));
-        self.arrow_header_data.append([ArrowHeader {     
-            tip_end : arrow.tip_end,
-            back_end : arrow.back_end,
-            visual_tip_end : arrow.visual_tip_end,
-            visual_back_end : arrow.visual_back_end,
-            line_end : arrow.line_end, 
-        }].iter().cloned());
-        self.max_arrow_tip_num_vertices = self.max_arrow_tip_num_vertices.max(num_vertices);
-        let arrow_indices = ArrowIndices {
-            num_vertices : num_vertices as u16,
-            header_index : self.tip_map.len() as u16,
-            vertices_index : vertices_index as u16,
-        };
-        self.tip_map.insert(tip_name, arrow_indices);
+    fn glyph_boundary_data(&mut self, glyph : &Rc<Glyph>) -> u16 {
+        let next_glyph_index = self.glyph_map.len();
+        let entry = self.glyph_map.entry(glyph.uuid);
+        match entry {
+            btree_map::Entry::Occupied(oe) => *oe.get(),
+            btree_map::Entry::Vacant(ve) => {
+                self.glyph_boundary_data.append(glyph.boundary().iter().map(|v| v.length()));
+                *ve.insert(next_glyph_index as u16)
+            }
+        }
     }
+
 
 
     pub fn add_edge(&mut self, 
-        start : Point, end : Point, 
-        start_glyph : &str, end_glyph : &str, 
-        start_glyph_scale : f32, end_glyph_scale : f32,
-        start_tip : Option<&str>, end_tip : Option<&str>
-    ){
-        let start_arrow = start_tip.map(|tip| self.tip_map[tip]).unwrap_or_default();
-        let end_arrow = end_tip.map(|tip| self.tip_map[tip]).unwrap_or_default();
-        let angle = Angle::degrees(90.0);
-        let segment_angle = (end - start).angle_from_x_axis();
+        start : GlyphInstance, 
+        end : GlyphInstance, 
+        start_tip : Option<&Arrow>, end_tip : Option<&Arrow>,
+        angle : Angle,
+        thickness : f32,
+    ) -> Result<(), JsValue> {
+        let start_arrow = start_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or(Ok(Default::default()))?;
+        let end_arrow = end_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or(Ok(Default::default()))?;
+        let segment_angle = (end.center - start.center).angle_from_x_axis();
         let start_tangent = Vector::from_angle_and_length(segment_angle - angle, 1.0);
         let end_tangent = Vector::from_angle_and_length(segment_angle + angle, 1.0);
+        let start_glyph_idx = self.glyph_boundary_data(&start.glyph);
+        let end_glyph_idx = self.glyph_boundary_data(&end.glyph);
+
         self.edge_instances.push(EdgeInstance {
             color : Vec4::new(0.0, 0.0, 0.0, 1.0),
-            start_position : start,
+            start_position : start.center,
             start_tangent,
-            end_position : end,
+            end_position : end.center,
             end_tangent,
-            start_glyph : self.glyph_map[start_glyph],
-            end_glyph : self.glyph_map[end_glyph],
-            start_glyph_scale,
-            end_glyph_scale,
+            start_glyph : start_glyph_idx,
+            end_glyph : end_glyph_idx,
+            start_glyph_scale : start.scale,
+            end_glyph_scale : end.scale,
             angle : angle.radians,
-            thickness : 5.0,
+            thickness,
 
             start_arrow,
             end_arrow
-        })
+        });
+        Ok(())
     }
 
     

@@ -1,8 +1,19 @@
-use crate::webgl_wrapper::WebGlWrapper;
+use uuid::Uuid;
+use std::rc::Rc;
+
+use wasm_bindgen::JsValue;
+
 use lyon::geom::math::{point, Point};
 use lyon::path::{Path, builder::{PathBuilder, Build}};
-use lyon::tessellation::{StrokeOptions, FillOptions, LineCap, LineJoin};
 
+use lyon::tessellation::{
+    geometry_builder, TessellationError,
+    StrokeTessellator, StrokeOptions, LineCap, LineJoin,
+    FillTessellator, FillOptions, VertexBuffers,
+};
+
+use crate::error::convert_tessellation_error;
+use crate::webgl_wrapper::WebGlWrapper;
 // pub struct ArrowSettings {
 //     length : ArrowLength,
 //     width : ArrowDimension,
@@ -47,9 +58,29 @@ pub struct Arrow {
     pub(crate) visual_tip_end : f32,
     pub(crate) visual_back_end : f32,
     pub(crate) line_end : f32,
-    pub(crate) path : Path, 
+    pub(crate) path : Rc<Path>, 
     pub(crate) stroke : Option<StrokeOptions>, 
     pub(crate) fill : Option<FillOptions>,
+    pub(crate) uuid : Uuid,
+}
+
+impl Arrow {
+    pub fn tesselate_into_buffers(&self, buffers : &mut VertexBuffers<Point, u16>) -> Result<(), JsValue> {
+        let mut vertex_builder = geometry_builder::simple_builder(buffers);
+        let mut fill = FillTessellator::new();
+        let mut stroke = StrokeTessellator::new();
+
+        // let arrow = crate::arrow::normal_arrow(2.0);
+        let arrow = crate::arrow::test_arrow();
+
+        if let Some(fill_options) = &self.fill {
+            fill.tessellate(arrow.path.iter(), fill_options, &mut vertex_builder).map_err(convert_tessellation_error)?;
+        }
+        if let Some(stroke_options) = &self.stroke {
+            stroke.tessellate(arrow.path.iter(), stroke_options, &mut vertex_builder).map_err(convert_tessellation_error)?;
+        }
+        Ok(())
+    }
 }
 
 
@@ -146,7 +177,7 @@ pub fn normal_arrow(line_width : f32) -> Arrow {
         point(-0.81731 * length_m, -0.2 * width_m),
         point(-length_m, -width_m/2.0)
     );
-    let path = path_builder.build();
+    let path = Rc::new(path_builder.build());
 
     let stroke_options = StrokeOptions::DEFAULT.with_line_cap(LineCap::Round).with_line_join(LineJoin::Round).with_line_width(line_width);
 
@@ -158,7 +189,8 @@ pub fn normal_arrow(line_width : f32) -> Arrow {
         line_end,
         path,
         stroke : Some(stroke_options),
-        fill : None
+        fill : None,
+        uuid : Uuid::new_v4()
     }
 }
 
@@ -345,7 +377,7 @@ pub fn test_arrow() -> Arrow {
     path_builder.line_to(point(-length, -width/2.0));
     path_builder.line_to(point(-length/2.0, 0.0));
     path_builder.close();
-    let path = path_builder.build();
+    let path = Rc::new(path_builder.build());
     let tip_end = 0.0;
     let visual_tip_end = 0.0;
     let back_end = -length;
@@ -362,5 +394,6 @@ pub fn test_arrow() -> Arrow {
         fill : None,
         stroke : Some(StrokeOptions::DEFAULT),
         // stroke : None,
+        uuid : Uuid::new_v4(),
     }
 }

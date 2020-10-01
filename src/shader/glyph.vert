@@ -5,6 +5,7 @@ uniform vec2 uScale;
 uniform sampler2D uGlyphDataTexture;
 
 in vec2 aPosition;
+in float aScale;
 in vec4 aColor;
 in int aGlyphDataIndex;
 in int aGlyphNumVertices;
@@ -27,7 +28,7 @@ void main() {
     vec2 vertexPosition;
     if(gl_VertexID < aGlyphNumVertices) {
         int vertexIdx = aGlyphDataIndex + gl_VertexID;
-        vertexPosition = getValueByIndexFromTexture(uGlyphDataTexture, vertexIdx).xy;
+        vertexPosition = getValueByIndexFromTexture(uGlyphDataTexture, vertexIdx).xy * aScale;
     } else {
         vertexPosition = vec2(0.0, 0.0); // degenerate vertex
     }

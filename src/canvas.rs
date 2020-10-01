@@ -6,6 +6,7 @@ use web_sys::{WebGl2RenderingContext};
 
 
 use crate::log;
+use crate::error::convert_tessellation_error;
 use crate::shader::{GlyphShader, EdgeShader, LineShader, DefaultShader, DefaultShaderIndexed};
 
 
@@ -395,13 +396,12 @@ impl Canvas {
     }
 
 
-    pub fn test_speed_setup(&mut self, s1 : String, s2 : String, xy_max : usize,  scale : f32) -> Result<(), JsValue> {
+    pub fn test_speed_setup(&mut self, s1 : String, s2 : String, xy_max : usize,  scale : f32, degrees : f32) -> Result<(), JsValue> {
         use lyon::path::iterator::PathIterator;
         use crate::glyph::{Glyph, GlyphInstance};
         let glyph1 = Glyph::from_stix(&s1);
-        let centered_instance1 = GlyphInstance::new(glyph1.clone(), point(0.0, 0.0), scale);
         let glyph2 = Glyph::from_stix(&s2);
-        let centered_instance2 = GlyphInstance::new(glyph2.clone(), point(0.0, 0.0), scale);
+        let mut glyph_instances = Vec::new();
         // let mut edge_instances = Vec::with_capacity(x_max * y_max);
         // for x in 1..x_max {
         //     for y in 0..y_max {
@@ -421,80 +421,78 @@ impl Canvas {
         // let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
 
 
-        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-        {
-            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-            // Create the tessellator.
-            // let mut stroke_tessellator = StrokeTessellator::new();
-            let mut fill_tessellator = FillTessellator::new();
-            // for edge in &edge_instances {
-            //     edge.tessellate(&mut vertex_builder,
-            //         &mut stroke_tessellator, &StrokeOptions::default(),
-            //         &mut fill_tessellator,
-            //     )?;
-            // }   
-            centered_instance1.draw(&mut vertex_builder, &mut fill_tessellator)?;
-        }
         self.glyph_shader.clear_glyphs();
-        self.glyph_shader.glyph_data("a".to_string(), &buffers.vertices, &buffers.indices, 0);
-
-        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-        {
-            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-            let mut fill_tessellator = FillTessellator::new();
-            centered_instance2.draw(&mut vertex_builder, &mut fill_tessellator)?;
-        }
-
-        self.glyph_shader.glyph_data("b".to_string(), &buffers.vertices, &buffers.indices, 0);
 
         for x in 0..xy_max {
             for y in 0..xy_max {
-                let s = if (x + y) % 2 == 1 { "b" } else { "a" };
+                let s = if (x + y) % 2 == 1 { &glyph1 } else { &glyph2 };
                 let r = x as f32 /  xy_max as f32;
                 let b = y as f32 /  xy_max as f32;
-                self.glyph_shader.add_glyph(s, point(x as f32, y as f32), Vec4::new(r, 0.0, b, 1.0));
+                let glyph_instance = GlyphInstance::new(s.clone(), point(x as f32, y as f32), scale, Vec4::new(r, 0.0, b, 1.0));
+                self.glyph_shader.add_glyph(glyph_instance.clone())?;
+                glyph_instances.push(glyph_instance);
+            }
+        }
+        let x_max = xy_max;
+        let y_max = xy_max;
+
+
+        let arrow = crate::arrow::normal_arrow(2.0);
+        let angle = Angle::degrees(degrees);
+
+        for x in 1..x_max {
+            for y in 0..y_max {
+                let source = {
+                    let y = 0;
+                    glyph_instances[x * y_max + y].clone()
+                };
+                let target = {
+                    let x = x - 1;
+                    glyph_instances[x * y_max + y].clone()
+                };
+                self.edge_shader.add_edge(source, target, Some(&arrow), Some(&arrow), angle, 2.0)?;
             }
         }
 
-
         self.glyph_shader.prepare()?;
+        self.edge_shader.prepare()?;
+        self.test_speed();
         Ok(())
     }
 
-    pub fn test_speed(&mut self)  -> Result<(), JsValue> {
+    pub fn test_speed(&mut self) {
         self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
         self.edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
-        Ok(())
     }
 
 
-    pub fn test_stix_math(&mut self, p : JsPoint, q : JsPoint, angle : f32, s : String) -> Result<(), JsValue> {
-        use lyon::path::iterator::PathIterator;
-        use crate::glyph::{Glyph, GlyphInstance};
-        let glyph = Glyph::from_stix(&s);
-        let start_instance = GlyphInstance::new(glyph.clone(), self.transform_point(p).into(), 30.0);
-        let end_instance = GlyphInstance::new(glyph, self.transform_point(q).into(), 30.0);
-        let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
+    // pub fn test_stix_math(&mut self, p : JsPoint, q : JsPoint, angle : f32, s : String) -> Result<(), JsValue> {
+    //     use lyon::path::iterator::PathIterator;
+    //     use crate::glyph::{Glyph, GlyphInstance};
+    //     let glyph = Glyph::from_stix(&s);
+    //     let start_instance = GlyphInstance::new(glyph.clone(), self.transform_point(p).into(), 30.0);
+    //     let end_instance = GlyphInstance::new(glyph, self.transform_point(q).into(), 30.0);
+    //     let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
 
 
-        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-        {
-            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-            // Create the tessellator.
-            let mut stroke_tessellator = StrokeTessellator::new();
-            let mut fill_tessellator = FillTessellator::new();
+    //     let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+    //     {
+    //         let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
+    //         // Create the tessellator.
+    //         let mut stroke_tessellator = StrokeTessellator::new();
+    //         let mut fill_tessellator = FillTessellator::new();
                
-            edge.tessellate(&mut vertex_builder,
-                &mut stroke_tessellator, &StrokeOptions::default(),
-                &mut fill_tessellator,
-            )?;
-            start_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
-            end_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
-        }
-        let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
-        self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
-        Ok(())
-    }
+    //         edge.tessellate(&mut vertex_builder,
+    //             &mut stroke_tessellator, &StrokeOptions::default(),
+    //             &mut fill_tessellator,
+    //         )?;
+    //         start_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+    //         end_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
+    //     }
+    //     let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
+    //     self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
+    //     Ok(())
+    // }
 
     pub fn get_test_buffer(&self) -> JsBuffer {
         let mut test_buffer = Vec::new();
@@ -572,62 +570,22 @@ impl Canvas {
 
         use lyon::path::iterator::PathIterator;
         use crate::glyph::{Glyph, GlyphInstance};
-        let glyph1 = Glyph::from_stix(&s1);
-        let centered_instance1 = GlyphInstance::new(glyph1.clone(), point(0.0, 0.0), scale);
-        let glyph2 = Glyph::from_stix(&s2);
-        let centered_instance2 = GlyphInstance::new(glyph2.clone(), point(0.0, 0.0), scale);
-        self.glyph_shader.clear_glyphs();
-
-        {
-            let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-            let mut fill_tessellator = FillTessellator::new();
-            centered_instance1.draw(&mut vertex_builder, &mut fill_tessellator)?;
-            self.glyph_shader.glyph_data("a".to_string(), &buffers.vertices, &buffers.indices, 0);
-        }
-
-        {       
-            let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-            let mut fill_tessellator = FillTessellator::new();
-            centered_instance2.draw(&mut vertex_builder, &mut fill_tessellator)?;
-            self.glyph_shader.glyph_data("b".to_string(), &buffers.vertices, &buffers.indices, 0);
-        }
 
         let start : Point = start.into();
         let end : Point = end.into();
-        self.glyph_shader.add_glyph("a", start, Vec4::new(0.0, 0.0, 1.0, 1.0));
-        self.glyph_shader.add_glyph("b", end, Vec4::new(0.0, 0.0, 1.0, 1.0));
         let glyph1 = Glyph::from_stix(&s1);
         let glyph2 = Glyph::from_stix(&s2);
+        let start_glyph = GlyphInstance::new(glyph1, start, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
+        let end_glyph = GlyphInstance::new(glyph2, end, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
+        self.glyph_shader.add_glyph(start_glyph.clone())?;
+        self.glyph_shader.add_glyph(end_glyph.clone())?;
 
         self.glyph_shader.prepare()?;
         self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
 
-
-
-        {       
-            let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-            let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-            let mut fill = FillTessellator::new();
-            let mut stroke = StrokeTessellator::new();
-
-            // let arrow = crate::arrow::normal_arrow(2.0);
-            let arrow = crate::arrow::test_arrow();
-
-            if let Some(fill_options) = &arrow.fill {
-                fill.tessellate(arrow.path.iter(), fill_options, &mut vertex_builder).map_err(convert_error)?;
-            }
-            if let Some(stroke_options) = &arrow.stroke {
-                stroke.tessellate(arrow.path.iter(), stroke_options, &mut vertex_builder).map_err(convert_error)?;
-            }
-            self.edge_shader.arrow_tip_data(">".to_string(), &arrow, &buffers.vertices, &buffers.indices, 0);
-        }
-
+        let arrow = crate::arrow::test_arrow();
         
-        self.edge_shader.glyph_boundary_data("a".to_string(), glyph1.boundary());
-        self.edge_shader.glyph_boundary_data("b".to_string(), glyph2.boundary());
-        self.edge_shader.add_edge(start, end, "a", "b", scale, scale, Some(">"), Some(">"));
+        self.edge_shader.add_edge(start_glyph.clone(), end_glyph.clone(), Some(&arrow), Some(&arrow), Angle::degrees(90.0), 5.0)?;
         self.edge_shader.prepare()?;
  
         // edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
@@ -636,7 +594,3 @@ impl Canvas {
     }
 }
 
-use lyon::tessellation::TessellationError;
-fn convert_error(err : TessellationError) -> JsValue {
-    JsValue::from_str(&format!("{:?}", err))
-}

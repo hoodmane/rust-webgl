@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use arrayvec::ArrayVec;
 
 use std::rc::Rc;
+use uuid::Uuid;
 
 use wasm_bindgen::JsValue;
 use euclid::default::Box2D;
@@ -12,19 +13,19 @@ use footile::{Pt, PathOp};
 use lyon::geom::math::{point, Point, Vector, Angle, Transform};
 use lyon::path::{PathEvent, iterator::PathIterator};
 use lyon::tessellation::{
-    geometry_builder::SimpleBuffersBuilder, TessellationError,
+    geometry_builder, TessellationError,
     StrokeTessellator, StrokeOptions,
-    FillTessellator, FillOptions,
+    FillTessellator, FillOptions, VertexBuffers
 };
 
 use footile::{PathBuilder, Plotter, FillRule};
 use pix::matte::Matte8;
 use pix::Raster;
 
-use crate::convex_hull::ConvexHull;
-
+use crate::vector::{Vec4};
 
 use crate::rect::{RectBuilder, Rect};
+use crate::convex_hull::ConvexHull;
 
 const FONT_SIZE: f32 = 32.0;
 
@@ -115,6 +116,7 @@ fn convert_path<T : Iterator<Item=PathOp>>(path : T) -> Vec<PathEvent> {
 pub struct Glyph {
     path : Vec<PathEvent>,
     convex_hull : ConvexHull,
+    pub(crate) uuid : Uuid,
 }
 
 impl Glyph {
@@ -127,9 +129,23 @@ impl Glyph {
         let bounding_box = pathop_bounding_box(path.iter());
         Rc::new(Self {
             path : convert_path(path.iter().map(|a| copy_pathop(a))),
-            convex_hull : ConvexHull::from_path(path, bounding_box)
+            convex_hull : ConvexHull::from_path(path, bounding_box),
+            uuid : Uuid::new_v4()
         })
     }
+
+    pub fn tessellate_vertices(&self,
+        buffers : &mut VertexBuffers<Point, u16>,
+        scale : f32
+    ) -> Result<(), JsValue> {
+        let mut vertex_builder = geometry_builder::simple_builder(buffers);
+        let mut fill_tessellator = FillTessellator::new();
+        let transform = Transform::identity().then_translate(- self.convex_hull.center().to_vector()).then_scale(scale, scale);
+        let path = self.path.iter().map(|e| *e).transformed(&transform);
+        fill_tessellator.tessellate(path, &FillOptions::default().with_tolerance(0.2), &mut vertex_builder).map_err(convert_error)?;
+        Ok(())
+    }
+
     
     pub fn boundary(&self) -> &Vec<Vector> {
         &self.convex_hull.outline
@@ -139,32 +155,25 @@ impl Glyph {
 
 #[derive(Clone)]
 pub struct GlyphInstance {
-    glyph : Rc<Glyph>,
-    pub center : Point,
-    scale : f32
+    pub(crate) glyph : Rc<Glyph>,
+    pub(crate) center : Point,
+    pub(crate) scale : f32,
+    pub(crate) color : Vec4,
 }
 
 
 impl GlyphInstance {
-    pub fn new(glyph : Rc<Glyph>, center : Point, scale : f32) -> Self {
+    pub fn new(glyph : Rc<Glyph>, center : Point, scale : f32, color : Vec4) -> Self {
         Self {
             glyph,
             center,
-            scale
+            scale,
+            color
         }
     }
 
     pub fn center(&self) -> Point {
         self.center
-    }
-
-    pub fn draw(&self,
-        vertex_builder : &mut SimpleBuffersBuilder, fill : &mut FillTessellator,
-    ) -> Result<(), JsValue> {
-        let transform = Transform::identity().then_translate(- self.glyph.convex_hull.center().to_vector()).then_scale(self.scale, self.scale).then_translate(self.center.to_vector());
-        let path = self.glyph.path.iter().map(|e| *e).transformed(&transform);
-        fill.tessellate(path, &FillOptions::default().with_tolerance(0.2), vertex_builder).map_err(convert_error)?;
-        Ok(())
     }
 
     fn into_local_coords(&self, point : Point) -> Vector {
@@ -173,6 +182,10 @@ impl GlyphInstance {
 
     fn from_local_coords(&self, point : Vector) -> Point {
         self.center + point * self.scale
+    }
+
+    pub fn glyph_id(&self) -> Uuid {
+        self.glyph.uuid
     }
 
     pub fn find_boundary_distance_toward(&self, p : Point) -> f32 {

@@ -3,6 +3,7 @@
 #![allow(unused_imports)]
 
 mod console_log;
+mod error;
 mod rect;
 
 mod convex_hull;
