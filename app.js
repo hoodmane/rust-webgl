@@ -240,10 +240,10 @@ export class App {
         }
 		// Render occasionally even when idle. Chrome must render at least 10fps to
 		// avoid stutter when starting to render at 60fps again.
-        // this._idleFrames ++;
-        // if(this._idleFrames % 6 == 0 && this._idleFrames < 60 * 2) {
-		// 	this._draw();
-		// }
+        this._idleFrames ++;
+        if(this._idleFrames % 6 == 0 && this._idleFrames < 60 * 2) {
+			this._draw();
+		}
 	}
 
     _draw(){

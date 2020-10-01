@@ -70,14 +70,11 @@ impl Arrow {
         let mut fill = FillTessellator::new();
         let mut stroke = StrokeTessellator::new();
 
-        // let arrow = crate::arrow::normal_arrow(2.0);
-        let arrow = crate::arrow::test_arrow();
-
         if let Some(fill_options) = &self.fill {
-            fill.tessellate(arrow.path.iter(), fill_options, &mut vertex_builder).map_err(convert_tessellation_error)?;
+            fill.tessellate(self.path.iter(), fill_options, &mut vertex_builder).map_err(convert_tessellation_error)?;
         }
         if let Some(stroke_options) = &self.stroke {
-            stroke.tessellate(arrow.path.iter(), stroke_options, &mut vertex_builder).map_err(convert_tessellation_error)?;
+            stroke.tessellate(self.path.iter(), stroke_options, &mut vertex_builder).map_err(convert_tessellation_error)?;
         }
         Ok(())
     }

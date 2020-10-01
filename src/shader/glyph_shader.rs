@@ -96,6 +96,8 @@ impl GlyphShader {
         ATTRIBUTES.set_up_vertex_array(&webgl, &shader, attribute_state.as_ref(), attributes_buffer.as_ref())?;
 
         let vertices_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Two));
+        shader.use_program();
+        shader.set_uniform_int("uGlyphDataTexture", 0);
 
         Ok(Self {
             webgl,
@@ -170,6 +172,7 @@ impl GlyphShader {
 
     pub fn prepare(&mut self) -> Result<(), JsValue> {
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
+        self.shader.use_program();
         self.set_buffer_data();
         self.vertices_data.upload()?;
         self.webgl.bind_vertex_array(None);
@@ -178,7 +181,6 @@ impl GlyphShader {
 
     pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) {
         self.shader.use_program();
-        self.shader.set_uniform_int("uGlyphDataTexture", 0);
         self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.shader.set_uniform_transform("uTransformationMatrix", transform);

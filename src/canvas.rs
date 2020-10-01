@@ -371,57 +371,42 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn draw_js_buffer(&mut self, buffer : &JsBuffer, pos : JsPoint, draw_triangles : bool ) -> Result<(), JsValue> {
-        let transform = self.transform.pre_translate(vector(self.transform_x(pos.x), self.transform_y(pos.y)));
-        log!("buffer.data : {:?}", buffer.data);
-        self.default_shader.draw(transform, buffer.data.as_slice(), 
-            if draw_triangles { WebGl2RenderingContext::TRIANGLE_STRIP } else { WebGl2RenderingContext::LINE_STRIP })?;
-        Ok(())
-    }
+    pub fn test_edge_shader(&mut self, start : JsPoint, end : JsPoint, s1 : String, s2 : String, degrees : f32, scale : f32, thickness : f32) -> Result<(), JsValue> {
+        use crate::glyph::{Glyph, GlyphInstance};
+        
+        let start : Point = start.into();
+        let end : Point = end.into();
+        let glyph1 = Glyph::from_stix(&s1);
+        let glyph2 = Glyph::from_stix(&s2);
+        let start_glyph = GlyphInstance::new(glyph1, start, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
+        let end_glyph = GlyphInstance::new(glyph2, end, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
+        self.glyph_shader.clear_glyphs();
+        self.glyph_shader.add_glyph(start_glyph.clone())?;
+        self.glyph_shader.add_glyph(end_glyph.clone())?;
 
-    pub fn draw_js_buffer_points(&mut self, buffer : &JsBuffer, pos : JsPoint) -> Result<(), JsValue> {
-        let transform = self.transform.pre_translate(vector(self.transform_x(pos.x), self.transform_y(pos.y)));
-        log!("buffer.data : {:?}", buffer.data);
-        self.default_shader.draw(transform, buffer.data.as_slice(), 
-            WebGl2RenderingContext::POINTS)?;
-        Ok(())
-    }
+        self.glyph_shader.prepare()?;
+        self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
 
-    pub fn draw_js_buffer_fan(&mut self, buffer : &JsBuffer, pos : JsPoint) -> Result<(), JsValue> {
-        let transform = self.transform.pre_translate(vector(self.transform_x(pos.x), self.transform_y(pos.y)));
-        log!("buffer.data : {:?}", buffer.data);
-        self.default_shader.draw(transform, buffer.data.as_slice(), 
-            WebGl2RenderingContext::TRIANGLE_FAN)?;
+        let arrow = crate::arrow::test_arrow();
+        self.edge_shader.clear();
+        self.edge_shader.add_edge(start_glyph.clone(), end_glyph.clone(), Some(&arrow), Some(&arrow), Angle::degrees(degrees), thickness)?;
+        self.edge_shader.prepare()?;
+ 
+        // edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
+        self.edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
         Ok(())
     }
 
 
     pub fn test_speed_setup(&mut self, s1 : String, s2 : String, xy_max : usize,  scale : f32, degrees : f32) -> Result<(), JsValue> {
-        use lyon::path::iterator::PathIterator;
         use crate::glyph::{Glyph, GlyphInstance};
         let glyph1 = Glyph::from_stix(&s1);
         let glyph2 = Glyph::from_stix(&s2);
         let mut glyph_instances = Vec::new();
-        // let mut edge_instances = Vec::with_capacity(x_max * y_max);
-        // for x in 1..x_max {
-        //     for y in 0..y_max {
-        //         let source = {
-        //             let y = 0;
-        //             &glyph_instances[x * y_max + y]
-        //         };
-        //         let target = {
-        //             let x = x - 1;
-        //             &glyph_instances[x * y_max + y]
-        //         };
-        //         edge_instances.push(Edge::new(source.clone(), target.clone(), Angle::degrees(angle)));
-        //     }
-        // }
-        // let start_instance = GlyphInstance::new(glyph.clone(), self.transform_point(p).into(), 30.0);
-        // let end_instance = GlyphInstance::new(glyph, self.transform_point(q).into(), 30.0);
-        // let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
-
 
         self.glyph_shader.clear_glyphs();
+        self.edge_shader.clear();
+
 
         for x in 0..xy_max {
             for y in 0..xy_max {
@@ -566,31 +551,6 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn test_edge_shader(&mut self, start : JsPoint, end : JsPoint, s1 : String, s2 : String, scale : f32 ) -> Result<(), JsValue> {
 
-        use lyon::path::iterator::PathIterator;
-        use crate::glyph::{Glyph, GlyphInstance};
-
-        let start : Point = start.into();
-        let end : Point = end.into();
-        let glyph1 = Glyph::from_stix(&s1);
-        let glyph2 = Glyph::from_stix(&s2);
-        let start_glyph = GlyphInstance::new(glyph1, start, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
-        let end_glyph = GlyphInstance::new(glyph2, end, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
-        self.glyph_shader.add_glyph(start_glyph.clone())?;
-        self.glyph_shader.add_glyph(end_glyph.clone())?;
-
-        self.glyph_shader.prepare()?;
-        self.glyph_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
-
-        let arrow = crate::arrow::test_arrow();
-        
-        self.edge_shader.add_edge(start_glyph.clone(), end_glyph.clone(), Some(&arrow), Some(&arrow), Angle::degrees(90.0), 5.0)?;
-        self.edge_shader.prepare()?;
- 
-        // edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
-        self.edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
-        Ok(())
-    }
 }
 

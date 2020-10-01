@@ -59,6 +59,6 @@ void main() {
     outColor.a *= alpha;
     outColor.rgb *= outColor.a;
     // if(alpha != 0.0) {
-    //     outColor.a = vec4(0.6, 0.0, 1.0, alpha);
+    //     outColor = vec4(0.6, 0.0, 1.0, alpha);
     // }
 }

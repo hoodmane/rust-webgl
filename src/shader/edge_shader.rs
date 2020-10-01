@@ -35,8 +35,7 @@ const DATA_ROW_SIZE : usize = 2048;
 
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aColor", 4, Type::F32), // color
-    Attribute::new("aStartPosition", 4, Type::F32), // (start_position, start_tangent)
-    Attribute::new("aEndPosition", 4, Type::F32), // (end_position, end_tangent)
+    Attribute::new("aPositions", 4, Type::F32), // (start_position, end_position)
     Attribute::new("aGlyphScales_angle_thickness", 4, Type::F32), // (start_glyph_scale, end_glyph_scale, angle, thickness)
 
     Attribute::new("aStart", 4, Type::I16), // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) )
@@ -50,9 +49,7 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
 struct EdgeInstance {
     color : Vec4,
     start_position : Point,
-    start_tangent : Vector,
     end_position : Point,
-    end_tangent : Vector,
 
     start_glyph_scale : f32,
     end_glyph_scale : f32,
@@ -88,8 +85,6 @@ pub struct EdgeShader {
     shader : Shader,
     
     edge_instances : Vec<EdgeInstance>,
-
-
     attribute_state : Option<WebGlVertexArrayObject>,
     attributes_buffer : Option<WebGlBuffer>,
     
@@ -99,7 +94,7 @@ pub struct EdgeShader {
     tip_map : BTreeMap<Uuid, ArrowIndices>,
     max_arrow_tip_num_vertices : usize,
     arrow_header_data : DataTexture<ArrowHeader>,
-    arrow_vertices_data : DataTexture<Point>,
+    arrow_path_data : DataTexture<Point>,
 }
 
 fn glyph_boundary_index(glyph_index : usize) -> usize {
@@ -120,7 +115,12 @@ impl EdgeShader {
 
         let glyph_boundary_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         let arrow_header_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
-        let arrow_vertices_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Two));
+        let arrow_path_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Two));
+        
+        shader.use_program();
+        shader.set_uniform_int("uGlyphBoundaryTexture", 0);
+        shader.set_uniform_int("uArrowHeaderTexture", 1);
+        shader.set_uniform_int("uArrowPathTexture", 2);
         Ok(Self {
             webgl,
             shader,
@@ -133,12 +133,22 @@ impl EdgeShader {
 
             tip_map : BTreeMap::new(),
             arrow_header_data,
-            arrow_vertices_data,
+            arrow_path_data,
             max_arrow_tip_num_vertices : 0,
             
 
             edge_instances : Vec::new(),
         })
+    }
+
+    pub fn clear(&mut self){
+        self.max_arrow_tip_num_vertices = 0;
+        self.glyph_map.clear();
+        self.tip_map.clear();
+        self.edge_instances.clear();
+        self.glyph_boundary_data.clear();
+        self.arrow_header_data.clear();
+        self.arrow_path_data.clear();
     }
 
     fn arrow_tip_data(&mut self, arrow : &Arrow) -> Result<ArrowIndices, JsValue> {
@@ -150,9 +160,9 @@ impl EdgeShader {
                 let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
                 arrow.tesselate_into_buffers(&mut buffers)?;
 
-                let vertices_index = self.arrow_vertices_data.len();
+                let vertices_index = self.arrow_path_data.len();
                 let num_vertices = buffers.indices.len();
-                self.arrow_vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
+                self.arrow_path_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
                 self.arrow_header_data.append([ArrowHeader {     
                     tip_end : arrow.tip_end,
                     back_end : arrow.back_end,
@@ -195,18 +205,13 @@ impl EdgeShader {
     ) -> Result<(), JsValue> {
         let start_arrow = start_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or(Ok(Default::default()))?;
         let end_arrow = end_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or(Ok(Default::default()))?;
-        let segment_angle = (end.center - start.center).angle_from_x_axis();
-        let start_tangent = Vector::from_angle_and_length(segment_angle - angle, 1.0);
-        let end_tangent = Vector::from_angle_and_length(segment_angle + angle, 1.0);
         let start_glyph_idx = self.glyph_boundary_data(&start.glyph);
         let end_glyph_idx = self.glyph_boundary_data(&end.glyph);
 
         self.edge_instances.push(EdgeInstance {
             color : Vec4::new(0.0, 0.0, 0.0, 1.0),
             start_position : start.center,
-            start_tangent,
             end_position : end.center,
-            end_tangent,
             start_glyph : start_glyph_idx,
             end_glyph : end_glyph_idx,
             start_glyph_scale : start.scale,
@@ -237,30 +242,24 @@ impl EdgeShader {
     }
 
     pub fn prepare(&mut self) -> Result<(), JsValue> {
+        self.shader.use_program();
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.set_buffer_data();
+
         self.glyph_boundary_data.upload()?;
         self.arrow_header_data.upload()?;
-        self.arrow_vertices_data.upload()?;
+        self.arrow_path_data.upload()?;
         self.webgl.bind_vertex_array(None);
         Ok(())
     }
 
 
     pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point){
-        log!("origin : {:?}, scale : {:?}", origin, scale);
         self.shader.use_program();
-        self.webgl.bind_vertex_array(self.attribute_state.as_ref());
-        
-        self.shader.set_uniform_int("uGlyphBoundaryTexture", 0);
         self.glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0);
-        
-        self.shader.set_uniform_int("uArrowHeaderTexture", 1);
         self.arrow_header_data.bind(WebGl2RenderingContext::TEXTURE1);
-
-        self.shader.set_uniform_int("uArrowPathTexture", 2);
-        self.arrow_vertices_data.bind(WebGl2RenderingContext::TEXTURE2);
-
+        self.arrow_path_data.bind(WebGl2RenderingContext::TEXTURE2);
+        self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.shader.set_uniform_transform("uTransformationMatrix", transform);
         self.shader.set_uniform_point("uOrigin", origin);
         self.shader.set_uniform_point("uScale", scale);

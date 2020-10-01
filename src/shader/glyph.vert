@@ -1,7 +1,9 @@
 #version 300 es
-uniform mat3x2 uTransformationMatrix;
-uniform vec2 uOrigin;
-uniform vec2 uScale;
+// layout (std140) uniform Transform {
+    uniform mat3x2 uTransformationMatrix;
+    uniform vec2 uOrigin;
+    uniform vec2 uScale;
+// };
 uniform sampler2D uGlyphDataTexture;
 
 in vec2 aPosition;
