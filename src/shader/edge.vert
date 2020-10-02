@@ -68,6 +68,7 @@ float glyphBoundaryPoint(int glyph, float angle){
     return getValueByIndexFrom4ChannelTexture(uGlyphBoundaryTexture, total_index);
 }
 
+
 int arrowNumVertices(ivec3 arrow){
     return arrow[0];
 }
@@ -116,7 +117,7 @@ vec4 circleOffsetHelper(float curvature, float dist) {
     //     return vec4(epsilon, 0.0, 1.0, 0.0);
     // }
     float x = dist;
-    float C = curvature;
+    float C = -curvature;
     float cx_over_2 = C*x/2.0;
     float om_cx_over_2_sq = 1.0 - cx_over_2 * cx_over_2;
     // position = x(sqrt(1 - (Cx/2)^2), Cx/2)
@@ -139,10 +140,6 @@ vec4 circleOffsetHelper(float curvature, float dist) {
 vec4 circleOffset(vec4 start_pos_tan, float curvature, float dist){
     vec2 start_pos = start_pos_tan.xy;
     vec2 start_tan = start_pos_tan.zw;
-    // Save time if we are drawing lines (longer method will give same result).
-    if(curvature == 0.0) {
-        return vec4(start_pos + start_tan * dist, start_tan);
-    }
     vec4 helper_pos_tan = circleOffsetHelper(curvature, dist);
     vec2 helper_pos = helper_pos_tan.xy;
     vec2 helper_tan = helper_pos_tan.zw;
@@ -271,7 +268,7 @@ vec2 vertexPositionCurved(){
         vec4 origStartPosTan = startPosTan;
         vec4 origEndPosTan = endPosTan;
         startPosTan = glyphOffsetCurved(startGlyph, startGlyphScale, -arrowLineEnd(startArrow), startPosTan, curvature);
-        endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, -arrowLineEnd(endArrow), reverseTangent(endPosTan), curvature));
+        endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, -arrowLineEnd(endArrow), reverseTangent(endPosTan), -curvature));
         int vidx = (vertexID/3) + (vertexID % 3);
         switch(vertexID/3){
             case 0:
@@ -332,13 +329,13 @@ vec2 vertexPositionCurved(){
 
     // Start arrow
     if(vertexID < arrowNumVertices(startArrow)) {
-        return positionCurvedArrrow(startArrow, startGlyph, startGlyphScale, startPosTan, -curvature, vertexID);
+        return positionCurvedArrrow(startArrow, startGlyph, startGlyphScale, startPosTan, curvature, vertexID);
     } 
     vertexID -= arrowNumVertices(startArrow);
     
     // End arrow
     if(vertexID < arrowNumVertices(endArrow)) {
-        return positionCurvedArrrow(endArrow, endGlyph, endGlyphScale, reverseTangent(endPosTan), curvature, vertexID);
+        return positionCurvedArrrow(endArrow, endGlyph, endGlyphScale, reverseTangent(endPosTan), -curvature, vertexID);
     }
     vertexID -= arrowNumVertices(endArrow);
     
