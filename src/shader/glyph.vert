@@ -8,16 +8,11 @@ uniform sampler2D uGlyphDataTexture;
 
 in vec2 aPosition;
 in float aScale;
-in vec4 aColor;
-in int aGlyphDataIndex;
-in int aGlyphNumVertices;
+in vec4 aStrokeColor;
+in vec4 aFillColor;
+in ivec4 aGlyphData; // (index, num_fill_vertices, num_stroke_vertices, _)
 
 flat out vec4 fColor;
-
-vec2 testPositions[6] = vec2[](
-    vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5),
-    vec2(-0.5, -0.5), vec2(-0.5, 0.5), vec2(0.5, 0.5)
-);
 
 vec4 getValueByIndexFromTexture(sampler2D tex, int index) {
     int texWidth = textureSize(tex, 0).x;
@@ -26,15 +21,23 @@ vec4 getValueByIndexFromTexture(sampler2D tex, int index) {
     return texelFetch(tex, ivec2(col, row), 0);
 }
 
-void main() {
-    vec2 vertexPosition;
-    if(gl_VertexID < aGlyphNumVertices) {
-        int vertexIdx = aGlyphDataIndex + gl_VertexID;
-        vertexPosition = getValueByIndexFromTexture(uGlyphDataTexture, vertexIdx).xy * aScale;
+vec2 getVertexPosition() {
+    int glyphIndex = aGlyphData[0];
+    int numFillVertices = aGlyphData[1];
+    int numStrokeVertices = aGlyphData[2];
+    if(gl_VertexID < numFillVertices) {
+        fColor = aFillColor;
     } else {
-        vertexPosition = vec2(0.0, 0.0); // degenerate vertex
+        fColor = aStrokeColor;
     }
+    if(gl_VertexID < numFillVertices + numStrokeVertices){
+        return getValueByIndexFromTexture(uGlyphDataTexture, glyphIndex + gl_VertexID).xy * aScale;
+    }
+    return vec2(0.0, 0.0); // degenerate vertex
+}
+
+void main() {
+    vec2 vertexPosition = getVertexPosition();
     vec2 transformedPosition = uOrigin +  uScale * aPosition;
     gl_Position = vec4(uTransformationMatrix * vec3(transformedPosition + vertexPosition, 1.0), 0.0, 1.0);
-    fColor = aColor;
 }

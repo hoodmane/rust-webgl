@@ -1,9 +1,13 @@
+mod program;
+
 mod shader;
+mod shader_indexed;
+
+
 mod default_shader;
 mod line_shader;
 // mod glyph_shader;
 
-mod shader_indexed;
 mod default_shader_indexed;
 
 
@@ -13,6 +17,8 @@ mod edge_shader;
 
 mod attributes;
 mod data_texture;
+
+pub use program::Program;
 
 pub use shader::{Shader, Geometry};
 pub use default_shader::DefaultShader;

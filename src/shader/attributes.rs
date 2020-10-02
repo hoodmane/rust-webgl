@@ -1,5 +1,5 @@
 use std::convert::{TryInto, TryFrom};
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture, WebGlProgram};
 use wasm_bindgen::JsValue;
 
 use crate::shader::{Shader};
@@ -131,7 +131,7 @@ impl Attributes {
         self.offset(self.attributes.len())
     }
 
-    pub fn set_up_vertex_array(&self, webgl : &WebGlWrapper, shader : &Shader, attribute_state : Option<&WebGlVertexArrayObject>, attributes_buffer : Option<&WebGlBuffer>) -> Result<(), JsValue> {
+    pub fn set_up_vertex_array(&self, webgl : &WebGlWrapper, program : &WebGlProgram, attribute_state : Option<&WebGlVertexArrayObject>, attributes_buffer : Option<&WebGlBuffer>) -> Result<(), JsValue> {
         webgl.bind_vertex_array(attribute_state);
         // IMPORTANT: Must bind_buffer here!!!!
         // vertex_attrib_pointer uses the current bound buffer implicitly.
@@ -140,7 +140,7 @@ impl Attributes {
         let stride = self.stride();
         for (idx, &Attribute {name, size, ty}) in self.attributes.iter().enumerate() {
             let size = size as i32;
-            let loc = webgl.get_attrib_location(&shader.program, name).try_into().map_err(|_| name.to_string())?;
+            let loc = webgl.get_attrib_location(program, name).try_into().map_err(|_| name.to_string())?;
             let offset = self.offset(idx);
             webgl.enable_vertex_attrib_array(loc);
             match ty {

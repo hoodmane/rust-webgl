@@ -134,7 +134,7 @@ impl Glyph {
         })
     }
 
-    pub fn tessellate_vertices(&self,
+    pub fn tessellate_fill(&self,
         buffers : &mut VertexBuffers<Point, u16>,
         scale : f32
     ) -> Result<(), JsValue> {
@@ -143,6 +143,18 @@ impl Glyph {
         let transform = Transform::identity().then_translate(- self.convex_hull.center().to_vector()).then_scale(scale, scale);
         let path = self.path.iter().map(|e| *e).transformed(&transform);
         fill_tessellator.tessellate(path, &FillOptions::default().with_tolerance(0.2), &mut vertex_builder).map_err(convert_error)?;
+        Ok(())
+    }
+
+    pub fn tessellate_stroke(&self,
+        buffers : &mut VertexBuffers<Point, u16>,
+        scale : f32
+    ) -> Result<(), JsValue> {
+        let mut vertex_builder = geometry_builder::simple_builder(buffers);
+        let mut stroke_tessellator = StrokeTessellator::new();
+        let transform = Transform::identity().then_translate(- self.convex_hull.center().to_vector()).then_scale(scale, scale);
+        let path = self.path.iter().map(|e| *e).transformed(&transform);
+        stroke_tessellator.tessellate(path, &StrokeOptions::default().with_line_width(2.0).with_tolerance(0.2), &mut vertex_builder).map_err(convert_error)?;
         Ok(())
     }
 
@@ -158,17 +170,19 @@ pub struct GlyphInstance {
     pub(crate) glyph : Rc<Glyph>,
     pub(crate) center : Point,
     pub(crate) scale : f32,
-    pub(crate) color : Vec4,
+    pub(crate) stroke_color : Vec4,
+    pub(crate) fill_color : Vec4,
 }
 
 
 impl GlyphInstance {
-    pub fn new(glyph : Rc<Glyph>, center : Point, scale : f32, color : Vec4) -> Self {
+    pub fn new(glyph : Rc<Glyph>, center : Point, scale : f32, stroke_color : Vec4, fill_color : Vec4) -> Self {
         Self {
             glyph,
             center,
             scale,
-            color
+            stroke_color,
+            fill_color,
         }
     }
 
@@ -214,30 +228,3 @@ impl GlyphInstance {
 fn convert_error(err : TessellationError) -> JsValue {
     JsValue::from_str(&format!("{:?}", err))
 }
-
-
-// pub fn test_stix(stix : &str) -> Result<(Vec<PathEvent>, ConvexHull), JsValue> {
-//     let font = font::Font::new().push(include_bytes!("../fonts/STIX2Math.otf") as &[u8]).ok_or("Failed to parse font file")?;
-//     let path : Vec<_> = font.render(
-//         stix,
-//         (512.0 - 64.0) / FONT_SIZE,
-//         font::TextAlign::Center
-//     ).0.collect();
-//     let bounding_box = pathop_bounding_box(path.iter());
-//     Ok((
-//         convert_path(path.iter().map(|a| copy_pathop(a))),
-//         ConvexHull::from_path(path, bounding_box)
-//     ))
-// }
-
-// pub fn test() -> Vec<PathEvent> {
-//     let font = font::monospace_font();
-//     let english = "Raster Text With Font";
-//     let path = font.render(
-//         english,
-//         (512.0 - 64.0) / FONT_SIZE,
-//         font::TextAlign::Left
-//     ).0;
-//     convert_path(path)
-// }
-

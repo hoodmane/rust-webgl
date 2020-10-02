@@ -378,8 +378,8 @@ impl Canvas {
         let end : Point = end.into();
         let glyph1 = Glyph::from_stix(&s1);
         let glyph2 = Glyph::from_stix(&s2);
-        let start_glyph = GlyphInstance::new(glyph1, start, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
-        let end_glyph = GlyphInstance::new(glyph2, end, scale,  Vec4::new(0.0, 0.0, 1.0, 1.0));
+        let start_glyph = GlyphInstance::new(glyph1, start, scale,  Vec4::new(0.0, 0.0, 0.0, 1.0), Vec4::new(1.0, 0.0, 0.0, 1.0));
+        let end_glyph = GlyphInstance::new(glyph2, end, scale,  Vec4::new(0.0, 1.0, 0.0, 1.0), Vec4::new(0.0, 0.0, 1.0, 1.0));
         self.glyph_shader.clear_glyphs();
         self.glyph_shader.add_glyph(start_glyph.clone())?;
         self.glyph_shader.add_glyph(end_glyph.clone())?;
@@ -413,7 +413,8 @@ impl Canvas {
                 let s = if (x + y) % 2 == 1 { &glyph1 } else { &glyph2 };
                 let r = x as f32 /  xy_max as f32;
                 let b = y as f32 /  xy_max as f32;
-                let glyph_instance = GlyphInstance::new(s.clone(), point(x as f32, y as f32), scale, Vec4::new(r, 0.0, b, 1.0));
+                // let glyph_instance = GlyphInstance::new(s.clone(), point(x as f32, y as f32), scale, Vec4::new(r, 0.0, b, 1.0), Vec4::new(b, 0.0, r, 1.0));
+                let glyph_instance = GlyphInstance::new(s.clone(), point(x as f32, y as f32), scale, Vec4::new(0.0, 0.0, 0.0, 1.0), Vec4::new(0.0, 0.0, 1.0, 1.0));
                 self.glyph_shader.add_glyph(glyph_instance.clone())?;
                 glyph_instances.push(glyph_instance);
             }
@@ -542,14 +543,14 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn draw_triangle(&mut self, p1 : JsPoint, p2 : JsPoint, p3 : JsPoint) -> Result<(), JsValue> {
-        let mut triangles : Vec<Point> = Vec::new();
-        triangles.push(p1.into());
-        triangles.push(p2.into());
-        triangles.push(p3.into());
-        self.default_shader.draw(Transform::identity(), triangles.as_slice(), WebGl2RenderingContext::TRIANGLES)?;
-        Ok(())
-    }
+    // pub fn draw_triangle(&mut self, p1 : JsPoint, p2 : JsPoint, p3 : JsPoint) -> Result<(), JsValue> {
+    //     let mut triangles : Vec<Point> = Vec::new();
+    //     triangles.push(p1.into());
+    //     triangles.push(p2.into());
+    //     triangles.push(p3.into());
+    //     self.default_shader.draw(Transform::identity(), triangles.as_slice(), WebGl2RenderingContext::TRIANGLES)?;
+    //     Ok(())
+    // }
 
 
 }

@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use crate::log;
 use crate::vector::{Vec4};
-use crate::shader::{Shader};
+use crate::shader::Program;
 use crate::webgl_wrapper::WebGlWrapper;
 
 use crate::glyph::{GlyphInstance, Glyph};
@@ -32,7 +32,6 @@ use crate::convex_hull::ANGLE_RESOLUTION;
 const DATA_ROW_SIZE : usize = 2048;
 
 
-
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aColor", 4, Type::F32), // color
     Attribute::new("aPositions", 4, Type::F32), // (start_position, end_position)
@@ -41,7 +40,6 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aStart", 4, Type::I16), // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) )
     Attribute::new("aEnd", 4, Type::I16), // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
 ]);
-
 
 
 #[derive(Clone, Copy, Debug)]
@@ -82,7 +80,7 @@ struct ArrowIndices {
 
 pub struct EdgeShader {
     webgl : WebGlWrapper,
-    shader : Shader,
+    program : Program,
     
     edge_instances : Vec<EdgeInstance>,
     attribute_state : Option<WebGlVertexArrayObject>,
@@ -104,26 +102,26 @@ fn glyph_boundary_index(glyph_index : usize) -> usize {
 
 impl EdgeShader {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
-        let shader = Shader::new(
+        let program = Program::new(
             webgl.clone(), 
             include_str!("edge.vert"),
             include_str!("edge.frag")
         )?;
         let attribute_state = webgl.create_vertex_array();
         let attributes_buffer = webgl.create_buffer();
-        ATTRIBUTES.set_up_vertex_array(&webgl, &shader, attribute_state.as_ref(), attributes_buffer.as_ref())?;
+        ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), attributes_buffer.as_ref())?;
 
         let glyph_boundary_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         let arrow_header_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         let arrow_path_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Two));
         
-        shader.use_program();
-        shader.set_uniform_int("uGlyphBoundaryTexture", 0);
-        shader.set_uniform_int("uArrowHeaderTexture", 1);
-        shader.set_uniform_int("uArrowPathTexture", 2);
+        program.use_program();
+        program.set_uniform_int("uGlyphBoundaryTexture", 0);
+        program.set_uniform_int("uArrowHeaderTexture", 1);
+        program.set_uniform_int("uArrowPathTexture", 2);
         Ok(Self {
             webgl,
-            shader,
+            program,
 
             attribute_state,
             attributes_buffer,
@@ -242,7 +240,7 @@ impl EdgeShader {
     }
 
     pub fn prepare(&mut self) -> Result<(), JsValue> {
-        self.shader.use_program();
+        self.program.use_program();
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.set_buffer_data();
 
@@ -255,14 +253,14 @@ impl EdgeShader {
 
 
     pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point){
-        self.shader.use_program();
+        self.program.use_program();
         self.glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.arrow_header_data.bind(WebGl2RenderingContext::TEXTURE1);
         self.arrow_path_data.bind(WebGl2RenderingContext::TEXTURE2);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
-        self.shader.set_uniform_transform("uTransformationMatrix", transform);
-        self.shader.set_uniform_point("uOrigin", origin);
-        self.shader.set_uniform_point("uScale", scale);
+        self.program.set_uniform_transform("uTransformationMatrix", transform);
+        self.program.set_uniform_point("uOrigin", origin);
+        self.program.set_uniform_point("uScale", scale);
         self.webgl.draw_arrays_instanced(
             WebGl2RenderingContext::TRIANGLES,
             0,
