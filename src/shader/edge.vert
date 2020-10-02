@@ -287,10 +287,12 @@ vec2 vertexPositionCurved(){
         bool inside = (vidx + 1 - vertexID/6) % 2 == 0;
         inside = inside != curvesLeft;
         int angle_idx = vidx / 2;
-        vec2 displacement = (endPosTan.xy - startPosTan.xy);
+        vec2 displacement = (origEndPosTan.xy - origStartPosTan.xy);
         float displacement_length = length(displacement);
         vec2 midNormal = normalVector(normalize(displacement));
         vec2 midPos = (origStartPosTan.xy + origEndPosTan.xy) / 2.0 + (displacement_length/2.0 * tan(angle/2.0)) * midNormal;
+        // vec2 midPos = circleOffset(origStartPosTan, curvature, displacement_length/2.0/cos(angle/2.0)).xy;
+
         vec2 pos;
         vec2 normal;
         switch(angle_idx){
@@ -313,10 +315,12 @@ vec2 vertexPositionCurved(){
         if(inside){
             offset = -thickness_scale * thickness;        
         } else {
-            vec2 quarterNormal = normalize(normalVector(origStartPosTan.zw) + midNormal);
-            float magnitude = length(midPos - origStartPosTan.xy)/2.0 * abs(tan(angle/4.0));
-            vec2 v = (magnitude + thickness) * quarterNormal;
-            offset = dot(v, v)/dot(v, midNormal) + thickness_scale * thickness;
+            // vec2 quarterNormal = normalize(normalVector(origStartPosTan.zw) + midNormal);
+            // float magnitude = length(midPos - origStartPosTan.xy)/2.0 * abs(tan(angle/4.0));
+            // vec2 v = (magnitude + thickness) * quarterNormal;
+            // offset = dot(v, v)/dot(v, midNormal) + thickness_scale * thickness;
+            float magnitude = length(midPos - origStartPosTan.xy)/2.0 * abs(tan(angle/4.0))/cos(angle/2.0);
+            offset = magnitude + thickness_scale * thickness;
         }
         if(curvesLeft){
             offset = -offset;
