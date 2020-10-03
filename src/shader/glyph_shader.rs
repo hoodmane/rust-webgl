@@ -15,6 +15,7 @@ use lyon::geom::math::{Point};
 
 use lyon::tessellation::{VertexBuffers};
 
+#[allow(unused_imports)]
 use crate::log;
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::Program;
@@ -76,7 +77,9 @@ pub struct GlyphShader {
     // Vertices has its length padded to a multiple of DATA_ROW_SIZE so that it will fit correctly into the data_texture
     // so we need to separately store the number of actually used entries separately.
     max_glyph_num_vertices : usize,
-    vertices_data : DataTexture<Point>
+    vertices_data : DataTexture<Point>,
+
+    ready : bool,
 }
 
 
@@ -116,7 +119,8 @@ impl GlyphShader {
             
             attribute_state,
             attributes_buffer,
-            vertices_data
+            vertices_data,
+            ready : false
         })
     }
 
@@ -125,6 +129,7 @@ impl GlyphShader {
         self.vertices_data.clear();
         self.glyph_map.clear();
         self.glyph_instances.clear();
+        self.ready = false;
     }
 
     fn glyph_data(&mut self, glyph : &Rc<Glyph>) -> Result<ShaderGlyphHeader, JsValue> {
@@ -172,6 +177,7 @@ impl GlyphShader {
             num_stroke_vertices,
             padding : 0
         });
+        self.ready = false;
         Ok(())
     }
 
@@ -181,7 +187,6 @@ impl GlyphShader {
         let u8_ptr = self.glyph_instances.as_ptr() as *mut u8;
         unsafe {
             let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);
-            crate::console_log::log_1(&vert_array);
             self.webgl.buffer_data_with_array_buffer_view(
                 WebGl2RenderingContext::ARRAY_BUFFER,
                 &vert_array,
@@ -191,20 +196,24 @@ impl GlyphShader {
     }
 
 
-    pub fn prepare(&mut self) -> Result<(), JsValue> {
-        log!("glyph_instances : {:?}", self.glyph_instances);
-        self.webgl.bind_vertex_array(self.attribute_state.as_ref());
-        self.program.use_program();
+    fn prepare(&mut self) -> Result<(), JsValue> {
+        if self.ready {
+            return Ok(());
+        }
+        self.ready = true;
         self.set_buffer_data();
         self.vertices_data.upload()?;
-        self.webgl.bind_vertex_array(None);
         Ok(())
     }
 
-    pub fn draw(&mut self, coordinate_system : CoordinateSystem) {
+    pub fn draw(&mut self, coordinate_system : CoordinateSystem) -> Result<(), JsValue> {
+        if self.glyph_instances.len() == 0 {
+            return Ok(());
+        }
         self.program.use_program();
-        self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
+        self.prepare()?;
+        self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
         self.program.set_uniform_point("uOrigin", coordinate_system.origin);
         self.program.set_uniform_vector("uScale", coordinate_system.scale);
@@ -218,5 +227,6 @@ impl GlyphShader {
             num_instances
         );
         self.webgl.bind_vertex_array(None);
+        Ok(())
     }
 }

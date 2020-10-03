@@ -44,7 +44,9 @@ float getDashOpacity(float arcLength){
     ivec2 texSize = textureSize(uDashPatterns, 0);
 
     float xCoord = mod(arcLength, float(dashLength)) / float(texSize.x);
-    float yCoord = float(dashIndex) / float(texSize.y);
+    // Need to sample from the MIDDLE of the row to avoid linear filter from averaging
+    // together two adjacent dash patterns.
+    float yCoord = (float(dashIndex) + 0.5) / float(texSize.y);
     return texture(uDashPatterns, vec2(xCoord, yCoord)).r;
 }
 
@@ -56,12 +58,12 @@ void main() {
         if(abs(fCurvature) > 0.0001){
             vec2 offsetFromCenter = vPosition - fCenter;
             float angle = atan(offsetFromCenter.y, offsetFromCenter.x) - fInitialAngle;
-            arcLength = angle / fCurvature;
+            arcLength = abs(angle / fCurvature);
         } else {
             vec2 T0 = fN0.yx * vec2(1.0, -1.0);
             arcLength = dot(vPosition - fP0, T0);
         }
-        // TODO: Now sample from dash pattern texture
+        // Now sample from dash pattern texture
         outColor.a *= getDashOpacity(arcLength);
     }
 

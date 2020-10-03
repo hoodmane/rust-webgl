@@ -248,23 +248,27 @@ vec2 vertexPositionCurved(){
     vec2 startPos = transformPos(aPositions.xy);
     vec2 endPos = transformPos(aPositions.zw);
     vec2 displacement = endPos.xy - startPos.xy;
+    float displacement_length = length(displacement);
     float angle = aGlyphScales_angle_thickness.z;
+    float curvature = 2.0 * sin(angle) / displacement_length;
+
     float segment_angle = atan(displacement.y, displacement.x);
+
     float start_tangent_angle = segment_angle + angle;
-    float end_tangent_angle = segment_angle - angle;
     vec2 start_tangent = vec2(cos(start_tangent_angle), sin(start_tangent_angle));
-    vec2 end_tangent = vec2(cos(end_tangent_angle), sin(end_tangent_angle));
     vec4 startPosTan = vec4(startPos, start_tangent);
+
+    float end_tangent_angle = segment_angle - angle;
+    vec2 end_tangent = vec2(cos(end_tangent_angle), sin(end_tangent_angle));
     vec4 endPosTan = vec4(endPos, end_tangent);
 
 
-    bool curvesLeft = angle < 0.0; // aGlyphScales_angle_thickness.z < 0.0;
+    bool curvesLeft = angle < 0.0;
     float thickness = aGlyphScales_angle_thickness.w;
-    float curvature = 2.0 * sin(angle) / length(displacement);
-    int startGlyph = aStart.x;
-    int endGlyph = aEnd.x;
     float startGlyphScale = aGlyphScales_angle_thickness.x;
     float endGlyphScale = aGlyphScales_angle_thickness.y;
+    int startGlyph = aStart.x;
+    int endGlyph = aEnd.x;
     ivec3 startArrow = aStart.yzw;
     ivec3 endArrow = aEnd.yzw;
 
@@ -276,6 +280,7 @@ vec2 vertexPositionCurved(){
         startPosTan = glyphOffsetCurved(startGlyph, startGlyphScale, -arrowLineEnd(startArrow), startPosTan, curvature);
         endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, -arrowLineEnd(endArrow), reverseTangent(endPosTan), -curvature));
 
+        // Parameters for fragment shader
         fCurvature = curvature;
         fP0 = startPosTan.xy;
         fN0 = normalVector(startPosTan.zw);
@@ -287,8 +292,7 @@ vec2 vertexPositionCurved(){
         // swap in and out if we are curving left.
         inside = inside != curvesLeft;
         int angle_idx = vidx / 2;
-        vec2 displacement = (origEndPosTan.xy - origStartPosTan.xy);
-        float displacement_length = length(displacement);
+        // recall displacement is (origEndPosTan.xy - origStartPosTan.xy);
         vec2 midNormal = normalVector(normalize(displacement));
         vec2 midPos = (origStartPosTan.xy + origEndPosTan.xy) / 2.0 + (displacement_length/2.0 * tan(angle/2.0)) * midNormal;
 
@@ -322,10 +326,12 @@ vec2 vertexPositionCurved(){
         }
         pos += offset * normal;
         vPosition = pos;
-        // For the dash pattern
-        if(abs(curvature) > 0.0001){
+        // Parameters for fragment shader dash pattern (needs to compute arclength)
+        if(aDashPattern.x != 0 && abs(curvature) > 0.0001){
             vec2 initialNormal = normalVector(startPosTan.zw) / curvature;
             fCenter = startPosTan.xy - initialNormal;
+            // make sure to use normal vector scaled by curvature here so that it points in the correct direction
+            // (depends on sign of curvature)
             fInitialAngle = atan(initialNormal.y, initialNormal.x);
         }
         return pos;

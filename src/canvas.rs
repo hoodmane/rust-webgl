@@ -204,8 +204,7 @@ impl Canvas {
         self.glyph_shader.add_glyph(start_glyph.clone())?;
         self.glyph_shader.add_glyph(end_glyph.clone())?;
 
-        self.glyph_shader.prepare()?;
-        self.glyph_shader.draw(self.coordinate_system);
+        self.glyph_shader.draw(self.coordinate_system)?;
 
         let arrow = crate::arrow::test_arrow();
         self.edge_shader.clear();
@@ -216,10 +215,8 @@ impl Canvas {
             Angle::degrees(degrees), thickness, 
             &dash_pattern
         )?;
-        self.edge_shader.prepare()?;
  
-        // edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
-        self.edge_shader.draw(self.coordinate_system);
+        self.edge_shader.draw(self.coordinate_system)?;
         Ok(())
     }
 
@@ -267,46 +264,8 @@ impl Canvas {
                 self.edge_shader.add_edge(source, target, Some(&arrow), Some(&arrow), angle, thickness, &[])?;
             }
         }
-
-        self.glyph_shader.prepare()?;
-        self.edge_shader.prepare()?;
-        self.test_speed();
         Ok(())
     }
-
-    pub fn test_speed(&mut self) {
-        self.glyph_shader.draw(self.coordinate_system);
-        self.edge_shader.draw(self.coordinate_system);
-    }
-
-
-    // pub fn test_stix_math(&mut self, p : JsPoint, q : JsPoint, angle : f32, s : String) -> Result<(), JsValue> {
-    //     use lyon::path::iterator::PathIterator;
-    //     use crate::glyph::{Glyph, GlyphInstance};
-    //     let glyph = Glyph::from_stix(&s);
-    //     let start_instance = GlyphInstance::new(glyph.clone(), self.transform_point(p).into(), 30.0);
-    //     let end_instance = GlyphInstance::new(glyph, self.transform_point(q).into(), 30.0);
-    //     let edge = Edge::new(start_instance.clone(), end_instance.clone(), Angle::degrees(angle));
-
-
-    //     let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-    //     {
-    //         let mut vertex_builder = geometry_builder::simple_builder(&mut buffers);
-    //         // Create the tessellator.
-    //         let mut stroke_tessellator = StrokeTessellator::new();
-    //         let mut fill_tessellator = FillTessellator::new();
-               
-    //         edge.tessellate(&mut vertex_builder,
-    //             &mut stroke_tessellator, &StrokeOptions::default(),
-    //             &mut fill_tessellator,
-    //         )?;
-    //         start_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
-    //         end_instance.draw(&mut vertex_builder, &mut fill_tessellator)?;
-    //     }
-    //     let transform = self.transform; //.pre_translate(self.transform_point((0.0, 0.0).into()).into());
-    //     self.default_shader_indexed.draw(transform, &buffers.vertices, &buffers.indices, WebGl2RenderingContext::TRIANGLES)?;
-    //     Ok(())
-    // }
 
     pub fn get_test_buffer(&self) -> JsBuffer {
         let mut test_buffer = Vec::new();
@@ -328,18 +287,9 @@ impl Canvas {
         self.enable_clip();
         self.minor_grid_shader.draw(self.coordinate_system)?;
         self.major_grid_shader.draw(self.coordinate_system)?;
+        self.glyph_shader.draw(self.coordinate_system)?;
+        self.edge_shader.draw(self.coordinate_system)?;
         Ok(())
     }
-
-    // pub fn draw_triangle(&mut self, p1 : JsPoint, p2 : JsPoint, p3 : JsPoint) -> Result<(), JsValue> {
-    //     let mut triangles : Vec<Point> = Vec::new();
-    //     triangles.push(p1.into());
-    //     triangles.push(p2.into());
-    //     triangles.push(p3.into());
-    //     self.default_shader.draw(Transform::identity(), triangles.as_slice(), WebGl2RenderingContext::TRIANGLES)?;
-    //     Ok(())
-    // }
-
-
 }
 

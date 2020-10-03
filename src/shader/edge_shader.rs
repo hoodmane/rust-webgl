@@ -98,6 +98,8 @@ pub struct EdgeShader {
     dash_texture : Option<WebGlTexture>,
     dash_texture_num_rows : usize,
     dash_map : BTreeMap<Vec<u8>, (u16, u16)>,
+
+    ready : bool,
 }
 
 impl EdgeShader {
@@ -146,16 +148,17 @@ impl EdgeShader {
             dash_texture,
             dash_texture_num_rows : 0,
             dash_map,
+            ready : false,
         })
     }
 
     fn dash_data(&mut self, dash_pattern : Vec<u8>) -> (u16, u16) {
-        let next_header_index = self.dash_map.len();
         let entry = self.dash_map.entry(dash_pattern);
         match entry {
             btree_map::Entry::Occupied(oe) => *oe.get(),
             btree_map::Entry::Vacant(ve) => {
                 let orig_dash_data_len = self.dash_data.len();
+                let dash_pattern_row = orig_dash_data_len / DASH_PATTERN_TEXTURE_WIDTH;
                 let dash_pattern = ve.key();
                 for (i, &e) in dash_pattern.iter().enumerate() {
                     let value = if i%2 == 1 { 0 } else { 255 };
@@ -163,6 +166,7 @@ impl EdgeShader {
                         self.dash_data.extend(&[value]);
                     }
                 }
+                // If pattern has odd length, then double it up with its negation
                 if dash_pattern.len() % 2 == 1 {
                     for (i, &e) in dash_pattern.iter().enumerate() {
                         let value = if i%2 == 1 { 255 } else { 0 };
@@ -171,10 +175,10 @@ impl EdgeShader {
                         }
                     }
                 }
-                let pattern_len = self.dash_data.len() - orig_dash_data_len;
                 self.dash_data.extend(&[255]);
-                self.dash_data.resize_with(orig_dash_data_len + DASH_PATTERN_TEXTURE_WIDTH, ||0);
-                *ve.insert((next_header_index as u16, pattern_len as u16))
+                self.dash_data.resize_with(orig_dash_data_len +  DASH_PATTERN_TEXTURE_WIDTH, ||0);
+                let pattern_len : u16 = dash_pattern.iter().map(|&b| b as u16).sum();
+                *ve.insert((dash_pattern_row as u16, pattern_len))
             }
         }
     }
@@ -204,7 +208,6 @@ impl EdgeShader {
         self.ensure_dash_texture_size();
         let num_rows = self.dash_data.len() / DASH_PATTERN_TEXTURE_WIDTH;
         self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.dash_texture.as_ref());
-        log!("dash_data : {:?}", self.dash_data);
         unsafe {
             let array_view = js_sys::Uint8Array::view(&self.dash_data);
             self.webgl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_array_buffer_view(
@@ -228,6 +231,7 @@ impl EdgeShader {
         self.glyph_boundary_data.clear();
         self.arrow_header_data.clear();
         self.arrow_path_data.clear();
+        self.ready = false;
     }
 
     fn arrow_tip_data(&mut self, arrow : &Arrow) -> Result<ArrowIndices, JsValue> {
@@ -289,8 +293,7 @@ impl EdgeShader {
         let end_glyph_idx = self.glyph_boundary_data(&end.glyph);
         let (dash_index, dash_length) = self.dash_data(dash_pattern.to_vec());
 
-        log!("dash_length : {}, dash_index : {}", dash_length, dash_index);
-
+        self.ready = false;
         self.edge_instances.push(EdgeInstance {
             color : Vec4::new(0.0, 0.0, 0.0, 1.0),
             start_position : start.center,
@@ -320,7 +323,6 @@ impl EdgeShader {
         let u8_ptr = self.edge_instances.as_ptr() as *mut u8;
         unsafe {
             let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);
-            crate::console_log::log_1(&vert_array);
             self.webgl.buffer_data_with_array_buffer_view(
                 WebGl2RenderingContext::ARRAY_BUFFER,
                 &vert_array,
@@ -329,21 +331,24 @@ impl EdgeShader {
         }
     }
 
-    pub fn prepare(&mut self) -> Result<(), JsValue> {
-        self.program.use_program();
-        self.webgl.bind_vertex_array(self.attribute_state.as_ref());
+    fn prepare(&mut self) -> Result<(), JsValue> {
+        if self.ready  {
+            return Ok(());
+        }
         self.set_buffer_data();
 
         self.glyph_boundary_data.upload()?;
         self.arrow_header_data.upload()?;
         self.arrow_path_data.upload()?;
         self.upload_dash_texture_data()?;
-        self.webgl.bind_vertex_array(None);
         Ok(())
     }
 
 
-    pub fn draw(&mut self, coordinate_system : CoordinateSystem){
+    pub fn draw(&mut self, coordinate_system : CoordinateSystem) -> Result<(), JsValue> {
+        if self.edge_instances.len() == 0 {
+            return Ok(());
+        }
         self.program.use_program();
         self.glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.arrow_header_data.bind(WebGl2RenderingContext::TEXTURE1);
@@ -352,6 +357,9 @@ impl EdgeShader {
         self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.dash_texture.as_ref());
 
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
+        self.prepare()?;
+
+        
         self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
         self.program.set_uniform_point("uOrigin", coordinate_system.origin);
         self.program.set_uniform_vector("uScale", coordinate_system.scale);
@@ -362,5 +370,6 @@ impl EdgeShader {
             (12 + 2 * self.max_arrow_tip_num_vertices) as i32,
             self.edge_instances.len() as i32
         );
+        Ok(())
     }
 }

@@ -250,7 +250,6 @@ export class App {
         this._canvas.start_frame();
         this._canvas.render();
         // this._canvas.test_speed("\u220e", 0.0);
-        this._canvas.test_speed(); //"a", 0.0);
         // this._canvas.draw_box(
         //     this._canvas.transform_x(1), this._canvas.transform_y(1), 
         //     10, 10
