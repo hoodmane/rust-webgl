@@ -1,10 +1,16 @@
 #version 300 es
 precision highp float;
+
+uniform sampler2D uDashPatterns;
+
 in vec4 fColor;
 flat in float fCurvature;
+flat in vec2 fCenter;
+flat in float fInitialAngle;
 flat in vec2 fP0;
 flat in vec2 fN0;
 flat in float fHalfThickness;
+flat in ivec4 fDashPattern;
 in vec2 vPosition;
 out vec4 outColor;
 
@@ -31,27 +37,41 @@ float circleConstraint(float ab_dot_ab, float ab_dot_n, float epsilon, float cur
     return numerator/denominator - comparison;
 }
 
+float getDashOpacity(float arcLength){
+    int dashLength = fDashPattern.x;
+    int dashIndex = fDashPattern.y;
+    int dashOffset = fDashPattern.z;
+    ivec2 texSize = textureSize(uDashPatterns, 0);
+
+    float xCoord = mod(arcLength, float(dashLength)) / float(texSize.x);
+    float yCoord = float(dashIndex) / float(texSize.y);
+    return texture(uDashPatterns, vec2(xCoord, yCoord)).r;
+}
+
 void main() {
-    bool weHaveDashPattern = false;
+    bool dashPatternQ = fDashPattern.x != 0;
     outColor = fColor;
-    // return;
-    if(fCurvature == 0.0){
-        if(weHaveDashPattern){
-            float arc_length = length(vPosition - fP0);
-            // Sample from dash pattern texture
+    if(dashPatternQ){
+        float arcLength;
+        if(abs(fCurvature) > 0.0001){
+            vec2 offsetFromCenter = vPosition - fCenter;
+            float angle = atan(offsetFromCenter.y, offsetFromCenter.x) - fInitialAngle;
+            arcLength = angle / fCurvature;
+        } else {
+            vec2 T0 = fN0.yx * vec2(1.0, -1.0);
+            arcLength = dot(vPosition - fP0, T0);
         }
+        // TODO: Now sample from dash pattern texture
+        outColor.a *= getDashOpacity(arcLength);
+    }
+
+    if(fCurvature == 0.0){
+        outColor.rgb *= outColor.a;
         return;
     }
     vec2 ab = vPosition - fP0;
     float ab_dot_n = dot(ab, fN0);
     float ab_dot_ab = dot(ab, ab);
-    if(weHaveDashPattern){
-        float ab_length = sqrt(ab_dot_ab);
-        float sin_theta = ab_dot_n / ab_length;
-        float theta = asin(sin_theta);
-        float arc_length = (theta/sin_theta) * ab_length;
-        // TODO: Now sample from dash pattern texture
-    }
     float inner_bound =   circleConstraint(ab_dot_ab, ab_dot_n, - fHalfThickness, fCurvature);
     float outer_bound = - circleConstraint(ab_dot_ab, ab_dot_n,   fHalfThickness, fCurvature);
     float bound = min(inner_bound, outer_bound);

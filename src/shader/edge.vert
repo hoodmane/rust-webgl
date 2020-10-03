@@ -37,14 +37,19 @@ in vec4 aPositions; // (start_position, end_position)
 in vec4 aGlyphScales_angle_thickness; // (start_glyph_scale, end_glyph_scale, angle, thickness)
 in ivec4 aStart; // (startGlyph, vec3 startArrow = (NumVertices, HeaderIndex, VerticesIndex) ) 
 in ivec4 aEnd; // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
+in ivec4 aDashPattern; // (dash_length, dash_index, dash_offset, _ )
 
 out vec4 fColor;
-
+out vec2 vPosition;
 flat out float fCurvature;
 flat out vec2 fP0;
 flat out vec2 fN0;
 flat out float fHalfThickness;
-out vec2 vPosition;
+flat out ivec4 fDashPattern;
+// for dash pattern
+flat out vec2 fCenter;
+flat out float fInitialAngle;
+
 
 vec2 transformPos(vec2 pos){
     return uOrigin + (vec2(1.0, -1.0) * uScale) * pos;
@@ -183,6 +188,8 @@ vec2 vertexPositionLinear(){
     startPos += tangent * glyphOffsetLinear(startGlyph, startGlyphScale, angle);
     endPos -= tangent * glyphOffsetLinear(endGlyph, endGlyphScale, angle + M_PI);
 
+    fN0 = normalVector(tangent);
+
     ivec3 startArrow = aStart.yzw;
     ivec3 endArrow = aEnd.yzw;
 
@@ -190,17 +197,21 @@ vec2 vertexPositionLinear(){
     if(vertexID < 6){
         startPos -= tangent * arrowLineEnd(startArrow);
         endPos += tangent * arrowLineEnd(endArrow);
+        fP0 = startPos;
 
         int vertexIndex = (vertexID/3) + (vertexID % 3);
         vec2 normal = normalVector(tangent);
         if(vertexIndex % 2 == 1){
             normal = - normal;
         }
+        vec2 pos;
         if(vertexIndex/2 == 0){
-            return startPos + thickness * normal;
+            pos = startPos + thickness/2.0 * normal;
         } else {
-            return endPos + thickness * normal;
+            pos = endPos + thickness/2.0 * normal;
         }
+        vPosition = pos;
+        return pos;
     }
     vertexID -= 6;
     
@@ -271,21 +282,9 @@ vec2 vertexPositionCurved(){
         fHalfThickness = thickness / 2.0;
 
         int vidx = (vertexID/3) + (vertexID % 3);
-        // switch(vertexID/3){
-        //     case 0:
-        //         fColor = vec4(0.0, 0.0, 0.0, 0.3);
-        //         break;
-        //     case 1:
-        //         fColor = vec4(1.0, 0.0, 0.0, 0.3);
-        //         break;
-        //     case 2:
-        //         fColor = vec4(0.0, 1.0, 0.0, 0.3);
-        //         break;
-        //     case 3:
-        //         fColor = vec4(0.0, 0.0, 1.0, 0.3);
-        //         break;
-        // }
+        // This could just be vidx % 2 == 0...
         bool inside = (vidx + 1 - vertexID/6) % 2 == 0;
+        // swap in and out if we are curving left.
         inside = inside != curvesLeft;
         int angle_idx = vidx / 2;
         vec2 displacement = (origEndPosTan.xy - origStartPosTan.xy);
@@ -315,10 +314,6 @@ vec2 vertexPositionCurved(){
         if(inside){
             offset = -thickness_scale * thickness;        
         } else {
-            // vec2 quarterNormal = normalize(normalVector(origStartPosTan.zw) + midNormal);
-            // float magnitude = length(midPos - origStartPosTan.xy)/2.0 * abs(tan(angle/4.0));
-            // vec2 v = (magnitude + thickness) * quarterNormal;
-            // offset = dot(v, v)/dot(v, midNormal) + thickness_scale * thickness;
             float magnitude = length(midPos - origStartPosTan.xy)/2.0 * abs(tan(angle/4.0))/cos(angle/2.0);
             offset = magnitude + thickness_scale * thickness;
         }
@@ -327,6 +322,12 @@ vec2 vertexPositionCurved(){
         }
         pos += offset * normal;
         vPosition = pos;
+        // For the dash pattern
+        if(abs(curvature) > 0.0001){
+            vec2 initialNormal = normalVector(startPosTan.zw) / curvature;
+            fCenter = startPosTan.xy - initialNormal;
+            fInitialAngle = atan(initialNormal.y, initialNormal.x);
+        }
         return pos;
     }
     vertexID -= 12;
@@ -349,6 +350,7 @@ vec2 vertexPositionCurved(){
 
 void main() {
     fColor = aColor;
+    fDashPattern = aDashPattern;
     float angle = aGlyphScales_angle_thickness.z;
     vec2 position;
     if(angle == 0.0){

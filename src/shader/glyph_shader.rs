@@ -150,8 +150,6 @@ impl GlyphShader {
                 self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
                 
                 self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(fill_num_vertices + stroke_num_vertices);
-                log!("New glyph... index : {}, fill_num_vertices : {}, stroke_num_vertices : {}", index, fill_num_vertices, stroke_num_vertices);
-
 
                 Ok(*ve.insert(ShaderGlyphHeader {
                     index : index.try_into().unwrap(), 

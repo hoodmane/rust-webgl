@@ -191,7 +191,7 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn test_edge_shader(&mut self, start : JsPoint, end : JsPoint, s1 : String, s2 : String, degrees : f32, scale : f32, thickness : f32) -> Result<(), JsValue> {
+    pub fn test_edge_shader(&mut self, start : JsPoint, end : JsPoint, s1 : String, s2 : String, degrees : f32, scale : f32, thickness : f32, dash_pattern : Vec<u8>) -> Result<(), JsValue> {
         use crate::glyph::{Glyph, GlyphInstance};
         
         let start : Point = start.into();
@@ -209,7 +209,13 @@ impl Canvas {
 
         let arrow = crate::arrow::test_arrow();
         self.edge_shader.clear();
-        self.edge_shader.add_edge(start_glyph.clone(), end_glyph.clone(), Some(&arrow), Some(&arrow), Angle::degrees(degrees), thickness)?;
+        self.edge_shader.add_edge(
+            start_glyph.clone(), 
+            end_glyph.clone(), 
+            Some(&arrow), Some(&arrow), 
+            Angle::degrees(degrees), thickness, 
+            &dash_pattern
+        )?;
         self.edge_shader.prepare()?;
  
         // edge_shader.draw(self.transform, self.origin, point(self.scale.x, -self.scale.y));
@@ -258,7 +264,7 @@ impl Canvas {
                     let x = x - 1;
                     glyph_instances[x * y_max + y].clone()
                 };
-                self.edge_shader.add_edge(source, target, Some(&arrow), Some(&arrow), angle, thickness)?;
+                self.edge_shader.add_edge(source, target, Some(&arrow), Some(&arrow), angle, thickness, &[])?;
             }
         }
 
