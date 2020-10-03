@@ -1,13 +1,12 @@
 // Stolen from: https://github.com/jobtalle/ConvexHull/tree/master/src/convexHull
-use crate::log;
+// use crate::log;
 
-use std::f32::consts::PI;
 use std::cmp::Ordering;
 use std::borrow::Borrow;
 
 use euclid::default::Box2D;
 
-use lyon::geom::math::{Point, point, Vector, Angle};
+use lyon::geom::math::{Point, Vector, Angle};
 
 use footile::{PathBuilder, PathOp, Plotter, FillRule, Transform};
 use pix::{Raster, el::Pixel, chan::Channel, matte::Matte8};
@@ -205,8 +204,8 @@ impl ConvexHull {
 		}
 	}
 
+	#[allow(dead_code)]
 	fn into_raster_coords(&self, mut point : Vector) -> Point {
-		// point.y *= -1.0;
 		point *= self.raster_scale;
 		raster_midpoint(&self.raster) + point
 	}
@@ -215,7 +214,6 @@ impl ConvexHull {
 	#[allow(dead_code)]
 	fn from_raster_coords(&self, p : Point) -> Vector {
 		let mut v = p - raster_midpoint(&self.raster);
-		// v.y *= -1.0;
 		v /= self.raster_scale;
 		v
 	}

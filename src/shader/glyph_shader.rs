@@ -8,19 +8,12 @@ use wasm_bindgen::JsValue;
 use web_sys::{
     WebGl2RenderingContext, 
     WebGlBuffer, 
-    WebGlProgram, 
-    WebGlShader,
     WebGlVertexArrayObject,
-    WebGlTexture
 };
 
-use lyon::geom::math::{Point, Transform};
+use lyon::geom::math::{Point};
 
-use lyon::tessellation::{
-    VertexBuffers, geometry_builder, 
-    StrokeTessellator, StrokeOptions,
-    FillTessellator, FillOptions
-};
+use lyon::tessellation::{VertexBuffers};
 
 use crate::log;
 use crate::webgl_wrapper::WebGlWrapper;
@@ -32,6 +25,8 @@ use crate::glyph::{GlyphInstance, Glyph};
 use crate::shader::attributes::{Format, Type, NumChannels,  Attribute, Attributes};
 use crate::shader::data_texture::DataTexture;
 
+use crate::coordinate_system::CoordinateSystem;
+
 
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aPosition", 2, Type::F32),
@@ -42,8 +37,6 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
 ]);
 
 
-
-const DATA_ROW_SIZE : usize = 2048;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
@@ -210,13 +203,13 @@ impl GlyphShader {
         Ok(())
     }
 
-    pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point) {
+    pub fn draw(&mut self, coordinate_system : CoordinateSystem) {
         self.program.use_program();
         self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
-        self.program.set_uniform_transform("uTransformationMatrix", transform);
-        self.program.set_uniform_point("uOrigin", origin);
-        self.program.set_uniform_point("uScale", scale);
+        self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
+        self.program.set_uniform_point("uOrigin", coordinate_system.origin);
+        self.program.set_uniform_vector("uScale", coordinate_system.scale);
 
         let num_instances = self.glyph_instances.len() as i32;
         let num_vertices = self.max_glyph_num_vertices as i32;

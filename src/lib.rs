@@ -1,26 +1,24 @@
 #![deny(unused_must_use)]
-#![allow(dead_code)]
-#![allow(unused_imports)]
+//#![allow(dead_code)]
+//#![allow(unused_imports)]
 
 mod console_log;
 mod error;
-mod rect;
 
 mod convex_hull;
 
 mod vector;
 
-mod path_segment;
-mod path;
 mod arrow;
 
 mod webgl_wrapper;
 mod shader;
+
+mod coordinate_system;
 mod canvas;
 
 
 mod glyph;
-mod edge;
 
 use crate::canvas::Canvas;
 

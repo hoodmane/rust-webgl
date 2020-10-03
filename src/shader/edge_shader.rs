@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, btree_map};
-use std::convert::TryInto;
 use uuid::Uuid;
 use std::rc::Rc;
 
+#[allow(unused_imports)]
 use crate::log;
 use crate::vector::{Vec4};
 use crate::shader::Program;
@@ -14,22 +14,16 @@ use crate::arrow::Arrow;
 use crate::shader::attributes::{Format, Type, NumChannels, Attribute, Attributes};
 use crate::shader::data_texture::DataTexture;
 
-use lyon::geom::math::{Point, Vector, Angle, Transform};
+use crate::coordinate_system::CoordinateSystem;
+
+use lyon::geom::math::{Point, Angle};
 
 
-use lyon::tessellation::{
-    VertexBuffers, geometry_builder, 
-    StrokeTessellator, StrokeOptions,
-    FillTessellator, FillOptions
-};
+use lyon::tessellation::{VertexBuffers};
 
 use wasm_bindgen::JsValue;
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer};
 
-use crate::convex_hull::ANGLE_RESOLUTION;
-
-
-const DATA_ROW_SIZE : usize = 2048;
 
 
 const ATTRIBUTES : Attributes = Attributes::new(&[
@@ -94,11 +88,6 @@ pub struct EdgeShader {
     arrow_header_data : DataTexture<ArrowHeader>,
     arrow_path_data : DataTexture<Point>,
 }
-
-fn glyph_boundary_index(glyph_index : usize) -> usize {
-    glyph_index * ANGLE_RESOLUTION
-}
-
 
 impl EdgeShader {
     pub fn new(webgl : WebGlWrapper) -> Result<Self, JsValue> {
@@ -252,15 +241,15 @@ impl EdgeShader {
     }
 
 
-    pub fn draw(&mut self, transform : Transform, origin : Point, scale : Point){
+    pub fn draw(&mut self, coordinate_system : CoordinateSystem){
         self.program.use_program();
         self.glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0);
         self.arrow_header_data.bind(WebGl2RenderingContext::TEXTURE1);
         self.arrow_path_data.bind(WebGl2RenderingContext::TEXTURE2);
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
-        self.program.set_uniform_transform("uTransformationMatrix", transform);
-        self.program.set_uniform_point("uOrigin", origin);
-        self.program.set_uniform_point("uScale", scale);
+        self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
+        self.program.set_uniform_point("uOrigin", coordinate_system.origin);
+        self.program.set_uniform_vector("uScale", coordinate_system.scale);
         self.webgl.draw_arrays_instanced(
             WebGl2RenderingContext::TRIANGLES,
             0,

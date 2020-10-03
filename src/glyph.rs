@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use crate::log; 
 
 use lazy_static::lazy_static;
@@ -18,13 +19,9 @@ use lyon::tessellation::{
     FillTessellator, FillOptions, VertexBuffers
 };
 
-use footile::{PathBuilder, Plotter, FillRule};
-use pix::matte::Matte8;
-use pix::Raster;
 
 use crate::vector::{Vec4};
 
-use crate::rect::{RectBuilder, Rect};
 use crate::convex_hull::ConvexHull;
 
 const FONT_SIZE: f32 = 32.0;
@@ -175,6 +172,7 @@ pub struct GlyphInstance {
 }
 
 
+#[allow(dead_code)]
 impl GlyphInstance {
     pub fn new(glyph : Rc<Glyph>, center : Point, scale : f32, stroke_color : Vec4, fill_color : Vec4) -> Self {
         Self {

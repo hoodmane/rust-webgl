@@ -1,8 +1,7 @@
 use std::convert::{TryInto, TryFrom};
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture, WebGlProgram};
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlProgram};
 use wasm_bindgen::JsValue;
 
-use crate::shader::{Shader};
 use crate::webgl_wrapper::WebGlWrapper;
 
 #[derive(Copy, Clone, Debug)]

@@ -1,48 +1,10 @@
+#[allow(unused_imports)]
 use crate::log;
 use crate::shader::attributes::{Format, Type};
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use wasm_bindgen::{JsValue};
 use js_sys::Object;
 use crate::webgl_wrapper::WebGlWrapper;
-
-
-use std::ops::{Index, IndexMut, Deref, DerefMut};
-use core::slice::{self, SliceIndex};
-
-// struct AlignedByteVec {
-//     data : Vec<u32>
-// }
-
-// impl std::ops::Deref for AlignedByteVec {
-//     type Target = &[u8];
-
-//     fn deref(&self) -> Self::Target {
-//         unsafe { slice::from_raw_parts(self.as_ptr() as *const u8, 4 * self.len()) }
-//     }
-// }
-
-// impl std::ops::DerefMut for AlignedByteVec {
-
-//     fn deref_mut(&mut self) -> &mut [T] {
-//         unsafe { slice::from_raw_parts_mut(self.as_mut_ptr() as *mut u8, 4 * self.len()) }
-//     }
-// }
-
-// impl<T, I: SliceIndex<[T]>> Index<I> for Vec<T> {
-//     type Output = I::Output;
-
-//     #[inline]
-//     fn index(&self, index: I) -> &Self::Output {
-//         Index::index(&**self, index)
-//     }
-// }
-
-// impl<T, I: SliceIndex<[T]>> IndexMut<I> for Vec<T> {
-//     #[inline]
-//     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-//         IndexMut::index_mut(&mut **self, index)
-//     }
-// }
 
 
 pub struct DataTexture<T> {

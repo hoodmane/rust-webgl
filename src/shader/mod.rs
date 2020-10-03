@@ -1,16 +1,7 @@
 mod program;
 
-mod shader;
-mod shader_indexed;
 
-
-mod default_shader;
-mod line_shader;
-// mod glyph_shader;
-
-mod default_shader_indexed;
-
-
+mod grid_shader;
 mod glyph_shader;
 mod edge_shader;
 
@@ -20,11 +11,6 @@ mod data_texture;
 
 pub use program::Program;
 
-pub use shader::{Shader, Geometry};
-pub use default_shader::DefaultShader;
-pub use line_shader::LineShader;
+pub use grid_shader::GridShader;
 pub use glyph_shader::GlyphShader;
 pub use edge_shader::EdgeShader;
-
-pub use shader_indexed::{ShaderIndexed, GeometryIndexed};
-pub use default_shader_indexed::DefaultShaderIndexed;

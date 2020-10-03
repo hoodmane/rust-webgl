@@ -96,8 +96,8 @@ export class App {
         // _canvas.translateOrigin((_platform.width - _oldPlatformWidth) / 2, (_platform.height - _oldPlatformHeight) / 2)
         // _oldPlatformWidth = _platform.width
         // _oldPlatformHeight = _platform.height
-        // _stopAnimation
-        // _draw
+        // this._stopAnimation();
+        // this._draw();
     }
     
     handleTouchStart(event) {
@@ -240,15 +240,14 @@ export class App {
         }
 		// Render occasionally even when idle. Chrome must render at least 10fps to
 		// avoid stutter when starting to render at 60fps again.
-        this._idleFrames ++;
-        if(this._idleFrames % 6 == 0 && this._idleFrames < 60 * 2) {
-			this._draw();
-		}
+        // this._idleFrames ++;
+        // if(this._idleFrames % 6 == 0 && this._idleFrames < 60 * 2) {
+		// 	this._draw();
+		// }
 	}
 
     _draw(){
         this._canvas.start_frame();
-        this._canvas.draw_grid();
         this._canvas.render();
         // this._canvas.test_speed("\u220e", 0.0);
         this._canvas.test_speed(); //"a", 0.0);

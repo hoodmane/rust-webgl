@@ -56,9 +56,9 @@ void main() {
     float outer_bound = - circleConstraint(ab_dot_ab, ab_dot_n,   fHalfThickness, fCurvature);
     float bound = min(inner_bound, outer_bound);
     float alpha = aaStep(0.0, bound);
-    // outColor.a *= alpha;
-    // outColor.rgb *= outColor.a;
-    if(alpha != 0.0) {
-        outColor = vec4(0.6, 0.0, 1.0, alpha);
-    }
+    outColor.a *= alpha;
+    outColor.rgb *= outColor.a;
+    // if(alpha != 0.0) {
+    //     outColor = vec4(0.6, 0.0, 1.0, alpha);
+    // }
 }

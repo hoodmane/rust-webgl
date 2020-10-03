@@ -4,10 +4,10 @@ use std::rc::Rc;
 use wasm_bindgen::JsValue;
 
 use lyon::geom::math::{point, Point};
-use lyon::path::{Path, builder::{PathBuilder, Build}};
+use lyon::path::{Path};
 
 use lyon::tessellation::{
-    geometry_builder, TessellationError,
+    geometry_builder,
     StrokeTessellator, StrokeOptions, LineCap, LineJoin,
     FillTessellator, FillOptions, VertexBuffers,
 };

@@ -1,7 +1,5 @@
 use crate::vector::{Vec3, Vec4};
-use lyon::geom::math::{Point, Transform};
-
-use uuid::Uuid;
+use lyon::geom::math::{Point, Vector, Transform};
 
 use wasm_bindgen::JsValue;
 use crate::webgl_wrapper::WebGlWrapper;
@@ -37,6 +35,7 @@ impl Program {
         self.webgl.use_program(Some(&self.program));
     }
 
+    #[allow(dead_code)]
     pub fn set_uniform_float(&self, name : &str, x : f32) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
         self.webgl.uniform1f(loc.as_ref(), x);
@@ -52,11 +51,18 @@ impl Program {
         self.webgl.uniform2fv_with_f32_array(loc.as_ref(), &v2.to_array());
     }
 
+    pub fn set_uniform_vector(&self, name : &str, v2 : Vector) {
+        let loc = self.webgl.get_uniform_location(&self.program, name);  
+        self.webgl.uniform2fv_with_f32_array(loc.as_ref(), &v2.to_array());
+    }
+
+    #[allow(dead_code)]
     pub fn set_uniform_vec3(&self, name : &str, v3 : Vec3) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
         self.webgl.uniform3fv_with_f32_array(loc.as_ref(), &[v3.x, v3.y, v3.z]);
     }
 
+    #[allow(dead_code)]
     pub fn set_uniform_vec4(&self, name : &str, v4 : Vec4) {
         let loc = self.webgl.get_uniform_location(&self.program, name);  
         self.webgl.uniform4fv_with_f32_array(loc.as_ref(), &[v4.x, v4.y, v4.z, v4.w]);

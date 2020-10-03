@@ -47,7 +47,7 @@ flat out float fHalfThickness;
 out vec2 vPosition;
 
 vec2 transformPos(vec2 pos){
-    return uOrigin + uScale * pos;
+    return uOrigin + (vec2(1.0, -1.0) * uScale) * pos;
 }
 
 vec4 reverseTangent(vec4 pos_tan){
@@ -260,30 +260,31 @@ vec2 vertexPositionCurved(){
     int vertexID = gl_VertexID;
 
     if(vertexID < 12){
-        fCurvature = curvature;
-        fP0 = startPosTan.xy;
-        fN0 = normalVector(startPosTan.zw);
-        fHalfThickness = thickness;
-
         vec4 origStartPosTan = startPosTan;
         vec4 origEndPosTan = endPosTan;
         startPosTan = glyphOffsetCurved(startGlyph, startGlyphScale, -arrowLineEnd(startArrow), startPosTan, curvature);
         endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, -arrowLineEnd(endArrow), reverseTangent(endPosTan), -curvature));
+
+        fCurvature = curvature;
+        fP0 = startPosTan.xy;
+        fN0 = normalVector(startPosTan.zw);
+        fHalfThickness = thickness / 2.0;
+
         int vidx = (vertexID/3) + (vertexID % 3);
-        switch(vertexID/3){
-            case 0:
-                fColor = vec4(0.0, 0.0, 0.0, 0.3);
-                break;
-            case 1:
-                fColor = vec4(1.0, 0.0, 0.0, 0.3);
-                break;
-            case 2:
-                fColor = vec4(0.0, 1.0, 0.0, 0.3);
-                break;
-            case 3:
-                fColor = vec4(0.0, 0.0, 1.0, 0.3);
-                break;
-        }
+        // switch(vertexID/3){
+        //     case 0:
+        //         fColor = vec4(0.0, 0.0, 0.0, 0.3);
+        //         break;
+        //     case 1:
+        //         fColor = vec4(1.0, 0.0, 0.0, 0.3);
+        //         break;
+        //     case 2:
+        //         fColor = vec4(0.0, 1.0, 0.0, 0.3);
+        //         break;
+        //     case 3:
+        //         fColor = vec4(0.0, 0.0, 1.0, 0.3);
+        //         break;
+        // }
         bool inside = (vidx + 1 - vertexID/6) % 2 == 0;
         inside = inside != curvesLeft;
         int angle_idx = vidx / 2;
@@ -291,7 +292,6 @@ vec2 vertexPositionCurved(){
         float displacement_length = length(displacement);
         vec2 midNormal = normalVector(normalize(displacement));
         vec2 midPos = (origStartPosTan.xy + origEndPosTan.xy) / 2.0 + (displacement_length/2.0 * tan(angle/2.0)) * midNormal;
-        // vec2 midPos = circleOffset(origStartPosTan, curvature, displacement_length/2.0/cos(angle/2.0)).xy;
 
         vec2 pos;
         vec2 normal;

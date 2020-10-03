@@ -38,6 +38,6 @@ vec2 getVertexPosition() {
 
 void main() {
     vec2 vertexPosition = getVertexPosition();
-    vec2 transformedPosition = uOrigin +  uScale * aPosition;
+    vec2 transformedPosition = uOrigin +  (vec2(1.0, -1.0) * uScale) * aPosition;
     gl_Position = vec4(uTransformationMatrix * vec3(transformedPosition + vertexPosition, 1.0), 0.0, 1.0);
 }
