@@ -7,7 +7,7 @@ use web_sys::{WebGl2RenderingContext};
 #[allow(unused_imports)]
 use crate::log;
 
-use crate::glyph::{JsGlyph, Glyph, GlyphInstance};
+use crate::glyph::{Glyph, GlyphInstance};
 
 use crate::shader::{GridShader, GlyphShader, EdgeShader};
 
@@ -214,14 +214,14 @@ impl Canvas {
 
     pub fn test_edge_shader(&mut self, 
         start_point : &JsPoint, end_point : &JsPoint, 
-        start_glyph : &JsGlyph, end_glyph : &JsGlyph, 
+        start_glyph : &Glyph, end_glyph : &Glyph, 
         degrees : f32, scale : f32, thickness : f32, dash_pattern : Vec<u8>
     ) -> Result<(), JsValue> {
         
         let start : Point = start_point.into();
         let end : Point = end_point.into();
-        let start_glyph = GlyphInstance::new(start_glyph.into(), start, scale,  Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(1.0, 0.0, 0.0, 0.5));
-        let end_glyph = GlyphInstance::new(end_glyph.into(), end, scale,  Vec4::new(0.0, 1.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
+        let start_glyph = GlyphInstance::new(start_glyph.clone(), start, scale,  Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(1.0, 0.0, 0.0, 0.5));
+        let end_glyph = GlyphInstance::new(end_glyph.clone(), end, scale,  Vec4::new(0.0, 1.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
         self.glyph_shader.clear_glyphs();
         self.glyph_shader.add_glyph(start_glyph.clone())?;
         self.glyph_shader.add_glyph(end_glyph.clone())?;

@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, btree_map};
 use uuid::Uuid;
-use std::rc::Rc;
 
 #[allow(unused_imports)]
 use crate::log;
@@ -265,7 +264,7 @@ impl EdgeShader {
         }
     }
 
-    fn glyph_boundary_data(&mut self, glyph : &Rc<Glyph>) -> u16 {
+    fn glyph_boundary_data(&mut self, glyph : &Glyph) -> u16 {
         let next_glyph_index = self.glyph_map.len();
         let entry = self.glyph_map.entry(glyph.uuid);
         match entry {

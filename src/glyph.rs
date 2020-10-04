@@ -134,73 +134,35 @@ fn lyon_path_to_footile_path<T : Iterator<Item=PathEvent>>(path : T) -> Vec<Path
     }).collect()
 }
 
-use std::convert::From;
 #[wasm_bindgen]
-pub struct JsGlyph {
-    pub(crate) glyph : Rc<Glyph>
-}
-
-impl From<Rc<Glyph>> for JsGlyph {
-    fn from(glyph : Rc<Glyph>) -> Self {
-        Self { glyph }
-    }
-}
-
-impl From<JsGlyph> for Rc<Glyph> {
-    fn from(glyph : JsGlyph) -> Self {
-        glyph.glyph
-    }
-}
-
-impl From<&JsGlyph> for Rc<Glyph> {
-    fn from(glyph : &JsGlyph) -> Self {
-        glyph.glyph.clone()
-    }
-}
-
-#[wasm_bindgen]
-impl JsGlyph {
-    pub fn from_stix(character : &str) -> Self {
-        Glyph::from_stix(character).into()
-    }
-
-    pub fn from_stix_boxed(character : &str, padding : f32) -> Self {
-        Glyph::from_stix_boxed(character, padding).into()
-    }
-    
-    pub fn from_stix_circled(character : &str, padding : f32) -> Self {
-        Glyph::from_stix_circled(character, padding).into()
-    }
-}
-
-
+#[derive(Clone)]
 pub struct Glyph {
-    paths : Vec<(Vec<PathEvent>, Option<StrokeOptions>, Option<FillOptions>)>,
-    convex_hull : ConvexHull,
+    paths : Rc<Vec<(Vec<PathEvent>, Option<StrokeOptions>, Option<FillOptions>)>>,
+    convex_hull : Rc<ConvexHull>,
     pub(crate) uuid : Uuid,
 }
 
-
+#[wasm_bindgen]
 impl Glyph {
-    pub fn from_stix(character : &str) -> Rc<Self> {
+    pub fn from_stix(character : &str) -> Self {
         let path : Vec<_> = STIX_FONT.render(
             character,
             (512.0 - 64.0) / FONT_SIZE,
             font::TextAlign::Center
         ).0.collect();
         let bounding_box = pathop_bounding_box(path.iter());
-        Rc::new(Self {
-            paths : vec![(
+        Self {
+            paths : Rc::new(vec![(
                 footile_path_to_lyon_path(path.iter().cloned()),
                 Some(StrokeOptions::default().with_line_width(2.0).with_tolerance(0.2)), 
                 Some(FillOptions::default().with_tolerance(0.2))
-            )],
-            convex_hull : ConvexHull::from_path(path, bounding_box),
+            )]),
+            convex_hull : Rc::new(ConvexHull::from_path(path, bounding_box)),
             uuid : Uuid::new_v4()
-        })
+        }
     }
 
-    pub fn from_stix_boxed(character : &str, padding : f32) -> Rc<Self> {
+    pub fn from_stix_boxed(character : &str, padding : f32) -> Self {
         let padding = padding / 100.0;
         let path : Vec<_> = STIX_FONT.render(
             character,
@@ -216,9 +178,9 @@ impl Glyph {
             .line_to(xmax, ymax)
             .line_to(xmin, ymax)
             .close().finish();
-        let convex_hull = ConvexHull::from_path(box_path.iter().cloned(), bounding_box);
-        Rc::new(Self {
-            paths : vec![(
+        let convex_hull = Rc::new(ConvexHull::from_path(box_path.iter().cloned(), bounding_box));
+        Self {
+            paths : Rc::new(vec![(
                 footile_path_to_lyon_path(path.iter().cloned()), 
                 Some(StrokeOptions::default().with_line_width(2.0).with_tolerance(0.2)), 
                 Some(FillOptions::default().with_tolerance(0.2))
@@ -226,13 +188,13 @@ impl Glyph {
                 footile_path_to_lyon_path(box_path.iter().cloned()), 
                 Some(StrokeOptions::default().with_line_width(4.0).with_tolerance(0.2)),
                 None, 
-            )],
+            )]),
             convex_hull,
             uuid : Uuid::new_v4()
-        })
+        }
     }
 
-    pub fn from_stix_circled(character : &str, padding : f32) -> Rc<Self> {
+    pub fn from_stix_circled(character : &str, padding : f32) -> Self {
         let padding = padding / 100.0;
         let path : Vec<_> = STIX_FONT.render(
             character,
@@ -248,9 +210,9 @@ impl Glyph {
         circle_path.arc(center, vector(radius, radius), Angle::two_pi(), Angle::zero());
         circle_path.close();
         let circle_path : Vec<_> = circle_path.build().iter().collect();
-        let convex_hull = ConvexHull::from_path(lyon_path_to_footile_path(circle_path.iter().cloned()), bounding_box);
-        Rc::new(Self {
-            paths : vec![(
+        let convex_hull = Rc::new(ConvexHull::from_path(lyon_path_to_footile_path(circle_path.iter().cloned()), bounding_box));
+        Self {
+            paths : Rc::new(vec![(
                 footile_path_to_lyon_path(path.iter().cloned()), 
                 Some(StrokeOptions::default().with_line_width(2.0).with_tolerance(0.2)), 
                 Some(FillOptions::default().with_tolerance(0.2))
@@ -258,10 +220,10 @@ impl Glyph {
                 circle_path, 
                 Some(StrokeOptions::default().with_line_width(4.0).with_tolerance(0.2)),
                 None, 
-            )],
+            )]),
             convex_hull,
             uuid : Uuid::new_v4()
-        })
+        }
     }
 
     pub(crate) fn tessellate_fill(&self,
@@ -271,7 +233,7 @@ impl Glyph {
         let mut vertex_builder = geometry_builder::simple_builder(buffers);
         let mut fill_tessellator = FillTessellator::new();
         let transform = Transform::identity().then_translate(- self.convex_hull.center().to_vector()).then_scale(scale, scale);
-        for &(ref path, _stroke, fill) in &self.paths {
+        for &(ref path, _stroke, fill) in self.paths.iter() {
             if let Some(options) = fill {
                 let path = path.iter().map(|e| *e).transformed(&transform);
                 fill_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_error)?;
@@ -287,7 +249,7 @@ impl Glyph {
         let mut vertex_builder = geometry_builder::simple_builder(buffers);
         let mut stroke_tessellator = StrokeTessellator::new();
         let transform = Transform::identity().then_translate(- self.convex_hull.center().to_vector()).then_scale(scale, scale);
-        for &(ref path, stroke,  _fill) in &self.paths {
+        for &(ref path, stroke,  _fill) in &*self.paths {
             if let Some(options) = stroke {
                 let path = path.iter().map(|e| *e).transformed(&transform);
                 stroke_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_error)?;
@@ -305,7 +267,7 @@ impl Glyph {
 
 #[derive(Clone)]
 pub struct GlyphInstance {
-    pub(crate) glyph : Rc<Glyph>,
+    pub(crate) glyph : Glyph,
     pub(crate) center : Point,
     pub(crate) scale : f32,
     pub(crate) stroke_color : Vec4,
@@ -315,7 +277,7 @@ pub struct GlyphInstance {
 
 #[allow(dead_code)]
 impl GlyphInstance {
-    pub fn new(glyph : Rc<Glyph>, center : Point, scale : f32, stroke_color : Vec4, fill_color : Vec4) -> Self {
+    pub fn new(glyph : Glyph, center : Point, scale : f32, stroke_color : Vec4, fill_color : Vec4) -> Self {
         Self {
             glyph,
             center,

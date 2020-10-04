@@ -1,7 +1,6 @@
 use std::convert::TryInto;
 use std::collections::{BTreeMap, btree_map};
 use uuid::Uuid;
-use std::rc::Rc;
 
 
 use wasm_bindgen::JsValue;
@@ -132,7 +131,7 @@ impl GlyphShader {
         self.ready = false;
     }
 
-    fn glyph_data(&mut self, glyph : &Rc<Glyph>) -> Result<ShaderGlyphHeader, JsValue> {
+    fn glyph_data(&mut self, glyph : &Glyph) -> Result<ShaderGlyphHeader, JsValue> {
         let entry = self.glyph_map.entry(glyph.uuid);
         // If btree_map::Entry had a method "or_try_insert(f : K -> Result<V, E>) -> Result<&V, E>" we could use that instead.
         match entry {
