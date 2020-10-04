@@ -81,8 +81,14 @@ export class App {
     handleScroll(event) {
         event.preventDefault();
         this._stopAnimation();
+        let mousePoint = new Vec2(event.offsetX, event.offsetY);
+        // If we are close to a grid point (currently within 10px) lock on to it.
+        let [nearestX, nearestY, distance] = this._canvas.nearest_gridpoint(mousePoint);
+        if(distance < 10){
+            this._canvas.translate(new Vec2(-nearestX + mousePoint.x, -nearestY + mousePoint.y));
+        }
         let direction = Math.sign(event.deltaY);
-        this._canvas.scale_around(Math.pow(0.6, direction), new Vec2(event.clientX, event.clientY));
+        this._canvas.scale_around(Math.pow(0.6, direction), mousePoint);
         this._requestRedraw();
     }
     

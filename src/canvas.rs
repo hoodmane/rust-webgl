@@ -83,6 +83,21 @@ impl Canvas {
         Ok(result)   
     }
 
+    // Returns : [xNearest, yNearest, distance]
+    pub fn nearest_gridpoint(&self, point : &JsPoint) -> Vec<f32> {
+        let pt = point.into();
+        let nearest = self.coordinate_system.transform_point(self.coordinate_system.inverse_transform_point(pt).round());
+        vec![nearest.x, nearest.y, nearest.distance_to(pt)]
+    }
+
+
+    pub fn transform_point(&self, point : &JsPoint) -> JsPoint {
+        self.coordinate_system.transform_point(point.into()).into()
+    }
+
+    pub fn inverse_transform_point(&self, point : &JsPoint) -> JsPoint {
+        self.coordinate_system.inverse_transform_point(point.into()).into()
+    }
 
     pub fn restore_context(&mut self, webgl_context : &WebGl2RenderingContext) -> Result<(), JsValue> {
         self.webgl = WebGlWrapper::new(webgl_context.clone());

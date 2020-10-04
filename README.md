@@ -1,15 +1,4 @@
-# WebGL Example
-
-[View documentation for this example online][dox] or [View compiled example
-online][compiled]
-
-[compiled]: https://rustwasm.github.io/wasm-bindgen/exbuild/webgl/
-[dox]: https://rustwasm.github.io/docs/wasm-bindgen/examples/webgl.html
-
-You can build the example locally with:
-
-```
-$ npm run serve
-```
-
-and then visiting http://localhost:8080 in a browser should run the example!
+# WebGl Chart
+This is a test implementation of a simple 2D graphics backend using webgl2 and Rust/wasm_bindgen.
+The logic is inspired by tikz: there are "nodes" which have known boundary and we draw edges between the nodes.
+The edges can be straight or circular arcs and have adjustable thickness, dash pattern, color and arrowheads.

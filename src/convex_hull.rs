@@ -8,7 +8,7 @@ use euclid::default::Box2D;
 
 use lyon::geom::math::{Point, Vector, Angle};
 
-use footile::{PathBuilder, PathOp, Plotter, FillRule, Transform};
+use footile::{Path2D, PathOp, Plotter, FillRule, Transform};
 use pix::{Raster, el::Pixel, chan::Channel, matte::Matte8};
 
 
@@ -151,12 +151,12 @@ fn graham_scan(points : &mut Vec<Vector>) {
 }
 
 fn rasterize_polygon(polygon : &Vec<Vector>, width : u32, height : u32) -> Raster<Matte8> {
-	let mut path_builder = PathBuilder::default();
+	let mut path_builder = Path2D::default();
 	path_builder = path_builder.absolute().move_to(polygon[0].x, polygon[0].y);
 	for v in &polygon[1..] {
 		path_builder = path_builder.line_to(v.x, v.y);
 	}
-	let path = path_builder.close().build();
+	let path = path_builder.close().finish();
 	let mut p = Plotter::new(Raster::<Matte8>::with_clear(width, height));
     p.fill(FillRule::NonZero, path.iter(), Matte8::new(255));
     p.raster()

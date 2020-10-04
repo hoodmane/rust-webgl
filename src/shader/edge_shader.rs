@@ -340,7 +340,9 @@ impl EdgeShader {
         self.glyph_boundary_data.upload()?;
         self.arrow_header_data.upload()?;
         self.arrow_path_data.upload()?;
-        self.upload_dash_texture_data()?;
+        if self.dash_data.len() > 0 {
+            self.upload_dash_texture_data()?;
+        }
         Ok(())
     }
 

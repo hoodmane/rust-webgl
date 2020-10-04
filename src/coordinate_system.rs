@@ -39,7 +39,6 @@ impl BufferDimensions {
 }
 
 
-#[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub struct CoordinateSystem {
 	pub(crate) origin : Point,
@@ -61,7 +60,6 @@ pub struct CoordinateSystem {
     max_xy_boundary : Point,
 }
 
-#[wasm_bindgen]
 impl CoordinateSystem {
     pub fn new() -> Self {
         CoordinateSystem {
@@ -87,9 +85,9 @@ impl CoordinateSystem {
     }
 
 
-    pub fn transform_point(&self, point : JsPoint) -> JsPoint {
-        let JsPoint {x, y} = point;
-        Point::new(self.transform_x(x), self.transform_y(y)).into()
+    pub fn transform_point(&self, point : Point) -> Point {
+        let Point {x, y, ..} = point;
+        Point::new(self.transform_x(x), self.transform_y(y))
     }
 
     pub fn transform_x(&self, x : f32) -> f32 {
@@ -100,12 +98,12 @@ impl CoordinateSystem {
         self.origin.y - y * self.scale.y
     }
 
-    pub fn inverse_transform_point(&self, point : JsPoint) -> JsPoint {
-        let JsPoint {x, y, ..} = point;
+    pub fn inverse_transform_point(&self, point : Point) -> Point {
+        let Point {x, y, ..} = point;
         Point::new(
             self.inverse_transform_x(x),
             self.inverse_transform_y(y)
-        ).into()
+        )
     }
 
     pub fn inverse_transform_x(&self, x : f32) -> f32 {

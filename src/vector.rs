@@ -60,6 +60,18 @@ impl From<&Vector> for JsPoint {
     }
 }
 
+impl From<&JsPoint> for Point {
+    fn from(p : &JsPoint) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+impl From<&JsPoint> for Vector {
+    fn from(p : &JsPoint) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
 #[wasm_bindgen]
 impl JsPoint {
     #[wasm_bindgen(constructor)]

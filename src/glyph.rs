@@ -37,17 +37,6 @@ fn pt_to_euclid(p : Pt) -> Point {
     point(p.0, p.1)
 }
 
-fn copy_pathop(path_op : &PathOp) -> PathOp {
-    match path_op {
-        PathOp::Close() => PathOp::Close(),
-        PathOp::Move(to) => PathOp::Move(*to),
-        PathOp::Line(to) => PathOp::Line(*to),
-        PathOp::Quad(ctrl, to) => PathOp::Quad(*ctrl, *to),
-        PathOp::Cubic(ctrl1, ctrl2, to) => PathOp::Cubic(*ctrl1, *ctrl2, *to),
-        PathOp::PenWidth(width) => PathOp::PenWidth(*width)
-    }
-}
-
 fn pathop_bounding_box<'a, T : Iterator<Item=&'a PathOp>>(path : T) -> Box2D<f32> {
     Box2D::from_points(path.flat_map(|path_op|{
         let mut result = ArrayVec::<[_; 3]>::new();
@@ -125,7 +114,7 @@ impl Glyph {
         ).0.collect();
         let bounding_box = pathop_bounding_box(path.iter());
         Rc::new(Self {
-            path : convert_path(path.iter().map(|a| copy_pathop(a))),
+            path : convert_path(path.iter().cloned()),
             convex_hull : ConvexHull::from_path(path, bounding_box),
             uuid : Uuid::new_v4()
         })
