@@ -7,6 +7,8 @@ use web_sys::{WebGl2RenderingContext};
 #[allow(unused_imports)]
 use crate::log;
 
+use crate::glyph::{JsGlyph, Glyph, GlyphInstance};
+
 use crate::shader::{GridShader, GlyphShader, EdgeShader};
 
 
@@ -151,6 +153,10 @@ impl Canvas {
         Ok(())
     }
 
+    pub fn set_glyph_scale(&mut self, glyph_scale : f32){
+        self.coordinate_system.glyph_scale = glyph_scale;
+    }
+
 
     fn enable_clip(&self){
         self.webgl.enable(WebGl2RenderingContext::SCISSOR_TEST);
@@ -206,15 +212,16 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn test_edge_shader(&mut self, start : JsPoint, end : JsPoint, s1 : String, s2 : String, degrees : f32, scale : f32, thickness : f32, dash_pattern : Vec<u8>) -> Result<(), JsValue> {
-        use crate::glyph::{Glyph, GlyphInstance};
+    pub fn test_edge_shader(&mut self, 
+        start_point : &JsPoint, end_point : &JsPoint, 
+        start_glyph : &JsGlyph, end_glyph : &JsGlyph, 
+        degrees : f32, scale : f32, thickness : f32, dash_pattern : Vec<u8>
+    ) -> Result<(), JsValue> {
         
-        let start : Point = start.into();
-        let end : Point = end.into();
-        let glyph1 = Glyph::from_stix(&s1);
-        let glyph2 = Glyph::from_stix(&s2);
-        let start_glyph = GlyphInstance::new(glyph1, start, scale,  Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(1.0, 0.0, 0.0, 0.5));
-        let end_glyph = GlyphInstance::new(glyph2, end, scale,  Vec4::new(0.0, 1.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
+        let start : Point = start_point.into();
+        let end : Point = end_point.into();
+        let start_glyph = GlyphInstance::new(start_glyph.into(), start, scale,  Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(1.0, 0.0, 0.0, 0.5));
+        let end_glyph = GlyphInstance::new(end_glyph.into(), end, scale,  Vec4::new(0.0, 1.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
         self.glyph_shader.clear_glyphs();
         self.glyph_shader.add_glyph(start_glyph.clone())?;
         self.glyph_shader.add_glyph(end_glyph.clone())?;
@@ -237,7 +244,6 @@ impl Canvas {
 
 
     pub fn test_speed_setup(&mut self, s1 : String, s2 : String, xy_max : usize,  scale : f32, degrees : f32, thickness : f32) -> Result<(), JsValue> {
-        use crate::glyph::{Glyph, GlyphInstance};
         let glyph1 = Glyph::from_stix(&s1);
         let glyph2 = Glyph::from_stix(&s2);
         let mut glyph_instances = Vec::new();

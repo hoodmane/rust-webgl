@@ -217,6 +217,7 @@ impl GlyphShader {
         self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
         self.program.set_uniform_point("uOrigin", coordinate_system.origin);
         self.program.set_uniform_vector("uScale", coordinate_system.scale);
+        self.program.set_uniform_float("uGlyphScale", coordinate_system.glyph_scale);
 
         let num_instances = self.glyph_instances.len() as i32;
         let num_vertices = self.max_glyph_num_vertices as i32;

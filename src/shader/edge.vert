@@ -25,6 +25,7 @@ vec4 getValueByIndexFromTexture(sampler2D tex, int index) {
     uniform mat3x2 uTransformationMatrix;
     uniform vec2 uOrigin;
     uniform vec2 uScale;
+    uniform float uGlyphScale;
 // };
 
 uniform sampler2D uGlyphBoundaryTexture;
@@ -70,7 +71,7 @@ mat2 rotationMatrix(vec2 direction){
 float glyphBoundaryPoint(int glyph, float angle){
     int glyph_index = (int(angle / (2.0 * M_PI) * float(ANGLE_RES)) + ANGLE_RES) % ANGLE_RES;
     int total_index = ANGLE_RES * glyph + glyph_index;
-    return getValueByIndexFrom4ChannelTexture(uGlyphBoundaryTexture, total_index);
+    return uGlyphScale * getValueByIndexFrom4ChannelTexture(uGlyphBoundaryTexture, total_index);
 }
 
 

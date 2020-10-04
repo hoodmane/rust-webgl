@@ -43,6 +43,7 @@ impl BufferDimensions {
 pub struct CoordinateSystem {
 	pub(crate) origin : Point,
     pub(crate) scale : Vector,
+    pub(crate) glyph_scale : f32,
 
     pub(crate) left_margin : i32,
     pub(crate) right_margin : i32,
@@ -81,6 +82,7 @@ impl CoordinateSystem {
             max_scale : 1000.0,
             min_xy_boundary : point(f32::NEG_INFINITY, f32::NEG_INFINITY),
             max_xy_boundary : point(f32::INFINITY, f32::INFINITY),
+            glyph_scale : 1.0,
         }
     }
 

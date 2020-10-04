@@ -365,6 +365,7 @@ impl EdgeShader {
         self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
         self.program.set_uniform_point("uOrigin", coordinate_system.origin);
         self.program.set_uniform_vector("uScale", coordinate_system.scale);
+        self.program.set_uniform_float("uGlyphScale", coordinate_system.glyph_scale);
         
         self.webgl.draw_arrays_instanced(
             WebGl2RenderingContext::TRIANGLES,
