@@ -314,15 +314,6 @@ impl GlyphInstance {
 	pub fn find_boundary_point(&self, angle : Angle) -> Point {
         self.from_local_coords(self.glyph.convex_hull.find_boundary_point(angle))
 	}
-
-
-    pub fn contains_point(&self, point : Point) -> bool {
-        self.glyph.convex_hull.contains_point(self.into_local_coords(point))
-    }
-
-    // pub fn point_toward(&self, point : Point) -> Point {
-    //     self.glyph.convex_hull.find_boundar
-    // }
 }
 
 

@@ -212,6 +212,15 @@ impl Canvas {
         Ok(())
     }
 
+    pub fn clear_glyphs(&mut self) {
+        self.glyph_shader.clear_glyphs();
+    }
+
+    pub fn add_glyph(&mut self, point : &JsPoint, glyph : &Glyph, scale : f32,  &stroke_color : &Vec4,  &fill_color : &Vec4 ) -> Result<(), JsValue>  {
+        self.glyph_shader.add_glyph(GlyphInstance::new(glyph.clone(), point.into(), scale,  stroke_color, fill_color))?;
+        Ok(())
+    }
+
     pub fn test_edge_shader(&mut self, 
         start_point : &JsPoint, end_point : &JsPoint, 
         start_glyph : &Glyph, end_glyph : &Glyph, 
@@ -226,8 +235,6 @@ impl Canvas {
         self.glyph_shader.add_glyph(start_glyph.clone())?;
         self.glyph_shader.add_glyph(end_glyph.clone())?;
 
-        self.glyph_shader.draw(self.coordinate_system)?;
-
         let arrow = crate::arrow::test_arrow();
         self.edge_shader.clear();
         self.edge_shader.add_edge(
@@ -238,7 +245,6 @@ impl Canvas {
             &dash_pattern
         )?;
  
-        self.edge_shader.draw(self.coordinate_system)?;
         Ok(())
     }
 

@@ -18,10 +18,6 @@ fn raster_midpoint<P: Pixel>(raster : &Raster<P>) -> Point {
 	Point::new((raster.width()/2) as f32, (raster.height()/2) as f32)
 }
 
-fn raster_dimensions<P: Pixel>(raster : &Raster<P>) -> Point {
-	Point::new(raster.width() as f32, raster.height() as f32)
-}
-
 fn raster_contains_point<P: Pixel>(raster : &Raster<P>, point : Point) -> bool {
 	raster.pixel(point.x as i32, point.y as i32).alpha() != P::Chan::MIN 
 }
@@ -165,7 +161,6 @@ fn rasterize_polygon(polygon : &Vec<Vector>, width : u32, height : u32) -> Raste
 
 
 pub struct ConvexHull {
-	raster : Raster<Matte8>,
 	pub outline : Vec<Vector>,
 	raster_scale : f32,
 	bounding_box : Box2D<f32>
@@ -197,7 +192,6 @@ impl ConvexHull {
 			*v /= raster_scale;
 		}
 		Self {
-			raster : convex_raster,
 			outline,
 			raster_scale,
 			bounding_box
@@ -207,13 +201,13 @@ impl ConvexHull {
 	#[allow(dead_code)]
 	fn into_raster_coords(&self, mut point : Vector) -> Point {
 		point *= self.raster_scale;
-		raster_midpoint(&self.raster) + point
+		self.center() + point
 	}
 
 	// This is pre-applied to self.outline.
 	#[allow(dead_code)]
 	fn from_raster_coords(&self, p : Point) -> Vector {
-		let mut v = p - raster_midpoint(&self.raster);
+		let mut v = p - self.center();
 		v /= self.raster_scale;
 		v
 	}
@@ -223,19 +217,8 @@ impl ConvexHull {
 		self.outline[index]
 	}
 
-	pub fn contains_point(&self, point : Vector) -> bool {
-		let raster_coord = self.into_raster_coords(point);
-		// log!("chull contains point? point : {:?}, raster_coord : {:?}", point, raster_coord);
-		if !Box2D::new(Point::zero(), raster_dimensions(&self.raster)).contains(raster_coord) {
-			// log!(" ... outside box raster_dimensions : {:?}", raster_dimensions(&self.raster));
-			return false;
-		}
-		// log!("raster_contains_point?  {}", raster_contains_point(&self.raster, raster_coord));
-		raster_contains_point(&self.raster, raster_coord)
-	}
-
 	pub fn center(&self) -> Point {
-		((self.bounding_box.max.to_vector() + self.bounding_box.min.to_vector()) * 0.5).to_point()
+		self.bounding_box.max.lerp(self.bounding_box.min,  0.5)
 	}
 }
 

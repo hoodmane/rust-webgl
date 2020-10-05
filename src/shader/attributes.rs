@@ -7,7 +7,8 @@ use crate::webgl_wrapper::WebGlWrapper;
 #[derive(Copy, Clone, Debug)]
 pub enum Type {
     F32,
-    I16
+    I16,
+    U16
 }
 
 
@@ -59,6 +60,11 @@ impl Format {
             Format(Type::I16, NumChannels::Two) => WebGl2RenderingContext::RG16I,
             Format(Type::I16, NumChannels::Three) => WebGl2RenderingContext::RGB16I,
             Format(Type::I16, NumChannels::Four) => WebGl2RenderingContext::RGBA16I,
+
+            Format(Type::U16, NumChannels::One) => WebGl2RenderingContext::R16UI,
+            Format(Type::U16, NumChannels::Two) => WebGl2RenderingContext::RG16UI,
+            Format(Type::U16, NumChannels::Three) => WebGl2RenderingContext::RGB16UI,
+            Format(Type::U16, NumChannels::Four) => WebGl2RenderingContext::RGBA16UI,
         }
     }
 
@@ -82,14 +88,16 @@ impl Type {
     fn size(self) -> i32 {
         match self {
             Type::F32 => std::mem::size_of::<f32>() as i32,
-            Type::I16 => std::mem::size_of::<u16>() as i32
+            Type::I16 => std::mem::size_of::<i16>() as i32,
+            Type::U16 => std::mem::size_of::<u16>() as i32,
         }
     }
 
     fn webgl_type(self) -> u32 {
         match self {
             Type::F32 => WebGl2RenderingContext::FLOAT,
-            Type::I16 => WebGl2RenderingContext::SHORT
+            Type::I16 => WebGl2RenderingContext::SHORT,
+            Type::U16 => WebGl2RenderingContext::UNSIGNED_SHORT,
         }
     }
 }
@@ -144,7 +152,7 @@ impl Attributes {
             webgl.enable_vertex_attrib_array(loc);
             match ty {
                 Type::F32 => {webgl.vertex_attrib_pointer_with_i32(loc, size, ty.webgl_type(), false, stride, offset)},
-                Type::I16 => {webgl.vertex_attrib_i_pointer_with_i32(loc, size, ty.webgl_type(), stride, offset)}
+                Type::I16 | Type::U16 => {webgl.vertex_attrib_i_pointer_with_i32(loc, size, ty.webgl_type(), stride, offset)}
             };
             webgl.vertex_attrib_divisor(loc, 1);
         }

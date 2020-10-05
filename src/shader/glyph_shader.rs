@@ -33,7 +33,7 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aScale", 1, Type::F32),
     Attribute::new("aFillColor", 4, Type::F32),
     Attribute::new("aStrokeColor", 4, Type::F32),
-    Attribute::new("aGlyphData", 4, Type::I16), // (index, num_fill_vertices, num_stroke_vertices, padding)
+    Attribute::new("aGlyphData", 4, Type::U16), // (index, num_fill_vertices, num_stroke_vertices, padding)
 ]);
 
 
@@ -143,22 +143,25 @@ impl GlyphShader {
                 let scale = 100.0;
                 
                 glyph.tessellate_fill(&mut buffers, scale)?;
-                let fill_num_vertices = buffers.indices.len();
+                let num_fill_vertices = buffers.indices.len();
                 self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
                 
                 buffers.vertices.clear();
                 buffers.indices.clear();
 
                 glyph.tessellate_stroke(&mut buffers, scale)?;
-                let stroke_num_vertices = buffers.indices.len();
+                let num_stroke_vertices = buffers.indices.len();
                 self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
                 
-                self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(fill_num_vertices + stroke_num_vertices);
-
+                self.max_glyph_num_vertices = self.max_glyph_num_vertices.max(num_fill_vertices + num_stroke_vertices);
+                let index : Result<u16, _> = index.try_into();
+                let index = index.map_err(|_| "Too many total glyph vertices : max number of vertices in all glyphs is 65535.")?;
+                let num_fill_vertices = num_fill_vertices.try_into().unwrap();
+                let num_stroke_vertices  = num_stroke_vertices.try_into().unwrap();
                 Ok(*ve.insert(ShaderGlyphHeader {
-                    index : index.try_into().unwrap(), 
-                    num_fill_vertices : fill_num_vertices.try_into().unwrap(), 
-                    num_stroke_vertices : stroke_num_vertices.try_into().unwrap()
+                    index : index, 
+                    num_fill_vertices : num_fill_vertices, 
+                    num_stroke_vertices : num_stroke_vertices,
                 }))
             }
         }
@@ -182,6 +185,8 @@ impl GlyphShader {
 
     fn set_buffer_data(&self){
         self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, self.attributes_buffer.as_ref());
+        log!("glyph_instances : {:?}", self.glyph_instances);
+        log!("max_glyph_num_vertices : {}",self.max_glyph_num_vertices);
         let u8_len = self.glyph_instances.len() * std::mem::size_of::<ShaderGlyphInstance>();
         let u8_ptr = self.glyph_instances.as_ptr() as *mut u8;
         unsafe {

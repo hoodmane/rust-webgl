@@ -44,12 +44,16 @@ impl<T> DataTexture<T> {
         self.num_rows_to_fit_extra_data(0)
     }
 
-    fn num_rows_to_fit_extra_data(&self, n : usize) -> usize{
-        ((self.used_data + n * self.entry_bytes()) + self.row_bytes() - 1) / self.row_bytes()
+    fn num_rows_to_fit_extra_data(&self, n : usize) -> usize {
+        let total_bytes = self.used_data * 4 + n * self.entry_bytes();
+        log!("format : {:?}", self.format);
+        log!("nrtfexdata : total_bytes : {} row_bytes : {}", self.used_data + n * self.entry_bytes(), self.row_bytes());
+        ( total_bytes + self.row_bytes() - 1) / self.row_bytes()
     }
 
     fn ensure_size(&mut self){
         let num_rows = self.num_rows();
+        log!("ensure_size : num_rows : {} texture_rows : {}", num_rows, self.texture_rows);
         if num_rows <= self.texture_rows {
             return;
         }
@@ -73,7 +77,7 @@ impl<T> DataTexture<T> {
         let data = &self.data[..num_rows * self.row_bytes()];
         match self.format.0 {
             Type::F32 => js_sys::Float32Array::view_mut_raw(data.as_ptr() as *mut f32, data.len()).into(),
-            Type::I16 => js_sys::Uint8Array::view_mut_raw(data.as_ptr() as *mut u8, data.len() * 4).into(),
+            Type::I16 | Type::U16 => js_sys::Uint8Array::view_mut_raw(data.as_ptr() as *mut u8, data.len() * 4).into(),
         }
     }
 

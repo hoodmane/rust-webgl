@@ -11,28 +11,29 @@ in vec2 aPosition;
 in float aScale;
 in vec4 aStrokeColor;
 in vec4 aFillColor;
-in ivec4 aGlyphData; // (index, num_fill_vertices, num_stroke_vertices, _)
+in uvec4 aGlyphData; // (index, num_fill_vertices, num_stroke_vertices, _)
 
 flat out vec4 fColor;
 
-vec4 getValueByIndexFromTexture(sampler2D tex, int index) {
-    int texWidth = textureSize(tex, 0).x;
-    int col = index % texWidth;
-    int row = index / texWidth;
+vec4 getValueByIndexFromTexture(sampler2D tex, uint index) {
+    uint texWidth = uint(textureSize(tex, 0).x);
+    int col = int(index % texWidth);
+    int row = int(index / texWidth);
     return texelFetch(tex, ivec2(col, row), 0);
 }
 
 vec2 getVertexPosition() {
-    int glyphIndex = aGlyphData[0];
-    int numFillVertices = aGlyphData[1];
-    int numStrokeVertices = aGlyphData[2];
-    if(gl_VertexID < numFillVertices) {
+    uint glyphIndex = aGlyphData[0];
+    uint numFillVertices = aGlyphData[1];
+    uint numStrokeVertices = aGlyphData[2];
+    uint vertexID = uint(gl_VertexID);
+    if(vertexID < numFillVertices) {
         fColor = aFillColor;
     } else {
         fColor = aStrokeColor;
     }
-    if(gl_VertexID < numFillVertices + numStrokeVertices){
-        return getValueByIndexFromTexture(uGlyphDataTexture, glyphIndex + gl_VertexID).xy * aScale;
+    if(vertexID < numFillVertices + numStrokeVertices){
+        return getValueByIndexFromTexture(uGlyphDataTexture, glyphIndex + vertexID).xy * aScale;
     }
     return vec2(0.0, 0.0); // degenerate vertex
 }
