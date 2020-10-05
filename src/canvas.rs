@@ -8,6 +8,7 @@ use web_sys::{WebGl2RenderingContext};
 use crate::log;
 
 use crate::glyph::{Glyph, GlyphInstance};
+use crate::arrow::Arrow;
 
 use crate::shader::{GridShader, GlyphShader, EdgeShader};
 
@@ -224,6 +225,7 @@ impl Canvas {
     pub fn test_edge_shader(&mut self, 
         start_point : &JsPoint, end_point : &JsPoint, 
         start_glyph : &Glyph, end_glyph : &Glyph, 
+        arrow : &Arrow,
         degrees : f32, scale : f32, thickness : f32, dash_pattern : Vec<u8>
     ) -> Result<(), JsValue> {
         
@@ -235,7 +237,6 @@ impl Canvas {
         self.glyph_shader.add_glyph(start_glyph.clone())?;
         self.glyph_shader.add_glyph(end_glyph.clone())?;
 
-        let arrow = crate::arrow::test_arrow();
         self.edge_shader.clear();
         self.edge_shader.add_edge(
             start_glyph.clone(), 
@@ -249,9 +250,12 @@ impl Canvas {
     }
 
 
-    pub fn test_speed_setup(&mut self, s1 : String, s2 : String, xy_max : usize,  scale : f32, degrees : f32, thickness : f32) -> Result<(), JsValue> {
-        let glyph1 = Glyph::from_stix(&s1);
-        let glyph2 = Glyph::from_stix(&s2);
+    pub fn test_speed_setup(&mut self, 
+        glyph1 : &Glyph, glyph2 : &Glyph, 
+        xy_max : usize,  scale : f32, 
+        degrees : f32, thickness : f32,
+        arrow : &Arrow,
+    ) -> Result<(), JsValue> {
         let mut glyph_instances = Vec::new();
 
         self.glyph_shader.clear_glyphs();
@@ -265,8 +269,8 @@ impl Canvas {
                 // let b = y as f32 /  xy_max as f32;
                 // let glyph_instance = GlyphInstance::new(s.clone(), point(x as f32, y as f32), scale, Vec4::new(r, 0.0, b, 1.0), Vec4::new(b, 0.0, r, 1.0));
 
-                let s = if (x + y) % 2 == 1 { &glyph1 } else { &glyph2 };
-                let glyph_instance = GlyphInstance::new(s.clone(), point(x as f32, y as f32), scale, Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
+                let glyph = if (x + y) % 2 == 1 { glyph1 } else { glyph2 };
+                let glyph_instance = GlyphInstance::new(glyph.clone(), point(x as f32, y as f32), scale, Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
                 self.glyph_shader.add_glyph(glyph_instance.clone())?;
                 glyph_instances.push(glyph_instance);
             }
@@ -275,7 +279,6 @@ impl Canvas {
         let y_max = xy_max;
 
 
-        let arrow = crate::arrow::normal_arrow(thickness);
         let angle = Angle::degrees(degrees);
 
         for x in 1..x_max {
