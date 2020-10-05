@@ -23,9 +23,9 @@ vec4 getValueByIndexFromTexture(sampler2D tex, uint index) {
 }
 
 vec2 getVertexPosition() {
-    uint glyphIndex = aGlyphData[0];
-    uint numFillVertices = aGlyphData[1];
-    uint numStrokeVertices = aGlyphData[2];
+    uint glyphIndex = aGlyphData[0] * 3u;
+    uint numFillVertices = aGlyphData[1] * 3u;
+    uint numStrokeVertices = aGlyphData[2] * 3u;
     uint vertexID = uint(gl_VertexID);
     if(vertexID < numFillVertices) {
         fColor = aFillColor;

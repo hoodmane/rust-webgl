@@ -46,14 +46,11 @@ impl<T> DataTexture<T> {
 
     fn num_rows_to_fit_extra_data(&self, n : usize) -> usize {
         let total_bytes = self.used_data * 4 + n * self.entry_bytes();
-        log!("format : {:?}", self.format);
-        log!("nrtfexdata : total_bytes : {} row_bytes : {}", self.used_data + n * self.entry_bytes(), self.row_bytes());
         ( total_bytes + self.row_bytes() - 1) / self.row_bytes()
     }
 
     fn ensure_size(&mut self){
         let num_rows = self.num_rows();
-        log!("ensure_size : num_rows : {} texture_rows : {}", num_rows, self.texture_rows);
         if num_rows <= self.texture_rows {
             return;
         }
