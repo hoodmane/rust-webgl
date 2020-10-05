@@ -9,11 +9,37 @@ uniform sampler2D uGlyphDataTexture;
 
 in vec2 aPosition;
 in float aScale;
-in vec4 aStrokeColor;
-in vec4 aFillColor;
+in uvec4 aColors;
 in uvec4 aGlyphData; // (index, num_fill_vertices, num_stroke_vertices, _)
 
 flat out vec4 fColor;
+
+vec4 uintColorToVec4(uvec2 color){
+    float field1 = float(color[0] & 255u)/255.0;
+    color[0] >>= 4;
+    float field2 = float(color[0] & 255u)/255.0;
+    // color >>= 4;
+    float field3 = float(color[1] & 255u)/255.0;
+    color[1] >>= 4;
+    float field4 = float(color[1] & 255u)/255.0;
+    return vec4(field1, field2, field3, 1.0);
+}
+
+void setColor(uint vertexID, uvec2 numVertices){
+    if(vertexID < numVertices[0]) {
+        fColor = uintColorToVec4(aColors.xy);
+        // fColor = vec4(1.0, 0.0, 0.0, 1.0);
+        return;
+    }
+    vertexID -= numVertices[0];
+    if(vertexID < numVertices[1]) {
+        fColor = uintColorToVec4(aColors.zw);
+        // fColor = vec4(0.0, 1.0, 0.0, 1.0);
+        return;
+    }
+    vertexID -= numVertices[1];
+}
+
 
 vec4 getValueByIndexFromTexture(sampler2D tex, uint index) {
     uint texWidth = uint(textureSize(tex, 0).x);
@@ -23,16 +49,13 @@ vec4 getValueByIndexFromTexture(sampler2D tex, uint index) {
 }
 
 vec2 getVertexPosition() {
-    uint glyphIndex = aGlyphData[0] * 3u;
-    uint numFillVertices = aGlyphData[1] * 3u;
-    uint numStrokeVertices = aGlyphData[2] * 3u;
+    uvec4 glyphData =  aGlyphData * 3u;
+    uint glyphIndex = glyphData[0];
+    uint numFillVertices = glyphData[1];
+    uint numStrokeVertices = glyphData[2];
     uint vertexID = uint(gl_VertexID);
-    if(vertexID < numFillVertices) {
-        fColor = aFillColor;
-    } else {
-        fColor = aStrokeColor;
-    }
     if(vertexID < numFillVertices + numStrokeVertices){
+        setColor(vertexID, uvec2(numFillVertices, numStrokeVertices));
         return getValueByIndexFromTexture(uGlyphDataTexture, glyphIndex + vertexID).xy * aScale;
     }
     return vec2(0.0, 0.0); // degenerate vertex

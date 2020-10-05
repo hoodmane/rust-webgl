@@ -74,7 +74,8 @@ impl<T> DataTexture<T> {
         let data = &self.data[..num_rows * self.row_bytes()];
         match self.format.0 {
             Type::F32 => js_sys::Float32Array::view_mut_raw(data.as_ptr() as *mut f32, data.len()).into(),
-            Type::I16 | Type::U16 => js_sys::Uint8Array::view_mut_raw(data.as_ptr() as *mut u8, data.len() * 4).into(),
+            Type::I16 | Type::U16 | Type::U8 | Type::U32
+                => js_sys::Uint8Array::view_mut_raw(data.as_ptr() as *mut u8, data.len() * 4).into(),
         }
     }
 

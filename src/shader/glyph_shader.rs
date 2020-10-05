@@ -31,11 +31,20 @@ use crate::coordinate_system::CoordinateSystem;
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aPosition", 2, Type::F32),
     Attribute::new("aScale", 1, Type::F32),
-    Attribute::new("aFillColor", 4, Type::F32),
-    Attribute::new("aStrokeColor", 4, Type::F32),
+    Attribute::new("aColors",4, Type::U16),
     Attribute::new("aGlyphData", 4, Type::U16), // (index, num_fill_vertices, num_stroke_vertices, padding)
 ]);
 
+fn vec4_to_u8_array(v : Vec4) -> [u16;2] {
+    [u16::from_le_bytes([
+        (v.x * 255.0) as u8, 
+        (v.y * 255.0) as u8, 
+    ]),
+    u16::from_le_bytes([
+        (v.z * 255.0) as u8, 
+        (v.w * 255.0) as u8, 
+    ])]
+}
 
 
 #[derive(Clone, Copy, Debug)]
@@ -51,8 +60,8 @@ struct ShaderGlyphHeader {
 struct ShaderGlyphInstance {
     position : Point,
     scale : f32,
-    fill_color : Vec4,
-    stroke_color : Vec4,
+    fill_color : [u16;2],
+    stroke_color : [u16;2],
     
     // aGlyphData
     index : u16,
@@ -138,7 +147,6 @@ impl GlyphShader {
             btree_map::Entry::Occupied(oe) => Ok(*oe.get()),
             btree_map::Entry::Vacant(ve) => {
                 let index = self.vertices_data.len() / 3;
-                log!("index : {}", index);
                 let index : Result<u16, _> = index.try_into();
                 let index = index.map_err(|_| "Too many total glyph vertices : max number of triangles in all glyphs is 65535.")?;
 
@@ -174,8 +182,8 @@ impl GlyphShader {
         self.glyph_instances.push(ShaderGlyphInstance {
             position : glyph_instance.center,
             scale : glyph_instance.scale / 100.0,
-            fill_color : glyph_instance.fill_color,
-            stroke_color : glyph_instance.stroke_color,
+            fill_color : vec4_to_u8_array(glyph_instance.fill_color),
+            stroke_color : vec4_to_u8_array(glyph_instance.stroke_color),
             index,
             num_fill_triangles,
             num_stroke_triangles,
