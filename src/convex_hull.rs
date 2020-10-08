@@ -146,7 +146,7 @@ fn graham_scan(points : &mut Vec<Vector>) {
 	points.resize_with(stack_length, || unreachable!());
 }
 
-fn rasterize_polygon(polygon : &Vec<Vector>, width : u32, height : u32) -> Raster<Matte8> {
+fn rasterize_polygon(polygon : &[Vector], width : u32, height : u32) -> Raster<Matte8> {
 	let mut path_builder = Path2D::default();
 	path_builder = path_builder.absolute().move_to(polygon[0].x, polygon[0].y);
 	for v in &polygon[1..] {

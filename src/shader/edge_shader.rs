@@ -286,8 +286,8 @@ impl EdgeShader {
         thickness : f32,
         dash_pattern : &[u8],
     ) -> Result<(), JsValue> {
-        let start_arrow = start_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or(Ok(Default::default()))?;
-        let end_arrow = end_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or(Ok(Default::default()))?;
+        let start_arrow = start_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
+        let end_arrow = end_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
         let start_glyph_idx = self.glyph_boundary_data(&start.glyph);
         let end_glyph_idx = self.glyph_boundary_data(&end.glyph);
         let (dash_index, dash_length) = self.dash_data(dash_pattern.to_vec());
@@ -339,7 +339,7 @@ impl EdgeShader {
         self.glyph_boundary_data.upload()?;
         self.arrow_header_data.upload()?;
         self.arrow_path_data.upload()?;
-        if self.dash_data.len() > 0 {
+        if !self.dash_data.is_empty() {
             self.upload_dash_texture_data()?;
         }
         Ok(())
@@ -347,7 +347,7 @@ impl EdgeShader {
 
 
     pub fn draw(&mut self, coordinate_system : CoordinateSystem) -> Result<(), JsValue> {
-        if self.edge_instances.len() == 0 {
+        if self.edge_instances.is_empty() {
             return Ok(());
         }
         self.program.use_program();

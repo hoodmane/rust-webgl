@@ -124,7 +124,7 @@ impl Arrow {
         let width = width - line_width;
 
 
-        let tip_end = if round_join {
+        let mut tip_end = if round_join {
                 line_width / 2.0
             } else {
                 let miter = ((length / width) * (length / width) * 49.44662 + 1.0).sqrt() * line_width;
@@ -135,10 +135,10 @@ impl Arrow {
                     miter
                 }
             };
-        let visual_tip_end = tip_end;
+        let mut visual_tip_end = tip_end;
 
-        let visual_back_end = -line_width/2.0;
-        let back_end = - length - line_width / 2.0;
+        let mut visual_back_end = - line_width / 2.0;
+        let mut back_end = - length - line_width / 2.0;
 
     //     \ifpgfarrowreversed%
     //     \ifpgfarrowharpoon%
@@ -153,7 +153,7 @@ impl Arrow {
             if harpoon {
                 line_width/2.0
             } else {
-                -line_width/2.0
+                - line_width/2.0
             }
         } else {
             - line_width/2.0
@@ -168,12 +168,22 @@ impl Arrow {
             point(-0.41019 * length, 0.05833333 * width),
             point(0.0, 0.0)
         );
-        path_builder.cubic_bezier_to(
-            point(-0.41019 * length, -0.05833333 * width),
-            point(-0.81731 * length, -0.2 * width),
-            point(-length, -width/2.0)
-        );
+        if harpoon {
+            path_builder.line_to(point(if reversed { 0.5 } else { -1.0 } * line_width, 0.0));
+        } else {
+            path_builder.cubic_bezier_to(
+                point(-0.41019 * length, -0.05833333 * width),
+                point(-0.81731 * length, -0.2 * width),
+                point(-length, -width/2.0)
+            );
+        }
         let path = Rc::new(path_builder.build());
+
+        // let path = Rc::new(if reversed {
+        //     path.transformed(&Transform::scale(-1.0, 1.0))
+        // } else {
+        //     path
+        // });
 
         let stroke_options = StrokeOptions::DEFAULT
             .with_line_join(
@@ -183,6 +193,11 @@ impl Arrow {
             ).with_line_width(
                 line_width
             );
+        
+        if reversed {
+            std::mem::swap(&mut visual_back_end, &mut visual_tip_end);
+            std::mem::swap(&mut back_end, &mut tip_end);
+        }
 
         Self {
             tip_end,
@@ -211,7 +226,7 @@ impl Arrow {
         let width = 4.0 * length - line_width;
         let length = length - line_width / 2.0;
         let width = width - line_width;
-        let angle = Angle::degrees(angle).positive();
+        let angle = Angle::degrees(angle);
 
 
 
@@ -222,8 +237,12 @@ impl Arrow {
     //     \fi
 
 
-        let (sin_angle, cos_angle) = angle.sin_cos();
-        let tip_end = line_width / 2.0 + length * (if cos_angle > 0.0 { sin_angle } else { 1.0 });
+        let (sin_angle, _) = angle.sin_cos();
+        let tip_end = line_width / 2.0 + length * if reversed {
+            if angle > Angle::frac_pi_2() * 3.0 { 1.0 } else if angle > Angle::pi() { -sin_angle } else { 0.0 }
+        } else {
+            if angle < Angle::frac_pi_2() { sin_angle } else { 1.0 }
+        };
 
         //     % There are four different intervals for the values of
     //     % \pgfarrowsarc that give rise to four different settings of tip
@@ -275,12 +294,10 @@ impl Arrow {
 
         let line_end = if reversed {
             line_width / 2.0
+        } else if harpoon {
+            0.0
         } else {
-            if harpoon {
-                0.0
-            } else {
-                line_width / 4.0
-            }
+            line_width / 4.0
         };
 
         // \pgfsetdash{}{+0pt}
@@ -313,15 +330,17 @@ impl Arrow {
 
 
         let mut path_builder = Path::builder();
-        path_builder.move_to(point(0.0, 1.0) + Vector::from_angle_and_length(angle, 1.0));
-        path_builder.arc(point(0.0, 1.0), vector(1.0, 1.0), -angle -Angle::frac_pi_2(), Angle::zero());
+        path_builder.move_to(point(0.0, 1.0) + Vector::from_angle_and_length(angle-Angle::frac_pi_2(), 1.0));
+        path_builder.arc(point(0.0, 1.0), vector(1.0, 1.0), -angle, Angle::zero());
         if !harpoon {
-            path_builder.arc(point(0.0, -1.0), vector(1.0, 1.0), -angle -Angle::frac_pi_2(), Angle::zero());
+            path_builder.arc(point(0.0, -1.0), vector(1.0, 1.0), -angle, Angle::zero());
         }
         if harpoon && reversed {
             path_builder.line_to(point(line_width / length, 0.0));
         }
-        let path = Rc::new(path_builder.build().transformed(&Transform::scale(length, width/4.0)));
+        let path = Rc::new(path_builder.build().transformed(
+            &Transform::scale(length * if reversed { -1.0 } else { 1.0 }, width/4.0))
+        );
 
 
         Self {

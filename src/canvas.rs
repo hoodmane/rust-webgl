@@ -239,8 +239,8 @@ impl Canvas {
 
         self.edge_shader.clear();
         self.edge_shader.add_edge(
-            start_glyph.clone(), 
-            end_glyph.clone(), 
+            start_glyph, 
+            end_glyph, 
             Some(&arrow), Some(&arrow), 
             Angle::degrees(degrees), thickness, 
             &dash_pattern

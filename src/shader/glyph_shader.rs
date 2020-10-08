@@ -219,7 +219,7 @@ impl GlyphShader {
     }
 
     pub fn draw(&mut self, coordinate_system : CoordinateSystem) -> Result<(), JsValue> {
-        if self.glyph_instances.len() == 0 {
+        if self.glyph_instances.is_empty() {
             return Ok(());
         }
         self.program.use_program();

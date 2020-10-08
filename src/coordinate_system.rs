@@ -199,13 +199,13 @@ impl CoordinateSystem {
                     let correction_ratio = self.natural_scale_ratio/scale_ratio;
                     let yscale = scale.min(correction_ratio);
                     self.scale_around_y_raw(yscale, center);
-                    scale = scale / yscale;
+                    scale /= yscale;
                 },
                 Some(Ordering::Greater) => { // stretched in the x direction
                     let correction_ratio = scale_ratio/self.natural_scale_ratio;
                     let xscale = scale.min(correction_ratio);
                     self.scale_around_x_raw(xscale, center);
-                    scale = scale / xscale;
+                    scale /= xscale;
                 },
             }
         }

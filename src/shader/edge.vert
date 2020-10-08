@@ -79,6 +79,12 @@ int arrowNumVertices(ivec3 arrow){
     return arrow[0];
 }
 
+float arrowTipEnd(ivec3 arrow){
+    int headerIndex = arrow[1];
+    float tip_end = getValueByIndexFrom4ChannelTexture(uArrowHeaderTexture, headerIndex);
+    return tip_end;
+}
+
 vec2 arrowEnds(ivec3 arrow){
     int headerIndex = arrow[1];
     float tip_end = getValueByIndexFrom4ChannelTexture(uArrowHeaderTexture, headerIndex);
@@ -186,13 +192,15 @@ vec2 vertexPositionLinear(){
     float startGlyphScale = aGlyphScales_angle_thickness.x;
     float endGlyphScale = aGlyphScales_angle_thickness.y;
     float thickness = aGlyphScales_angle_thickness.w;
-    startPos += tangent * glyphOffsetLinear(startGlyph, startGlyphScale, angle);
-    endPos -= tangent * glyphOffsetLinear(endGlyph, endGlyphScale, angle + M_PI);
-
     fN0 = normalVector(tangent);
 
     ivec3 startArrow = aStart.yzw;
     ivec3 endArrow = aEnd.yzw;
+    float startArrowTipEnd = arrowTipEnd(startArrow);
+    float endArrowTipEnd = arrowTipEnd(startArrow);
+
+    startPos += tangent * (glyphOffsetLinear(startGlyph, startGlyphScale, angle) + startArrowTipEnd);
+    endPos -= tangent * (glyphOffsetLinear(endGlyph, endGlyphScale, angle + M_PI) + endArrowTipEnd);
 
     int vertexID = gl_VertexID;
     if(vertexID < 6){
@@ -236,10 +244,10 @@ vec2 vertexPositionLinear(){
 
 vec2 positionCurvedArrrow(ivec3 arrow, int glyph, float glyphScale, vec4 posTan, float curvature, int vertexID){
     vec2 ends = arrowVisualEnds(arrow);
-    float tipEnd = ends[0];
-    float backEnd = ends[1];
-    vec4 tipEndPosTan = glyphOffsetCurved(glyph, glyphScale, tipEnd, posTan, curvature);
-    vec4 backEndPosTan = circleOffset(tipEndPosTan, curvature, -tipEnd + backEnd);
+    float visualTipEnd = ends[0];
+    float visualBackEnd = ends[1];
+    vec4 tipEndPosTan = glyphOffsetCurved(glyph, glyphScale, visualTipEnd, posTan, curvature);
+    vec4 backEndPosTan = circleOffset(tipEndPosTan, curvature, -visualTipEnd + visualBackEnd);
     vec2 secant = normalize(tipEndPosTan.xy - backEndPosTan.xy);
     mat2 rotationMatrix = rotationMatrix(secant);
     return tipEndPosTan.xy - rotationMatrix * getArrowVertex(arrow, vertexID);
@@ -278,8 +286,10 @@ vec2 vertexPositionCurved(){
     if(vertexID < 12){
         vec4 origStartPosTan = startPosTan;
         vec4 origEndPosTan = endPosTan;
-        startPosTan = glyphOffsetCurved(startGlyph, startGlyphScale, -arrowLineEnd(startArrow), startPosTan, curvature);
-        endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, -arrowLineEnd(endArrow), reverseTangent(endPosTan), -curvature));
+        float startSetback = arrowTipEnd(startArrow) - arrowLineEnd(startArrow);
+        float endSetback = arrowTipEnd(endArrow) - arrowLineEnd(endArrow);
+        startPosTan = glyphOffsetCurved(startGlyph, startGlyphScale, startSetback, startPosTan, curvature);
+        endPosTan = reverseTangent(glyphOffsetCurved(endGlyph, endGlyphScale, endSetback, reverseTangent(endPosTan), -curvature));
 
         // Parameters for fragment shader
         fCurvature = curvature;

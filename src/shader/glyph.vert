@@ -22,19 +22,17 @@ vec4 uintColorToVec4(uvec2 color){
     float field3 = float(color[1] & 255u)/255.0;
     color[1] >>= 4;
     float field4 = float(color[1] & 255u)/255.0;
-    return vec4(field1, field2, field3, 1.0);
+    return vec4(field1, field2, field3, field4);
 }
 
 void setColor(uint vertexID, uvec2 numVertices){
     if(vertexID < numVertices[0]) {
         fColor = uintColorToVec4(aColors.xy);
-        // fColor = vec4(1.0, 0.0, 0.0, 1.0);
         return;
     }
     vertexID -= numVertices[0];
     if(vertexID < numVertices[1]) {
         fColor = uintColorToVec4(aColors.zw);
-        // fColor = vec4(0.0, 1.0, 0.0, 1.0);
         return;
     }
     vertexID -= numVertices[1];

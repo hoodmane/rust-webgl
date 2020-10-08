@@ -235,7 +235,7 @@ impl Glyph {
         let transform = Transform::identity().then_translate(- self.convex_hull.center().to_vector()).then_scale(scale, scale);
         for &(ref path, _stroke, fill) in self.paths.iter() {
             if let Some(options) = fill {
-                let path = path.iter().map(|e| *e).transformed(&transform);
+                let path = path.iter().copied().transformed(&transform);
                 fill_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_error)?;
             }
         }        
@@ -251,7 +251,7 @@ impl Glyph {
         let transform = Transform::identity().then_translate(- self.convex_hull.center().to_vector()).then_scale(scale, scale);
         for &(ref path, stroke,  _fill) in &*self.paths {
             if let Some(options) = stroke {
-                let path = path.iter().map(|e| *e).transformed(&transform);
+                let path = path.iter().copied().transformed(&transform);
                 stroke_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_error)?;
             }
         }
