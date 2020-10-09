@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, btree_map};
 use uuid::Uuid;
 
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture, WebGlFramebuffer};
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture, WebGlFramebuffer, WebGlRenderbuffer};
 use wasm_bindgen::JsValue;
 
 use lyon::geom::math::{Point, Vector};
@@ -50,6 +50,7 @@ pub struct HitCanvasShader {
     hit_canvas_buffer_dimensions : BufferDimensions,
     hit_canvas_framebuffer : Option<WebGlFramebuffer>,
     hit_canvas_texture : Option<WebGlTexture>,
+    hit_canvas_depth_buffer : Option<WebGlRenderbuffer>,
 
     attribute_state : Option<WebGlVertexArrayObject>,
     attributes_buffer : Option<WebGlBuffer>,
@@ -68,8 +69,10 @@ impl HitCanvasShader {
             r#"#version 300 es
                 precision highp float;
                 flat in vec4 fColor;
+                in vec2 vPosition;
                 out vec4 outColor;
                 void main() {
+                    gl_FragDepth = length(vPosition) / 2000.0;
                     outColor = fColor;
                 }
             "#
@@ -86,6 +89,7 @@ impl HitCanvasShader {
 
         let hit_canvas_texture = webgl.create_texture();
         let hit_canvas_framebuffer = webgl.create_framebuffer();
+        let hit_canvas_depth_buffer = webgl.create_renderbuffer();
 
         Ok(Self {
             webgl,
@@ -93,6 +97,7 @@ impl HitCanvasShader {
             hit_canvas_buffer_dimensions : BufferDimensions::new(1, 1, 0.0),
             hit_canvas_texture,
             hit_canvas_framebuffer,
+            hit_canvas_depth_buffer,
             glyph_map : BTreeMap::new(),
 
             glyph_instances : Vec::new(), 
@@ -110,9 +115,13 @@ impl HitCanvasShader {
         }
         self.webgl.delete_framebuffer(self.hit_canvas_framebuffer.as_ref());
         self.webgl.delete_texture(self.hit_canvas_texture.as_ref());
+        self.webgl.delete_renderbuffer(self.hit_canvas_depth_buffer.as_ref());
         self.hit_canvas_framebuffer = self.webgl.create_framebuffer();
         self.hit_canvas_texture = self.webgl.create_texture();
+        self.hit_canvas_depth_buffer = self.webgl.create_renderbuffer();
+
         self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.hit_canvas_texture.as_ref());
+        self.webgl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, self.hit_canvas_depth_buffer.as_ref());
         self.webgl.tex_storage_2d(
             WebGl2RenderingContext::TEXTURE_2D,
             1, // mip levels
@@ -123,6 +132,7 @@ impl HitCanvasShader {
         self.webgl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::NEAREST as i32);
         self.webgl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
         self.webgl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
+        
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, self.hit_canvas_framebuffer.as_ref());
         self.webgl.framebuffer_texture_2d(
             WebGl2RenderingContext::FRAMEBUFFER, 
@@ -131,8 +141,12 @@ impl HitCanvasShader {
             self.hit_canvas_texture.as_ref(),
             0 // level
         );
-    }
+        self.webgl.framebuffer_renderbuffer(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::DEPTH_ATTACHMENT, WebGl2RenderingContext::RENDERBUFFER, 
+            self.hit_canvas_depth_buffer.as_ref()
+        );
+        self.webgl.renderbuffer_storage(WebGl2RenderingContext::RENDERBUFFER, WebGl2RenderingContext::DEPTH_COMPONENT16, dimensions.pixel_width(), dimensions.pixel_height());
 
+    }
 
     pub fn add_glyph(&mut self, glyph_instance : GlyphInstance) -> Result<(), JsValue> {
         let glyph = self.glyph_boundary_data(&glyph_instance.glyph);
@@ -200,8 +214,10 @@ impl HitCanvasShader {
         self.program.use_program();
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, self.hit_canvas_framebuffer.as_ref());
         self.webgl.clear_color(0.0, 0.0, 0.0, 0.0);
-        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT);
         self.webgl.disable(WebGl2RenderingContext::BLEND);
+        self.webgl.enable(WebGl2RenderingContext::DEPTH_TEST);
+
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.prepare()?;
         self.initialize_hit_canvas(coordinate_system.buffer_dimensions);
@@ -212,11 +228,9 @@ impl HitCanvasShader {
         self.program.set_uniform_float("uGlyphScale", coordinate_system.glyph_scale);
 
 
-        // self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         
         let num_instances = self.glyph_instances.len() as i32;
         let num_vertices = ANGLE_RESOLUTION as i32;
-        log!("num_vertices : {}, num_instances : {}", num_vertices, num_instances);
         self.webgl.draw_arrays_instanced(
             WebGl2RenderingContext::TRIANGLE_FAN,
             0,
@@ -227,6 +241,7 @@ impl HitCanvasShader {
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         self.webgl.bind_vertex_array(None);
         self.webgl.render_to_canvas(coordinate_system.buffer_dimensions);
+        self.webgl.disable(WebGl2RenderingContext::DEPTH_TEST);
         self.webgl.enable(WebGl2RenderingContext::BLEND);
         Ok(())
     }
@@ -236,8 +251,6 @@ impl HitCanvasShader {
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, self.hit_canvas_framebuffer.as_ref());
         let density = coordinate_system.buffer_dimensions.density();
         let pixel_height = coordinate_system.buffer_dimensions.pixel_height();
-        log!("point : {:?}", point);
-        log!("pixel : ({}, {})", (point.x as f64 * density) as i32, (point.y as f64 * density) as i32);
         self.webgl.read_pixels_with_opt_u8_array(
             (point.x as f64 * density) as i32,                 // x
             pixel_height - (point.y as f64 * density) as i32,                 // y

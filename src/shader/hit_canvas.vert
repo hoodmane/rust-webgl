@@ -13,6 +13,7 @@ in float aScale;
 in uvec2 aGlyphIndex;  // (index, padding)
 
 flat out vec4 fColor;
+out vec2 vPosition;
 
 vec2 getVec2ByIndexFrom4ChannelTexture(sampler2D tex, int index){
     int texWidth = textureSize(tex, 0).x;
@@ -44,7 +45,9 @@ vec4 getColor(){
 
 void main() {
     vec2 vertexPosition = glyphBoundaryPointVertex(aGlyphIndex.x, gl_VertexID);
+    vPosition = vertexPosition;
     vec2 transformedPosition = uOrigin +  (vec2(1.0, -1.0) * uScale) * aPosition;
     fColor = getColor();
     gl_Position = vec4(uTransformationMatrix * vec3(transformedPosition + vertexPosition, 1.0), 0.0, 1.0);
+    length(vPosition);
 }

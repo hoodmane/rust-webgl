@@ -38,10 +38,11 @@ features = [
   'WebGlActiveInfo',
   'WebGlBuffer',
   'WebGlFramebuffer',
-  'WebGlTexture',   
-  'WebGl2RenderingContext',
   'WebGlProgram',
+  'WebGlRenderbuffer',
+  'WebGl2RenderingContext',
   'WebGlShader',
+  'WebGlTexture',   
   'WebGlUniformLocation',
   'WebGlVertexArrayObject',
 ]
