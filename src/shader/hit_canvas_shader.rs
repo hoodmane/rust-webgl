@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, btree_map};
 use uuid::Uuid;
 
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture, WebGlFramebuffer, WebGlRenderbuffer};
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlTexture, WebGlFramebuffer, WebGlRenderbuffer};
 use wasm_bindgen::JsValue;
 
 use lyon::geom::math::{Point, Vector};
@@ -17,6 +17,7 @@ use crate::shader::Program;
 use crate::shader::attributes::{Format, Type, NumChannels, Attribute, Attributes};
 
 use crate::shader::data_texture::DataTexture;
+use crate::shader::vertex_buffer::VertexBuffer;
 
 use crate::glyph::{GlyphInstance, Glyph};
 
@@ -53,11 +54,10 @@ pub struct HitCanvasShader {
     hit_canvas_depth_buffer : Option<WebGlRenderbuffer>,
 
     attribute_state : Option<WebGlVertexArrayObject>,
-    attributes_buffer : Option<WebGlBuffer>,
 
     glyph_map : BTreeMap<Uuid, u16>,
     glyph_boundary_data : DataTexture<Vector>,
-    glyph_instances : Vec<ShaderGlyphInstance>,
+    glyph_instances : VertexBuffer<ShaderGlyphInstance>,
     ready : bool,
 }
 
@@ -79,31 +79,26 @@ impl HitCanvasShader {
         )?;
 
         let attribute_state = webgl.create_vertex_array();
-        let attributes_buffer = webgl.create_buffer();
+        let glyph_instances = VertexBuffer::new(webgl.clone());
 
-        ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), attributes_buffer.as_ref())?;
+        ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), glyph_instances.buffer.as_ref())?;
 
         let glyph_boundary_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         program.use_program();
         program.set_uniform_int("uGlyphDataTexture", 0);
 
-        let hit_canvas_texture = webgl.create_texture();
-        let hit_canvas_framebuffer = webgl.create_framebuffer();
-        let hit_canvas_depth_buffer = webgl.create_renderbuffer();
-
         Ok(Self {
             webgl,
             program,
             hit_canvas_buffer_dimensions : BufferDimensions::new(1, 1, 0.0),
-            hit_canvas_texture,
-            hit_canvas_framebuffer,
-            hit_canvas_depth_buffer,
+            hit_canvas_texture : None,
+            hit_canvas_framebuffer : None,
+            hit_canvas_depth_buffer : None,
             glyph_map : BTreeMap::new(),
 
-            glyph_instances : Vec::new(), 
+            glyph_instances, 
             
             attribute_state,
-            attributes_buffer,
             glyph_boundary_data,
             ready : false
         })
@@ -179,30 +174,12 @@ impl HitCanvasShader {
         }
     }
 
-    fn set_buffer_data(&self){
-        self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, self.attributes_buffer.as_ref());
-        // let u8_len = std::mem::size_of_val(&self.glyph_instances);
-        let u8_len = self.glyph_instances.len() * std::mem::size_of::<ShaderGlyphInstance>();
-        let u8_ptr = self.glyph_instances.as_ptr() as *mut u8;
-        log!("self.glyph_instances : {:?}", self.glyph_instances);
-        unsafe {
-            let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);
-            self.webgl.buffer_data_with_array_buffer_view(
-                WebGl2RenderingContext::ARRAY_BUFFER,
-                &vert_array,
-                WebGl2RenderingContext::STATIC_DRAW,
-            );
-        }
-    }
-
-
     fn prepare(&mut self) -> Result<(), JsValue> {
         if self.ready {
             return Ok(());
         }
         self.ready = true;
-        self.set_buffer_data();
-        log!("glyph_boundary_data.data : {:?}", self.glyph_boundary_data.data);
+        self.glyph_instances.prepare();
         self.glyph_boundary_data.upload()?;
         Ok(())
     }
@@ -253,15 +230,13 @@ impl HitCanvasShader {
         let pixel_height = coordinate_system.buffer_dimensions.pixel_height();
         self.webgl.read_pixels_with_opt_u8_array(
             (point.x as f64 * density) as i32,                 // x
-            pixel_height - (point.y as f64 * density) as i32,                 // y
-            1,                 // width
-            1,                 // height
+            pixel_height - (point.y as f64 * density) as i32,  // y
+            1, 1,                                   // width, height
             WebGl2RenderingContext::RGBA,           // format
             WebGl2RenderingContext::UNSIGNED_BYTE,  // type
             Some(&mut data) // array to hold result
         )?;
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        log!("data : {:?}", data);
         let id = u32::from_le_bytes(data);
         Ok(id.checked_sub(1))
     }

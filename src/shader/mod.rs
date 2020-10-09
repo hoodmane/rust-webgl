@@ -1,3 +1,8 @@
+mod range;
+
+mod attributes;
+mod data_texture;
+mod vertex_buffer;
 mod program;
 
 
@@ -7,8 +12,7 @@ mod hit_canvas_shader;
 mod edge_shader;
 
 
-mod attributes;
-mod data_texture;
+
 
 pub use program::Program;
 

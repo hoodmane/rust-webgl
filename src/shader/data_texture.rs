@@ -11,7 +11,7 @@ pub struct DataTexture<T> {
     webgl : WebGlWrapper,
     width : usize,
     format : Format,
-    pub data : Vec<u32>, // temporarily public...
+    data : Vec<u32>, 
     used_data : usize,
     texture : Option<WebGlTexture>,
     texture_rows : usize,

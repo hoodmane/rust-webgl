@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, btree_map};
 use uuid::Uuid;
 
 use wasm_bindgen::JsValue;
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlTexture};
 
 use lyon::geom::math::{Point, Angle};
 use lyon::tessellation::{VertexBuffers};
@@ -18,6 +18,7 @@ use crate::arrow::Arrow;
 
 use crate::shader::attributes::{Format, Type, NumChannels, Attribute, Attributes};
 use crate::shader::data_texture::DataTexture;
+use crate::shader::vertex_buffer::VertexBuffer;
 
 use crate::coordinate_system::CoordinateSystem;
 
@@ -81,9 +82,8 @@ pub struct EdgeShader {
     webgl : WebGlWrapper,
     program : Program,
     
-    edge_instances : Vec<EdgeInstance>,
+    edge_instances : VertexBuffer<EdgeInstance>,
     attribute_state : Option<WebGlVertexArrayObject>,
-    attributes_buffer : Option<WebGlBuffer>,
     
     glyph_map : BTreeMap<Uuid, u16>,
     glyph_boundary_data : DataTexture<f32>,
@@ -109,8 +109,8 @@ impl EdgeShader {
             include_str!("edge.frag")
         )?;
         let attribute_state = webgl.create_vertex_array();
-        let attributes_buffer = webgl.create_buffer();
-        ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), attributes_buffer.as_ref())?;
+        let edge_instances = VertexBuffer::new(webgl.clone());
+        ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), edge_instances.buffer.as_ref())?;
 
         let glyph_boundary_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         let arrow_header_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
@@ -130,10 +130,8 @@ impl EdgeShader {
             webgl,
             program,
 
-            edge_instances : Vec::new(),
-
+            edge_instances,
             attribute_state,
-            attributes_buffer,
 
             glyph_map : BTreeMap::new(),
             glyph_boundary_data,
@@ -315,27 +313,11 @@ impl EdgeShader {
         Ok(())
     }
 
-    
-    fn set_buffer_data(&self){
-        self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, self.attributes_buffer.as_ref());
-        let u8_len = self.edge_instances.len() * std::mem::size_of::<EdgeInstance>();
-        // let u8_len = std::mem::size_of_val(&self.edge_instances);
-        let u8_ptr = self.edge_instances.as_ptr() as *mut u8;
-        unsafe {
-            let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);
-            self.webgl.buffer_data_with_array_buffer_view(
-                WebGl2RenderingContext::ARRAY_BUFFER,
-                &vert_array,
-                WebGl2RenderingContext::STATIC_DRAW,
-            );
-        }
-    }
-
     fn prepare(&mut self) -> Result<(), JsValue> {
         if self.ready  {
             return Ok(());
         }
-        self.set_buffer_data();
+        self.edge_instances.prepare();
 
         self.glyph_boundary_data.upload()?;
         self.arrow_header_data.upload()?;

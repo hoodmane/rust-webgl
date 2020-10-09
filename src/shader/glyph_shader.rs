@@ -6,7 +6,6 @@ use uuid::Uuid;
 use wasm_bindgen::JsValue;
 use web_sys::{
     WebGl2RenderingContext, 
-    WebGlBuffer, 
     WebGlVertexArrayObject,
 };
 
@@ -24,6 +23,7 @@ use crate::glyph::{GlyphInstance, Glyph};
 
 use crate::shader::attributes::{Format, Type, NumChannels,  Attribute, Attributes};
 use crate::shader::data_texture::DataTexture;
+use crate::shader::vertex_buffer::VertexBuffer;
 
 use crate::coordinate_system::CoordinateSystem;
 
@@ -75,9 +75,8 @@ pub struct GlyphShader {
     webgl : WebGlWrapper,
     pub program : Program,
     glyph_map : BTreeMap<Uuid, ShaderGlyphHeader>,
-    glyph_instances : Vec<ShaderGlyphInstance>,    
+    glyph_instances : VertexBuffer<ShaderGlyphInstance>,    
     attribute_state : Option<WebGlVertexArrayObject>,
-    attributes_buffer : Option<WebGlBuffer>,
 
     // Vertices has its length padded to a multiple of DATA_ROW_SIZE so that it will fit correctly into the data_texture
     // so we need to separately store the number of actually used entries separately.
@@ -105,10 +104,10 @@ impl GlyphShader {
             "#
         )?;
 
+        let glyph_instances = VertexBuffer::new(webgl.clone());
         let attribute_state = webgl.create_vertex_array();
-        let attributes_buffer = webgl.create_buffer();
 
-        ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), attributes_buffer.as_ref())?;
+        ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), glyph_instances.buffer.as_ref())?;
 
         let vertices_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Two));
         program.use_program();
@@ -119,11 +118,10 @@ impl GlyphShader {
             program,
             glyph_map : BTreeMap::new(),
 
-            glyph_instances : Vec::new(), 
+            attribute_state,
+            glyph_instances, 
             max_glyph_num_triangles : 0,
             
-            attribute_state,
-            attributes_buffer,
             vertices_data,
             ready : false
         })
@@ -188,28 +186,12 @@ impl GlyphShader {
         Ok(())
     }
 
-    fn set_buffer_data(&self){
-        self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, self.attributes_buffer.as_ref());
-        let u8_len = self.glyph_instances.len() * std::mem::size_of::<ShaderGlyphInstance>();
-        // let u8_len = std::mem::size_of_val(&self.glyph_instances);
-        let u8_ptr = self.glyph_instances.as_ptr() as *mut u8;
-        unsafe {
-            let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);
-            self.webgl.buffer_data_with_array_buffer_view(
-                WebGl2RenderingContext::ARRAY_BUFFER,
-                &vert_array,
-                WebGl2RenderingContext::STATIC_DRAW,
-            );
-        }
-    }
-
-
     fn prepare(&mut self) -> Result<(), JsValue> {
         if self.ready {
             return Ok(());
         }
         self.ready = true;
-        self.set_buffer_data();
+        self.glyph_instances.prepare();
         self.vertices_data.upload()?;
         Ok(())
     }
