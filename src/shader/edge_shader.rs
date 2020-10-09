@@ -1,6 +1,12 @@
 use std::collections::{BTreeMap, btree_map};
 use uuid::Uuid;
 
+use wasm_bindgen::JsValue;
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
+
+use lyon::geom::math::{Point, Angle};
+use lyon::tessellation::{VertexBuffers};
+
 #[allow(unused_imports)]
 use crate::log;
 use crate::vector::{Vec4};
@@ -15,13 +21,7 @@ use crate::shader::data_texture::DataTexture;
 
 use crate::coordinate_system::CoordinateSystem;
 
-use lyon::geom::math::{Point, Angle};
 
-
-use lyon::tessellation::{VertexBuffers};
-
-use wasm_bindgen::JsValue;
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlBuffer, WebGlTexture};
 
 const DASH_PATTERN_TEXTURE_WIDTH : usize = 512;
 
@@ -319,6 +319,7 @@ impl EdgeShader {
     fn set_buffer_data(&self){
         self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, self.attributes_buffer.as_ref());
         let u8_len = self.edge_instances.len() * std::mem::size_of::<EdgeInstance>();
+        // let u8_len = std::mem::size_of_val(&self.edge_instances);
         let u8_ptr = self.edge_instances.as_ptr() as *mut u8;
         unsafe {
             let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);

@@ -10,7 +10,7 @@ use crate::log;
 use crate::glyph::{Glyph, GlyphInstance};
 use crate::arrow::Arrow;
 
-use crate::shader::{GridShader, GlyphShader, EdgeShader};
+use crate::shader::{GridShader, GlyphShader, EdgeShader, HitCanvasShader};
 
 
 use crate::webgl_wrapper::{WebGlWrapper};
@@ -41,6 +41,7 @@ pub struct Canvas {
     // axes_shader : LineShader,
     glyph_shader : GlyphShader,
     edge_shader : EdgeShader,
+    hit_canvas_shader : HitCanvasShader,
 }
 
 #[wasm_bindgen]
@@ -61,7 +62,8 @@ impl Canvas {
         let webgl = WebGlWrapper::new(webgl_context.clone());
         let glyph_shader = GlyphShader::new(webgl.clone())?;
         let edge_shader = EdgeShader::new(webgl.clone())?;
-        
+        let hit_canvas_shader = HitCanvasShader::new(webgl.clone())?;
+
         let mut minor_grid_shader = GridShader::new(webgl.clone())?;
         minor_grid_shader.thickness(0.5);
         minor_grid_shader.color(GRID_LIGHT_COLOR);
@@ -81,6 +83,7 @@ impl Canvas {
             major_grid_shader,
             glyph_shader,
             edge_shader,
+            hit_canvas_shader,
         };
         result.resize(result.webgl.dimensions()?)?;
         Ok(result)   
@@ -183,7 +186,7 @@ impl Canvas {
         canvas.set_height(new_dimensions.pixel_height() as u32);
         self.coordinate_system.reset_transform();
         
-        self.webgl.viewport(new_dimensions);
+        self.webgl.viewport_dimensions(new_dimensions);
         self.update_scissor();
         Ok(())
     }
@@ -214,11 +217,18 @@ impl Canvas {
     }
 
     pub fn clear_glyphs(&mut self) {
+        self.hit_canvas_shader.clear_glyphs();
         self.glyph_shader.clear_glyphs();
     }
 
     pub fn add_glyph(&mut self, point : &JsPoint, glyph : &Glyph, scale : f32,  &stroke_color : &Vec4,  &fill_color : &Vec4 ) -> Result<(), JsValue>  {
-        self.glyph_shader.add_glyph(GlyphInstance::new(glyph.clone(), point.into(), scale,  stroke_color, fill_color))?;
+        self.add_glyph_instance(GlyphInstance::new(glyph.clone(), point.into(), scale,  stroke_color, fill_color))?;
+        Ok(())
+    }
+
+    fn add_glyph_instance(&mut self, glyph_instance : GlyphInstance) -> Result<(), JsValue> {
+        self.glyph_shader.add_glyph(glyph_instance.clone())?;
+        self.hit_canvas_shader.add_glyph(glyph_instance)?;
         Ok(())
     }
 
@@ -234,8 +244,8 @@ impl Canvas {
         let start_glyph = GlyphInstance::new(start_glyph.clone(), start, scale,  Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(1.0, 0.0, 0.0, 0.5));
         let end_glyph = GlyphInstance::new(end_glyph.clone(), end, scale,  Vec4::new(0.0, 1.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
         self.glyph_shader.clear_glyphs();
-        self.glyph_shader.add_glyph(start_glyph.clone())?;
-        self.glyph_shader.add_glyph(end_glyph.clone())?;
+        self.add_glyph_instance(start_glyph.clone())?;
+        self.add_glyph_instance(end_glyph.clone())?;
 
         self.edge_shader.clear();
         self.edge_shader.add_edge(
@@ -271,7 +281,7 @@ impl Canvas {
 
                 let glyph = if (x + y) % 2 == 1 { glyph1 } else { glyph2 };
                 let glyph_instance = GlyphInstance::new(glyph.clone(), point(x as f32, y as f32), scale, Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
-                self.glyph_shader.add_glyph(glyph_instance.clone())?;
+                self.add_glyph_instance(glyph_instance.clone())?;
                 glyph_instances.push(glyph_instance);
             }
         }
@@ -313,13 +323,17 @@ impl Canvas {
     pub fn render(&mut self) -> Result<(), JsValue> {
         self.webgl.premultiplied_blend_mode();
         self.disable_clip();
-        // self.axes_shader.draw(self.transform)?;
         self.enable_clip();
         self.minor_grid_shader.draw(self.coordinate_system)?;
         self.major_grid_shader.draw(self.coordinate_system)?;
         self.glyph_shader.draw(self.coordinate_system)?;
         self.edge_shader.draw(self.coordinate_system)?;
+        self.hit_canvas_shader.draw(self.coordinate_system)?;
         Ok(())
+    }
+
+    pub fn object_underneath_pixel(&self,  p : JsPoint) -> Result<Option<u32>, JsValue> {
+        self.hit_canvas_shader.object_underneath_pixel(self.coordinate_system, p.into())
     }
 }
 

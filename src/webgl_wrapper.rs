@@ -46,13 +46,13 @@ impl WebGlWrapper {
         ((points as f64) * WebGlWrapper::pixel_density()) as f32
     }
 
-    pub fn viewport(&self, dimensions : BufferDimensions) {
+    pub fn viewport_dimensions(&self, dimensions : BufferDimensions) {
         self.inner.viewport(0, 0, dimensions.pixel_width(), dimensions.pixel_height());
     }
 
     pub fn render_to_canvas(&self, dimensions : BufferDimensions) {
         self.inner.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        self.viewport(dimensions);
+        self.viewport_dimensions(dimensions);
     }
 
     pub fn copy_blend_mode(&self){

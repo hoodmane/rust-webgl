@@ -26,7 +26,7 @@ function getTime(){
     return new Date().getTime();
 }
 
-const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true , "preserveDrawingBuffer" : true, antialias : true };
+const WEBGL_OPTIONS =  {"stencil" : true, "alpha" : true , "preserveDrawingBuffer" : true, antialias : false };
 
 export class App {
     constructor(pkg, canvasSelector, font){
@@ -172,15 +172,16 @@ export class App {
     }
     
     handleMouseDown(event) {
-        let { clientX : x, clientY : y } = event;
+        let { offsetX : x, offsetY : y } = event;
         // this.setCursor(.MOVE);
         this._mouseDown = true;
         this._previousMouseX = x;
         this._previousMouseY = y;
+        console.log(this._canvas.object_underneath_pixel(new Vec2(x, y)));
     }
     
     handleMouseMove(event) {
-        let { clientX : x, clientY : y, buttons } = event;
+        let { offsetX : x, offsetY : y, buttons } = event;
         if(buttons > 0){ 
             this._canvas.translate(new Vec2(x - this._previousMouseX, y - this._previousMouseY));
             this._requestRedraw();
@@ -192,7 +193,7 @@ export class App {
     }
     
     handleMouseUp(event) {
-        let { clientX : x, clientY : y, buttons } = event;
+        let { offsetX : x, offsetY : y, buttons } = event;
         if(buttons === 0) {
             this._mouseDown = false;
             // this._mouseAction = .NONE

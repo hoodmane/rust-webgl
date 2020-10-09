@@ -32,8 +32,31 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aPosition", 2, Type::F32),
     Attribute::new("aScale", 1, Type::F32),
     Attribute::new("aColors",4, Type::U16),
-    Attribute::new("aGlyphData", 4, Type::U16), // (index, num_fill_vertices, num_stroke_vertices, padding)
+    Attribute::new("aGlyphData", 4, Type::U16), // ShaderGlyphHeader: (index, num_fill_vertices, num_stroke_vertices, padding)
 ]);
+
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+struct ShaderGlyphHeader {
+    index : u16,
+    num_fill_triangles : u16,
+    num_stroke_triangles : u16,
+    padding : u16,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+struct ShaderGlyphInstance {
+    position : Point,
+    scale : f32,
+    fill_color : [u16;2],
+    stroke_color : [u16;2],
+    
+    // aGlyphData
+    glyph : ShaderGlyphHeader
+}
+
 
 fn vec4_to_u8_array(v : Vec4) -> [u16;2] {
     [u16::from_le_bytes([
@@ -47,38 +70,12 @@ fn vec4_to_u8_array(v : Vec4) -> [u16;2] {
 }
 
 
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-struct ShaderGlyphHeader {
-    index : u16,
-    num_fill_triangles : u16,
-    num_stroke_triangles : u16,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-struct ShaderGlyphInstance {
-    position : Point,
-    scale : f32,
-    fill_color : [u16;2],
-    stroke_color : [u16;2],
-    
-    // aGlyphData
-    index : u16,
-    num_fill_triangles : u16,
-    num_stroke_triangles : u16,
-    padding : u16,
-}
-
 
 pub struct GlyphShader {
     webgl : WebGlWrapper,
     pub program : Program,
     glyph_map : BTreeMap<Uuid, ShaderGlyphHeader>,
-
-    glyph_instances : Vec<ShaderGlyphInstance>,
-
-    
+    glyph_instances : Vec<ShaderGlyphInstance>,    
     attribute_state : Option<WebGlVertexArrayObject>,
     attributes_buffer : Option<WebGlBuffer>,
 
@@ -132,7 +129,7 @@ impl GlyphShader {
         })
     }
 
-    pub fn clear_glyphs(&mut self, ){
+    pub fn clear_glyphs(&mut self){
         self.max_glyph_num_triangles = 0;
         self.vertices_data.clear();
         self.glyph_map.clear();
@@ -172,22 +169,20 @@ impl GlyphShader {
                     index, 
                     num_fill_triangles, 
                     num_stroke_triangles,
+                    padding : 0
                 }))
             }
         }
     }
 
     pub fn add_glyph(&mut self, glyph_instance : GlyphInstance) -> Result<(), JsValue> {
-        let ShaderGlyphHeader { index, num_fill_triangles, num_stroke_triangles } = self.glyph_data(&glyph_instance.glyph)?;
+        let glyph = self.glyph_data(&glyph_instance.glyph)?;
         self.glyph_instances.push(ShaderGlyphInstance {
             position : glyph_instance.center,
             scale : glyph_instance.scale / 100.0,
             fill_color : vec4_to_u8_array(glyph_instance.fill_color),
             stroke_color : vec4_to_u8_array(glyph_instance.stroke_color),
-            index,
-            num_fill_triangles,
-            num_stroke_triangles,
-            padding : 0
+            glyph 
         });
         self.ready = false;
         Ok(())
@@ -196,6 +191,7 @@ impl GlyphShader {
     fn set_buffer_data(&self){
         self.webgl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, self.attributes_buffer.as_ref());
         let u8_len = self.glyph_instances.len() * std::mem::size_of::<ShaderGlyphInstance>();
+        // let u8_len = std::mem::size_of_val(&self.glyph_instances);
         let u8_ptr = self.glyph_instances.as_ptr() as *mut u8;
         unsafe {
             let vert_array = js_sys::Uint8Array::view_mut_raw(u8_ptr, u8_len);
