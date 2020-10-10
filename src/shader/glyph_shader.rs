@@ -73,9 +73,9 @@ fn vec4_to_u8_array(v : Vec4) -> [u16;2] {
 
 pub struct GlyphShader {
     webgl : WebGlWrapper,
-    pub program : Program,
+    pub(in crate::shader) program : Program,
     glyph_map : BTreeMap<Uuid, ShaderGlyphHeader>,
-    glyph_instances : VertexBuffer<ShaderGlyphInstance>,    
+    glyph_instances : VertexBuffer<ShaderGlyphInstance>,
     attribute_state : Option<WebGlVertexArrayObject>,
 
     // Vertices has its length padded to a multiple of DATA_ROW_SIZE so that it will fit correctly into the data_texture

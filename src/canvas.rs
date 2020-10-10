@@ -8,13 +8,12 @@ use web_sys::{WebGl2RenderingContext};
 use crate::log;
 
 use crate::glyph::{Glyph, GlyphInstance};
-use crate::arrow::Arrow;
 
-use crate::shader::{GridShader, GlyphShader, EdgeShader, HitCanvasShader};
+use crate::shader::{GridShader, ChartShaders, EdgeOptions};
 
 
-use crate::webgl_wrapper::{WebGlWrapper};
-use lyon::geom::math::{Point, point, Angle};
+use crate::webgl_wrapper::WebGlWrapper;
+use lyon::geom::math::{Point, point};
 use crate::vector::{JsPoint, Vec4};
 
 
@@ -39,9 +38,7 @@ pub struct Canvas {
     minor_grid_shader : GridShader,
     major_grid_shader : GridShader,
     // axes_shader : LineShader,
-    glyph_shader : GlyphShader,
-    edge_shader : EdgeShader,
-    hit_canvas_shader : HitCanvasShader,
+    chart_shaders : ChartShaders
 }
 
 #[wasm_bindgen]
@@ -60,9 +57,7 @@ impl Canvas {
     #[wasm_bindgen(constructor)]
     pub fn new(webgl_context : &WebGl2RenderingContext) -> Result<Canvas, JsValue> {
         let webgl = WebGlWrapper::new(webgl_context.clone());
-        let glyph_shader = GlyphShader::new(webgl.clone())?;
-        let edge_shader = EdgeShader::new(webgl.clone())?;
-        let hit_canvas_shader = HitCanvasShader::new(webgl.clone())?;
+        let chart_shaders = ChartShaders::new(webgl.clone())?;
 
         let mut minor_grid_shader = GridShader::new(webgl.clone())?;
         minor_grid_shader.thickness(0.5);
@@ -81,9 +76,7 @@ impl Canvas {
             webgl,
             minor_grid_shader,
             major_grid_shader,
-            glyph_shader,
-            edge_shader,
-            hit_canvas_shader,
+            chart_shaders,
         };
         result.resize(result.webgl.dimensions()?)?;
         Ok(result)   
@@ -192,11 +185,6 @@ impl Canvas {
     }
 
 
-
-
-
-
-
     #[allow(dead_code)]
     fn gridline_color_and_thickness(t : i32) -> (Vec4, f32) {
         if t % 10 == 0 {
@@ -216,45 +204,41 @@ impl Canvas {
         Ok(())
     }
 
+    pub fn clear(&mut self){
+        self.clear_glyphs();
+        self.clear_edges();
+    }
+
     pub fn clear_glyphs(&mut self) {
-        self.hit_canvas_shader.clear_glyphs();
-        self.glyph_shader.clear_glyphs();
+        self.chart_shaders.clear_glyphs();
+    }
+
+    pub fn clear_edges(&mut self) {
+        self.chart_shaders.clear_edges();
     }
 
     pub fn add_glyph(&mut self, point : &JsPoint, glyph : &Glyph, scale : f32,  &stroke_color : &Vec4,  &fill_color : &Vec4 ) -> Result<(), JsValue>  {
-        self.add_glyph_instance(GlyphInstance::new(glyph.clone(), point.into(), scale,  stroke_color, fill_color))?;
+        self.chart_shaders.add_glyph_instance(GlyphInstance::new(glyph.clone(), point.into(), scale,  stroke_color, fill_color))?;
         Ok(())
     }
 
-    fn add_glyph_instance(&mut self, glyph_instance : GlyphInstance) -> Result<(), JsValue> {
-        self.glyph_shader.add_glyph(glyph_instance.clone())?;
-        self.hit_canvas_shader.add_glyph(glyph_instance)?;
-        Ok(())
-    }
+
 
     pub fn test_edge_shader(&mut self, 
         start_point : &JsPoint, end_point : &JsPoint, 
         start_glyph : &Glyph, end_glyph : &Glyph, 
-        arrow : &Arrow,
-        degrees : f32, scale : f32, thickness : f32, dash_pattern : Vec<u8>
-    ) -> Result<(), JsValue> {
-        
+        scale : f32,
+        edge_options : &EdgeOptions
+    ) -> Result<(), JsValue> {        
+        self.clear();
         let start : Point = start_point.into();
         let end : Point = end_point.into();
         let start_glyph = GlyphInstance::new(start_glyph.clone(), start, scale,  Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(1.0, 0.0, 0.0, 0.5));
         let end_glyph = GlyphInstance::new(end_glyph.clone(), end, scale,  Vec4::new(0.0, 1.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
-        self.glyph_shader.clear_glyphs();
-        self.add_glyph_instance(start_glyph.clone())?;
-        self.add_glyph_instance(end_glyph.clone())?;
+        self.chart_shaders.add_glyph_instance(start_glyph.clone())?;
+        self.chart_shaders.add_glyph_instance(end_glyph.clone())?;
 
-        self.edge_shader.clear();
-        self.edge_shader.add_edge(
-            start_glyph, 
-            end_glyph, 
-            Some(&arrow), Some(&arrow), 
-            Angle::degrees(degrees), thickness, 
-            &dash_pattern
-        )?;
+        self.chart_shaders.add_edge(start_glyph, end_glyph, edge_options)?;
  
         Ok(())
     }
@@ -263,14 +247,10 @@ impl Canvas {
     pub fn test_speed_setup(&mut self, 
         glyph1 : &Glyph, glyph2 : &Glyph, 
         xy_max : usize,  scale : f32, 
-        degrees : f32, thickness : f32,
-        arrow : &Arrow,
+        edge_options : &EdgeOptions
     ) -> Result<(), JsValue> {
+        self.clear();
         let mut glyph_instances = Vec::new();
-
-        self.glyph_shader.clear_glyphs();
-        self.edge_shader.clear();
-
 
         for x in 0..xy_max {
             for y in 0..xy_max {
@@ -281,15 +261,12 @@ impl Canvas {
 
                 let glyph = if (x + y) % 2 == 1 { glyph1 } else { glyph2 };
                 let glyph_instance = GlyphInstance::new(glyph.clone(), point(x as f32, y as f32), scale, Vec4::new(0.0, 0.0, 0.0, 0.5), Vec4::new(0.0, 0.0, 1.0, 0.5));
-                self.add_glyph_instance(glyph_instance.clone())?;
+                self.chart_shaders.add_glyph_instance(glyph_instance.clone())?;
                 glyph_instances.push(glyph_instance);
             }
         }
         let x_max = xy_max;
         let y_max = xy_max;
-
-
-        let angle = Angle::degrees(degrees);
 
         for x in 1..x_max {
             for y in 0..y_max {
@@ -301,7 +278,7 @@ impl Canvas {
                     let x = x - 1;
                     glyph_instances[x * y_max + y].clone()
                 };
-                self.edge_shader.add_edge(source, target, Some(&arrow), Some(&arrow), angle, thickness, &[])?;
+                self.chart_shaders.add_edge(source, target, edge_options)?;
             }
         }
         Ok(())
@@ -326,14 +303,12 @@ impl Canvas {
         self.enable_clip();
         self.minor_grid_shader.draw(self.coordinate_system)?;
         self.major_grid_shader.draw(self.coordinate_system)?;
-        self.glyph_shader.draw(self.coordinate_system)?;
-        self.edge_shader.draw(self.coordinate_system)?;
-        self.hit_canvas_shader.draw(self.coordinate_system)?;
+        self.chart_shaders.draw(self.coordinate_system)?;
         Ok(())
     }
 
     pub fn object_underneath_pixel(&self,  p : JsPoint) -> Result<Option<u32>, JsValue> {
-        self.hit_canvas_shader.object_underneath_pixel(self.coordinate_system, p.into())
+        self.chart_shaders.object_underneath_pixel(self.coordinate_system, p.into())
     }
 }
 

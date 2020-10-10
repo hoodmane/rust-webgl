@@ -25,7 +25,6 @@ use crate::convex_hull::ANGLE_RESOLUTION;
 use crate::coordinate_system::{CoordinateSystem, BufferDimensions};
 
 
-
 const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aPosition", 2, Type::F32),
     Attribute::new("aScale", 1, Type::F32),

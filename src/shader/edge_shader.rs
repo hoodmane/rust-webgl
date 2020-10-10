@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, btree_map};
 use uuid::Uuid;
 
-use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlTexture};
 
 use lyon::geom::math::{Point, Angle};
@@ -35,6 +35,67 @@ const ATTRIBUTES : Attributes = Attributes::new(&[
     Attribute::new("aEnd", 4, Type::I16), // (endGlyph, vec3 endArrow = (NumVertices, HeaderIndex, VerticesIndex) )
     Attribute::new("aDashPattern", 4, Type::I16), // (dash_length, dash_index, dash_offset, dash_padding )
 ]);
+
+#[wasm_bindgen]
+#[derive(Clone, Debug)]
+pub struct EdgeOptions {
+    start_tip : Option<Arrow>, 
+    end_tip : Option<Arrow>,
+    angle : Angle,
+    thickness : f32,
+    dash_pattern : Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl EdgeOptions {
+    pub fn new() -> Self {
+        Self {
+            start_tip : None,
+            end_tip : None,
+            angle : Angle::zero(),
+            thickness : 1.0,
+            dash_pattern : vec![]
+        }
+    }
+
+    pub fn set_tips(&mut self, arrow : Arrow) {
+        self.start_tip = Some(arrow.clone());
+        self.end_tip = Some(arrow);
+    }
+
+    pub fn set_start_tip(&mut self, arrow : Arrow) {
+        self.start_tip = Some(arrow);
+    }
+
+    pub fn set_end_tip(&mut self, arrow : Arrow) {
+        self.end_tip = Some(arrow);
+    }
+
+    pub fn no_tips(&mut self) {
+        self.start_tip = None;
+        self.end_tip = None;
+    }
+
+    pub fn no_start_tip(&mut self) {
+        self.start_tip = None;
+    }
+
+    pub fn no_end_tip(&mut self) {
+        self.end_tip = None;
+    }
+
+    pub fn set_bend_degrees(&mut self, degrees : f32) {
+        self.angle = Angle::degrees(degrees);
+    }
+
+    pub fn set_thickness(&mut self, thickness : f32) {
+        self.thickness = thickness;
+    }
+
+    pub fn set_dash_pattern(&mut self, dash_pattern : Vec<u8>) {
+        self.dash_pattern = dash_pattern;
+    }
+}
 
 
 #[derive(Clone, Copy, Debug)]
@@ -279,16 +340,17 @@ impl EdgeShader {
     pub fn add_edge(&mut self, 
         start : GlyphInstance, 
         end : GlyphInstance, 
-        start_tip : Option<&Arrow>, end_tip : Option<&Arrow>,
-        angle : Angle,
-        thickness : f32,
-        dash_pattern : &[u8],
+        options : &EdgeOptions,
+        // start_tip : Option<&Arrow>, end_tip : Option<&Arrow>,
+        // angle : Angle,
+        // thickness : f32,
+        // dash_pattern : &[u8],
     ) -> Result<(), JsValue> {
-        let start_arrow = start_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
-        let end_arrow = end_tip.map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
+        let start_arrow = options.start_tip.as_ref().map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
+        let end_arrow = options.end_tip.as_ref().map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
         let start_glyph_idx = self.glyph_boundary_data(&start.glyph);
         let end_glyph_idx = self.glyph_boundary_data(&end.glyph);
-        let (dash_index, dash_length) = self.dash_data(dash_pattern.to_vec());
+        let (dash_index, dash_length) = self.dash_data(options.dash_pattern.to_vec());
 
         self.ready = false;
         self.edge_instances.push(EdgeInstance {
@@ -299,8 +361,8 @@ impl EdgeShader {
             end_glyph : end_glyph_idx,
             start_glyph_scale : start.scale,
             end_glyph_scale : end.scale,
-            angle : angle.radians,
-            thickness,
+            angle : options.angle.radians,
+            thickness : options.thickness,
 
             start_arrow,
             end_arrow,
