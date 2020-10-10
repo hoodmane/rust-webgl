@@ -26,7 +26,7 @@ impl MemoryRange {
     }
 
     pub fn is_empty(&mut self) -> bool {
-        self.max < self.min
+        self.max <= self.min
     }   
 
     pub fn set_empty(&mut self) {

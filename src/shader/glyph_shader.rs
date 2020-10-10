@@ -1,6 +1,4 @@
 use std::convert::TryInto;
-use std::collections::{BTreeMap, btree_map};
-use uuid::Uuid;
 
 
 use wasm_bindgen::JsValue;
@@ -74,7 +72,7 @@ fn vec4_to_u8_array(v : Vec4) -> [u16;2] {
 pub struct GlyphShader {
     webgl : WebGlWrapper,
     pub(in crate::shader) program : Program,
-    glyph_map : BTreeMap<Uuid, ShaderGlyphHeader>,
+    glyph_map : Vec<ShaderGlyphHeader>,
     glyph_instances : VertexBuffer<ShaderGlyphInstance>,
     attribute_state : Option<WebGlVertexArrayObject>,
 
@@ -116,7 +114,7 @@ impl GlyphShader {
         Ok(Self {
             webgl,
             program,
-            glyph_map : BTreeMap::new(),
+            glyph_map : Vec::new(),
 
             attribute_state,
             glyph_instances, 
@@ -135,46 +133,41 @@ impl GlyphShader {
         self.ready = false;
     }
 
-    fn glyph_data(&mut self, glyph : &Glyph) -> Result<ShaderGlyphHeader, JsValue> {
-        let entry = self.glyph_map.entry(glyph.uuid);
-        // If btree_map::Entry had a method "or_try_insert(f : K -> Result<V, E>) -> Result<&V, E>" we could use that instead.
-        match entry {
-            btree_map::Entry::Occupied(oe) => Ok(*oe.get()),
-            btree_map::Entry::Vacant(ve) => {
-                let index = self.vertices_data.len() / 3;
-                let index : Result<u16, _> = index.try_into();
-                let index = index.map_err(|_| "Too many total glyph vertices : max number of triangles in all glyphs is 65535.")?;
+    pub(in crate::shader) fn add_glyph_data(&mut self, glyph : &Glyph) -> Result<(), JsValue> {
 
-                let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
-                let scale = 100.0;
-                
-                glyph.tessellate_fill(&mut buffers, scale)?;
-                let num_fill_triangles = buffers.indices.len()  / 3;
-                self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
-                
-                buffers.vertices.clear();
-                buffers.indices.clear();
+        let index = self.vertices_data.len() / 3;
+        let index : Result<u16, _> = index.try_into();
+        let index = index.map_err(|_| "Too many total glyph vertices : max number of triangles in all glyphs is 65535.")?;
 
-                glyph.tessellate_stroke(&mut buffers, scale)?;
-                let num_stroke_triangles = buffers.indices.len() / 3;
-                self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
-                
-                self.max_glyph_num_triangles = self.max_glyph_num_triangles.max(num_fill_triangles + num_stroke_triangles);
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+        let scale = 100.0;
+        
+        glyph.tessellate_fill(&mut buffers, scale)?;
+        let num_fill_triangles = buffers.indices.len()  / 3;
+        self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
+        
+        buffers.vertices.clear();
+        buffers.indices.clear();
 
-                let num_fill_triangles = num_fill_triangles.try_into().unwrap();
-                let num_stroke_triangles  = num_stroke_triangles.try_into().unwrap();
-                Ok(*ve.insert(ShaderGlyphHeader {
-                    index, 
-                    num_fill_triangles, 
-                    num_stroke_triangles,
-                    padding : 0
-                }))
-            }
-        }
+        glyph.tessellate_stroke(&mut buffers, scale)?;
+        let num_stroke_triangles = buffers.indices.len() / 3;
+        self.vertices_data.append(buffers.indices.iter().map(|&i| buffers.vertices[i as usize]));
+        
+        self.max_glyph_num_triangles = self.max_glyph_num_triangles.max(num_fill_triangles + num_stroke_triangles);
+
+        let num_fill_triangles = num_fill_triangles.try_into().unwrap();
+        let num_stroke_triangles  = num_stroke_triangles.try_into().unwrap();
+        self.glyph_map.push(ShaderGlyphHeader {
+            index, 
+            num_fill_triangles, 
+            num_stroke_triangles,
+            padding : 0
+        });
+        Ok(())
     }
 
-    pub fn add_glyph(&mut self, glyph_instance : GlyphInstance) -> Result<(), JsValue> {
-        let glyph = self.glyph_data(&glyph_instance.glyph)?;
+    pub fn add_glyph_instance(&mut self, glyph_instance : GlyphInstance, glyph_index : usize) {
+        let glyph = self.glyph_map[glyph_index];
         self.glyph_instances.push(ShaderGlyphInstance {
             position : glyph_instance.center,
             scale : glyph_instance.scale / 100.0,
@@ -183,7 +176,6 @@ impl GlyphShader {
             glyph 
         });
         self.ready = false;
-        Ok(())
     }
 
     fn prepare(&mut self) -> Result<(), JsValue> {
@@ -192,7 +184,6 @@ impl GlyphShader {
         }
         self.ready = true;
         self.glyph_instances.prepare();
-        self.vertices_data.upload()?;
         Ok(())
     }
 
@@ -203,7 +194,7 @@ impl GlyphShader {
         self.program.use_program();
         self.webgl.bind_vertex_array(self.attribute_state.as_ref());
         self.prepare()?;
-        self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0);
+        self.vertices_data.bind(WebGl2RenderingContext::TEXTURE0)?;
         self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
         self.program.set_uniform_point("uOrigin", coordinate_system.origin);
         self.program.set_uniform_vector("uScale", coordinate_system.scale);

@@ -16,6 +16,7 @@ mod chart_shaders;
 
 
 pub(in crate::shader) use program::Program;
+pub(in crate::shader) use data_texture::DataTexture;
 pub(in crate::shader) use glyph_shader::GlyphShader;
 pub(in crate::shader) use hit_canvas_shader::HitCanvasShader;
 pub(in crate::shader) use edge_shader::EdgeShader;

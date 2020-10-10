@@ -4,7 +4,7 @@ use uuid::Uuid;
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlTexture};
 
-use lyon::geom::math::{Point, Angle};
+use lyon::geom::math::{Point, Angle, Vector};
 use lyon::tessellation::{VertexBuffers};
 
 #[allow(unused_imports)]
@@ -13,7 +13,7 @@ use crate::vector::{Vec4};
 use crate::shader::Program;
 use crate::webgl_wrapper::WebGlWrapper;
 
-use crate::glyph::{GlyphInstance, Glyph};
+use crate::glyph::{GlyphInstance};
 use crate::arrow::Arrow;
 
 use crate::shader::attributes::{Format, Type, NumChannels, Attribute, Attributes};
@@ -146,9 +146,6 @@ pub struct EdgeShader {
     edge_instances : VertexBuffer<EdgeInstance>,
     attribute_state : Option<WebGlVertexArrayObject>,
     
-    glyph_map : BTreeMap<Uuid, u16>,
-    glyph_boundary_data : DataTexture<f32>,
-
     tip_map : BTreeMap<Uuid, ArrowIndices>,
     max_arrow_tip_num_vertices : usize,
     arrow_header_data : DataTexture<ArrowHeader>,
@@ -173,7 +170,6 @@ impl EdgeShader {
         let edge_instances = VertexBuffer::new(webgl.clone());
         ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), edge_instances.buffer.as_ref())?;
 
-        let glyph_boundary_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         let arrow_header_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         let arrow_path_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Two));
         
@@ -193,9 +189,6 @@ impl EdgeShader {
 
             edge_instances,
             attribute_state,
-
-            glyph_map : BTreeMap::new(),
-            glyph_boundary_data,
 
             tip_map : BTreeMap::new(),
             arrow_header_data,
@@ -283,10 +276,8 @@ impl EdgeShader {
 
     pub fn clear(&mut self){
         self.max_arrow_tip_num_vertices = 0;
-        self.glyph_map.clear();
         self.tip_map.clear();
         self.edge_instances.clear();
-        self.glyph_boundary_data.clear();
         self.arrow_header_data.clear();
         self.arrow_path_data.clear();
         self.ready = false;
@@ -323,23 +314,12 @@ impl EdgeShader {
         }
     }
 
-    fn glyph_boundary_data(&mut self, glyph : &Glyph) -> u16 {
-        let next_glyph_index = self.glyph_map.len();
-        let entry = self.glyph_map.entry(glyph.uuid);
-        match entry {
-            btree_map::Entry::Occupied(oe) => *oe.get(),
-            btree_map::Entry::Vacant(ve) => {
-                self.glyph_boundary_data.append(glyph.boundary().iter().map(|v| v.length()));
-                *ve.insert(next_glyph_index as u16)
-            }
-        }
-    }
-
-
 
     pub fn add_edge(&mut self, 
         start : GlyphInstance, 
         end : GlyphInstance, 
+        start_glyph_id : usize,
+        end_glyph_id : usize,
         options : &EdgeOptions,
         // start_tip : Option<&Arrow>, end_tip : Option<&Arrow>,
         // angle : Angle,
@@ -348,8 +328,8 @@ impl EdgeShader {
     ) -> Result<(), JsValue> {
         let start_arrow = options.start_tip.as_ref().map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
         let end_arrow = options.end_tip.as_ref().map(|tip| self.arrow_tip_data(tip)).unwrap_or_else(|| Ok(Default::default()))?;
-        let start_glyph_idx = self.glyph_boundary_data(&start.glyph);
-        let end_glyph_idx = self.glyph_boundary_data(&end.glyph);
+        let start_glyph_idx = start_glyph_id as u16;
+        let end_glyph_idx = end_glyph_id as u16;
         let (dash_index, dash_length) = self.dash_data(options.dash_pattern.to_vec());
 
         self.ready = false;
@@ -381,9 +361,6 @@ impl EdgeShader {
         }
         self.edge_instances.prepare();
 
-        self.glyph_boundary_data.upload()?;
-        self.arrow_header_data.upload()?;
-        self.arrow_path_data.upload()?;
         if !self.dash_data.is_empty() {
             self.upload_dash_texture_data()?;
         }
@@ -391,14 +368,14 @@ impl EdgeShader {
     }
 
 
-    pub fn draw(&mut self, coordinate_system : CoordinateSystem) -> Result<(), JsValue> {
+    pub fn draw(&mut self, coordinate_system : CoordinateSystem, glyph_boundary_data : &mut DataTexture<Vector>) -> Result<(), JsValue> {
         if self.edge_instances.is_empty() {
             return Ok(());
         }
         self.program.use_program();
-        self.glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0);
-        self.arrow_header_data.bind(WebGl2RenderingContext::TEXTURE1);
-        self.arrow_path_data.bind(WebGl2RenderingContext::TEXTURE2);
+        glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0)?;
+        self.arrow_header_data.bind(WebGl2RenderingContext::TEXTURE1)?;
+        self.arrow_path_data.bind(WebGl2RenderingContext::TEXTURE2)?;
         self.webgl.active_texture(WebGl2RenderingContext::TEXTURE3);
         self.webgl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, self.dash_texture.as_ref());
 

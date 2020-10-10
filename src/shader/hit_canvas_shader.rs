@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::collections::{BTreeMap, btree_map};
-use uuid::Uuid;
 
 use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject, WebGlTexture, WebGlFramebuffer, WebGlRenderbuffer};
 use wasm_bindgen::JsValue;
@@ -14,12 +12,12 @@ use crate::log;
 
 use crate::webgl_wrapper::WebGlWrapper;
 use crate::shader::Program;
-use crate::shader::attributes::{Format, Type, NumChannels, Attribute, Attributes};
+use crate::shader::attributes::{Type, Attribute, Attributes};
 
 use crate::shader::data_texture::DataTexture;
 use crate::shader::vertex_buffer::VertexBuffer;
 
-use crate::glyph::{GlyphInstance, Glyph};
+use crate::glyph::{GlyphInstance};
 
 use crate::convex_hull::ANGLE_RESOLUTION;
 use crate::coordinate_system::{CoordinateSystem, BufferDimensions};
@@ -54,8 +52,6 @@ pub struct HitCanvasShader {
 
     attribute_state : Option<WebGlVertexArrayObject>,
 
-    glyph_map : BTreeMap<Uuid, u16>,
-    glyph_boundary_data : DataTexture<Vector>,
     glyph_instances : VertexBuffer<ShaderGlyphInstance>,
     ready : bool,
 }
@@ -82,7 +78,6 @@ impl HitCanvasShader {
 
         ATTRIBUTES.set_up_vertex_array(&webgl, &program.program, attribute_state.as_ref(), glyph_instances.buffer.as_ref())?;
 
-        let glyph_boundary_data = DataTexture::new(webgl.clone(), Format(Type::F32, NumChannels::Four));
         program.use_program();
         program.set_uniform_int("uGlyphDataTexture", 0);
 
@@ -93,12 +88,10 @@ impl HitCanvasShader {
             hit_canvas_texture : None,
             hit_canvas_framebuffer : None,
             hit_canvas_depth_buffer : None,
-            glyph_map : BTreeMap::new(),
 
             glyph_instances, 
             
             attribute_state,
-            glyph_boundary_data,
             ready : false
         })
     }
@@ -142,13 +135,12 @@ impl HitCanvasShader {
 
     }
 
-    pub fn add_glyph(&mut self, glyph_instance : GlyphInstance) -> Result<(), JsValue> {
-        let glyph = self.glyph_boundary_data(&glyph_instance.glyph);
+    pub fn add_glyph(&mut self, glyph_instance : GlyphInstance, glyph_index : usize) -> Result<(), JsValue> {
         self.glyph_instances.push(ShaderGlyphInstance {
             position : glyph_instance.center,
             scale : glyph_instance.scale,
             glyph : ShaderGlyphHeader { 
-                index : glyph,
+                index : glyph_index as u16,
                 padding : 0
             },
         });
@@ -161,43 +153,25 @@ impl HitCanvasShader {
         self.ready = false;
     }
 
-    fn glyph_boundary_data(&mut self, glyph : &Glyph) -> u16 {
-        let next_glyph_index = self.glyph_map.len();
-        let entry = self.glyph_map.entry(glyph.uuid);
-        match entry {
-            btree_map::Entry::Occupied(oe) => *oe.get(),
-            btree_map::Entry::Vacant(ve) => {
-                self.glyph_boundary_data.append(glyph.boundary().iter().copied());
-                *ve.insert(next_glyph_index as u16)
-            }
-        }
-    }
-
-    fn prepare(&mut self) -> Result<(), JsValue> {
-        if self.ready {
-            return Ok(());
-        }
-        self.ready = true;
-        self.glyph_instances.prepare();
-        self.glyph_boundary_data.upload()?;
-        Ok(())
-    }
-
-    pub fn draw(&mut self, coordinate_system : CoordinateSystem) -> Result<(), JsValue> {
+    pub fn draw(&mut self, coordinate_system : CoordinateSystem, glyph_boundary_data : &mut DataTexture<Vector>) -> Result<(), JsValue> {
         if self.glyph_instances.is_empty() {
             return Ok(());
         }
         self.program.use_program();
+        self.webgl.bind_vertex_array(self.attribute_state.as_ref());
+
         self.webgl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, self.hit_canvas_framebuffer.as_ref());
         self.webgl.clear_color(0.0, 0.0, 0.0, 0.0);
         self.webgl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT);
         self.webgl.disable(WebGl2RenderingContext::BLEND);
         self.webgl.enable(WebGl2RenderingContext::DEPTH_TEST);
 
-        self.webgl.bind_vertex_array(self.attribute_state.as_ref());
-        self.prepare()?;
+        // This has a side-effect of adjusting texture bindings, so it has to occur before glyph_boundary_data.bind().
         self.initialize_hit_canvas(coordinate_system.buffer_dimensions);
-        self.glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0);
+
+        self.glyph_instances.prepare();
+        glyph_boundary_data.bind(WebGl2RenderingContext::TEXTURE0)?;
+
         self.program.set_uniform_transform("uTransformationMatrix", coordinate_system.transform);
         self.program.set_uniform_point("uOrigin", coordinate_system.origin);
         self.program.set_uniform_vector("uScale", coordinate_system.scale);

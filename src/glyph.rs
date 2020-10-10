@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use crate::log; 
+use crate::error::convert_tessellation_error;
 
 use lazy_static::lazy_static;
 use arrayvec::ArrayVec;
@@ -14,7 +15,7 @@ use fonterator::{self as font, Font}; // For parsing font file.
 use lyon::geom::math::{point, Point, vector, Vector, Angle, Transform};
 use lyon::path::{Path, PathEvent, iterator::PathIterator};
 use lyon::tessellation::{
-    geometry_builder, TessellationError,
+    geometry_builder,
     StrokeTessellator, StrokeOptions,
     FillTessellator, FillOptions, VertexBuffers
 };
@@ -225,19 +226,20 @@ impl GlyphBuilder {
         Glyph { 
             paths,
             convex_hull,
-            uuid : Uuid::new_v4()
+            uuid : GlyphUuid(Uuid::new_v4())
         }
     }
 }
 
-
+#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
+pub struct GlyphUuid(Uuid);
 
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct Glyph {
     paths : Rc<Vec<GlyphComponent>>,
     convex_hull : Rc<ConvexHull>,
-    pub(crate) uuid : Uuid
+    pub(crate) uuid : GlyphUuid
 }
 
 impl Glyph { 
@@ -251,7 +253,7 @@ impl Glyph {
         for &GlyphComponent { ref path, stroke : _stroke,  fill } in self.paths.iter() {
             if let Some(options) = fill {
                 let path = path.iter().copied().transformed(&transform);
-                fill_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_error)?;
+                fill_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_tessellation_error)?;
             }
         }        
         Ok(())
@@ -267,13 +269,12 @@ impl Glyph {
         for &GlyphComponent { ref path, stroke, fill : _fill } in &*self.paths {
             if let Some(options) = stroke {
                 let path = path.iter().copied().transformed(&transform);
-                stroke_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_error)?;
+                stroke_tessellator.tessellate(path, &options, &mut vertex_builder).map_err(convert_tessellation_error)?;
             }
         }
         Ok(())
     }
 
-    
     pub(crate) fn boundary(&self) -> &Vec<Vector> {
         &self.convex_hull.outline
     }
@@ -290,7 +291,6 @@ pub struct GlyphInstance {
 }
 
 
-#[allow(dead_code)]
 impl GlyphInstance {
     pub fn new(glyph : Glyph, center : Point, scale : f32, stroke_color : Vec4, fill_color : Vec4) -> Self {
         Self {
@@ -301,37 +301,4 @@ impl GlyphInstance {
             fill_color,
         }
     }
-
-    pub fn center(&self) -> Point {
-        self.center
-    }
-
-    fn into_local_coords(&self, point : Point) -> Vector {
-        (point - self.center) / self.scale
-    }
-
-    fn from_local_coords(&self, point : Vector) -> Point {
-        self.center + point * self.scale
-    }
-
-    pub fn glyph_id(&self) -> Uuid {
-        self.glyph.uuid
-    }
-
-    pub fn find_boundary_distance_toward(&self, p : Point) -> f32 {
-        (self.find_boundary_point((p - self.center).angle_from_x_axis()) - self.center).length()
-    }
-
-    pub fn find_boundary_toward(&self, p : Point) -> Point {
-        self.find_boundary_point((p - self.center).angle_from_x_axis())
-    }
-
-	pub fn find_boundary_point(&self, angle : Angle) -> Point {
-        self.from_local_coords(self.glyph.convex_hull.find_boundary_point(angle))
-	}
-}
-
-
-fn convert_error(err : TessellationError) -> JsValue {
-    JsValue::from_str(&format!("{:?}", err))
 }

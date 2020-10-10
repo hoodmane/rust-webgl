@@ -212,6 +212,7 @@ impl ConvexHull {
 		v
 	}
 
+	#[allow(dead_code)]
 	pub fn find_boundary_point(&self, angle : Angle) -> Vector {
 		let index = ((ANGLE_RESOLUTION as f32) * (angle.positive()/Angle::two_pi())) as usize;
 		self.outline[index]
